@@ -60,8 +60,9 @@ def stream_chat(
     elif "deepseek" in model_name.lower():
         model_id_api = "deepseek-chat"
         
-    # 如果是 DeepSeek 或默认的在线模型，优先从环境变量覆盖 base_url 和 api_key（因为 DB 中可能缓存了旧的）
-    if "deepseek" in model_name.lower() or protocol == "openai":
+    # 如果是 DeepSeek 或默认的在线模型，优先从环境变量覆盖 base_url 和 api_key（防止在线代理随时变动）
+    # 但如果是“本地”模型，绝不覆盖，保留其 localhost:xxxx 端口
+    if ("deepseek" in model_name.lower() or protocol == "openai") and "本地" not in model_name:
         env_key = os.getenv("AIRP_MODEL_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
         env_url = os.getenv("AIRP_MODEL_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL")
         

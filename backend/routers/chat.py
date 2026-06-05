@@ -44,7 +44,7 @@ def send_message(payload: ChatRequest):
     rag_context = ""
     if last_user_msg:
         try:
-            rag_context = ragflow_client.retrieve(last_user_msg)
+            rag_context = ragflow_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge", "Memory_Knowledge"])
         except Exception as e:
             logger.error(f"RAG Retrieval failed: {e}")
 
@@ -56,17 +56,46 @@ def send_message(payload: ChatRequest):
     cleaned_messages = [{"role": m["role"], "content": m["content"]} for m in formatted_messages]
 
     def event_generator():
+        accumulated_assistant_content = ""
         try:
             # 用 stream_chat 获取生成器
             content_stream = stream_chat(cleaned_messages, system_prompt)
             for chunk in content_stream:
+                accumulated_assistant_content += chunk
                 yield f"data: {json_escape(chunk)}\n\n"
         except Exception as e:
             import traceback
             traceback.print_exc()
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
+        finally:
+            # 流式结束时，将用户最后一条消息和助手的回复写入短期记忆 (Level 0)
+            if last_user_msg and accumulated_assistant_content:
+                try:
+                    memory_content = f"【对话记录】\n用户：{last_user_msg}\n媚吻锋：{accumulated_assistant_content}"
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+                    cursor.execute(
+                        "INSERT INTO memory_logs (content, level, status) VALUES (?, 0, 'active')",
+                        (memory_content,)
+                    )
+                    conn.commit()
+                    conn.close()
+                except Exception as e:
+                    logger.error(f"Failed to save memory: {e}")
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+from backend.services.memory_decay import process_memory_decay
+
+@router.post("/summarize")
+def summarize_memory():
+    """触发记忆压缩和遗忘算法"""
+    try:
+        stats = process_memory_decay()
+        return {"status": "success", "message": "记忆压缩整理完成。", "stats": stats}
+    except Exception as e:
+        logger.error(f"Memory decay failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 def json_escape(text: str) -> str:
     """包装为 JSON 字符串，便于前端原样解析"""

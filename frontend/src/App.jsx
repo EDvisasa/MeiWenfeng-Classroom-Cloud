@@ -374,8 +374,31 @@ export default function App() {
       setMessages(prev => [
         ...prev,
         { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[系统记忆压缩] 正在调用 memory_decay.py 遗忘曲线算法压缩早期对话... 压缩完成，已归档入库。` }
+        { role: 'system_info', content: `[系统记忆压缩] 正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...` }
       ]);
+      try {
+        const res = await fetch('http://localhost:8000/api/chat/summarize', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setMessages(prev => [
+            ...prev,
+            { role: 'system_info', content: `[系统记忆压缩] 压缩完成！新记忆已归档入库。处理统计: ${JSON.stringify(data.stats)}` }
+          ]);
+        } else {
+          setMessages(prev => [
+            ...prev,
+            { role: 'system_info', content: `[系统记忆压缩] 压缩失败: ${data.detail || '未知错误'}` }
+          ]);
+        }
+      } catch (e) {
+        setMessages(prev => [
+          ...prev,
+          { role: 'system_info', content: `[系统记忆压缩] 请求异常：无法连接到后端。` }
+        ]);
+      }
     } else if (cleanCmd === '/切换模型') {
       setMessages(prev => [
         ...prev,

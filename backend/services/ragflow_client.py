@@ -24,14 +24,14 @@ class RAGFlowClient:
             "Content-Type": "application/json"
         }
 
-    def _get_or_create_dataset(self) -> str:
+    def _get_or_create_dataset(self, dataset_name: str) -> str:
         with httpx.Client() as client:
             try:
                 resp = client.get(f"{self.base_url}/datasets", headers=self.headers)
                 if resp.status_code == 200:
                     data = resp.json().get("data", [])
                     for ds in data:
-                        if ds.get("name") == self.dataset_name:
+                        if ds.get("name") == dataset_name:
                             return ds.get("id")
             except Exception as e:
                 print(f"Failed to fetch datasets: {e}")
@@ -39,24 +39,47 @@ class RAGFlowClient:
             # Create if not exists
             resp = client.post(
                 f"{self.base_url}/datasets", 
-                json={"name": self.dataset_name}, 
+                json={"name": dataset_name}, 
                 headers=self.headers
             )
             resp.raise_for_status()
             return resp.json()["data"]["id"]
 
-    def sync_knowledge(self, files_content: Dict[str, str]) -> Dict[str, Any]:
+    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
         """Uploads a dictionary of filename -> markdown content to RAGFlow."""
         if not self.api_key or self.api_key == "your_ragflow_api_key_here":
             return {"status": "error", "message": "RAGFLOW_API_KEY 未配置，请前往 RAGFlow 的 API 页面生成并在 .env 中配置。"}
             
         try:
-            dataset_id = self._get_or_create_dataset()
+            dataset_id = self._get_or_create_dataset(dataset_name)
             
             with httpx.Client() as client:
                 for filename, content in files_content.items():
                     auth_header = {"Authorization": f"Bearer {self.api_key}"}
                     
+                    # 1. 强迫症清理：检查是否有同名文件，如果有则删除
+                    try:
+                        list_resp = client.get(
+                            f"{self.base_url}/datasets/{dataset_id}/documents",
+                            headers=self.headers
+                        )
+                        if list_resp.status_code == 200:
+                            # 兼容不同 RAGFlow 版本的响应结构
+                            docs_data = list_resp.json().get("data", {})
+                            docs = docs_data.get("docs", []) if isinstance(docs_data, dict) else (docs_data if isinstance(docs_data, list) else [])
+                            
+                            to_delete_ids = [d.get("id") for d in docs if d.get("name") == filename.split('/')[-1] and d.get("id")]
+                            if to_delete_ids:
+                                client.request(
+                                    "DELETE",
+                                    f"{self.base_url}/datasets/{dataset_id}/documents",
+                                    json={"ids": to_delete_ids},
+                                    headers=self.headers
+                                )
+                    except Exception as e:
+                        print(f"Cleanup check failed (ignored): {e}")
+                    
+                    # 2. 上传新文件
                     files = {
                         "file": (filename.split('/')[-1], content.encode('utf-8'), "text/markdown")
                     }
@@ -76,30 +99,36 @@ class RAGFlowClient:
                         if doc_data:
                             doc_id = doc_data[0].get("id") if isinstance(doc_data, list) else doc_data.get("id")
                             if doc_id:
+                                # Trigger parsing
                                 client.post(
-                                    f"{self.base_url}/datasets/{dataset_id}/documents/{doc_id}/parse",
+                                    f"{self.base_url}/datasets/{dataset_id}/chunks",
+                                    json={"document_ids": [doc_id]},
                                     headers=self.headers
                                 )
                     except Exception as e:
                         print(f"Parsing trigger failed (safe to ignore if auto-parsing is on): {e}")
 
-            return {"status": "success", "message": f"成功同步并开始解析 {len(files_content)} 份讲义到 RAGFlow 知识库。"}
+            return {"status": "success", "message": f"成功同步并开始解析 {len(files_content)} 份文件到 RAGFlow 知识库 {dataset_name}。"}
         except Exception as e:
             import traceback
             traceback.print_exc()
             return {"status": "error", "message": f"同步到 RAGFlow 失败: {str(e)}"}
 
-    def retrieve(self, query: str) -> str:
+    def retrieve(self, query: str, dataset_names: list = None) -> str:
         """Retrieve relevant context for a query."""
+        if dataset_names is None:
+            dataset_names = ["Classroom_Knowledge"]
+            
         if not self.api_key or self.api_key == "your_ragflow_api_key_here":
             return ""
             
         try:
-            dataset_id = self._get_or_create_dataset()
+            dataset_ids = [self._get_or_create_dataset(name) for name in dataset_names]
+            
             with httpx.Client() as client:
                 resp = client.post(
                     f"{self.base_url}/retrieval",
-                    json={"dataset_ids": [dataset_id], "question": query, "top_k": 3},
+                    json={"dataset_ids": dataset_ids, "question": query, "top_k": 3},
                     headers=self.headers
                 )
                 if resp.status_code == 200:
