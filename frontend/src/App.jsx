@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
+import Cropper from 'react-easy-crop';
+import getCroppedImg from './utils/cropImage';
 
 // 预设本地虚拟文件系统内容
 const VIRTUAL_FILES = {
@@ -64,6 +66,71 @@ const COMMANDS = [
   { cmd: '/计划', desc: '根据当前进度，重新调整课程大纲' }
 ];
 
+const CropModal = ({ imageSrc, onClose, onSave }) => {
+  const [crop, setCrop] = useState({ x: 0, y: 0 });
+  const [zoom, setZoom] = useState(1);
+  const [croppedAreaPixels, setCroppedAreaPixels] = useState(null);
+
+  const onCropComplete = React.useCallback((croppedArea, croppedAreaPixels) => {
+    setCroppedAreaPixels(croppedAreaPixels);
+  }, []);
+
+  const handleSave = async () => {
+    try {
+      const croppedImage = await getCroppedImg(imageSrc, croppedAreaPixels);
+      onSave(croppedImage);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  return (
+    <div className="crop-modal-overlay">
+      <div className="crop-modal-content">
+        <h3 style={{ margin: 0, fontSize: '16px' }}>裁剪头像</h3>
+        <div className="crop-container">
+          <Cropper
+            image={imageSrc}
+            crop={crop}
+            zoom={zoom}
+            aspect={1}
+            onCropChange={setCrop}
+            onCropComplete={onCropComplete}
+            onZoomChange={setZoom}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <span style={{ fontSize: '12px' }}>缩放:</span>
+          <input
+            type="range"
+            value={zoom}
+            min={1}
+            max={3}
+            step={0.1}
+            aria-labelledby="Zoom"
+            onChange={(e) => setZoom(e.target.value)}
+            style={{ flex: 1, accentColor: 'var(--accent-pink)' }}
+          />
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '8px' }}>
+          <button 
+            onClick={onClose}
+            style={{ padding: '8px 16px', background: 'var(--bg-tertiary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+          >
+            取消
+          </button>
+          <button 
+            onClick={handleSave}
+            style={{ padding: '8px 16px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+          >
+            完成
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function App() {
   const [messages, setMessages] = useState([
     {
@@ -73,6 +140,49 @@ export default function App() {
   ]);
   const [inputText, setInputText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+
+  // 内心独白
+  const [currentThought, setCurrentThought] = useState('暂时没有想法...');
+
+  // 头像裁剪相关
+  const [userAvatar, setUserAvatar] = useState(localStorage.getItem('user_avatar') || '🎓');
+  const [assistantAvatar, setAssistantAvatar] = useState(localStorage.getItem('assistant_avatar') || '🦊');
+  const [cropTarget, setCropTarget] = useState('user');
+  const [showCropModal, setShowCropModal] = useState(false);
+  const [imageSrc, setImageSrc] = useState(null);
+  const fileInputRef = useRef(null);
+
+  const handleFileChange = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const reader = new FileReader();
+      reader.addEventListener('load', () => {
+        setImageSrc(reader.result);
+        setShowCropModal(true);
+      });
+      reader.readAsDataURL(e.target.files[0]);
+      e.target.value = null; // reset
+    }
+  };
+
+  const handleSaveCrop = (croppedImage) => {
+    if (cropTarget === 'user') {
+      setUserAvatar(croppedImage);
+      localStorage.setItem('user_avatar', croppedImage);
+    } else {
+      setAssistantAvatar(croppedImage);
+      localStorage.setItem('assistant_avatar', croppedImage);
+    }
+    setShowCropModal(false);
+    setImageSrc(null);
+  };
+  
+  // 字体大小设置
+  const [fontSize, setFontSize] = useState(parseInt(localStorage.getItem('chat_font_size')) || 16);
+  const handleFontSizeChange = (e) => {
+    const newSize = parseInt(e.target.value);
+    setFontSize(newSize);
+    localStorage.setItem('chat_font_size', newSize.toString());
+  };
   
   // 状态与配置
   const [activeModel, setActiveModel] = useState('DeepSeek (在线)');
@@ -276,8 +386,32 @@ export default function App() {
       setMessages(prev => [
         ...prev,
         { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[RAGFlow联动] 正在同步左侧本地讲义到本地 RAGFlow 知识库 (http://localhost/)... 同步完成！已构建本地专属向量库。` }
+        { role: 'system_info', content: `[RAGFlow联动] 正在同步左侧本地讲义到 RAGFlow 知识库，请稍候...` }
       ]);
+      try {
+        const res = await fetch('http://localhost:8000/api/chat/sync_knowledge', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ files: VIRTUAL_FILES })
+        });
+        const data = await res.json();
+        if (res.ok) {
+          setMessages(prev => [
+            ...prev,
+            { role: 'system_info', content: `[RAGFlow联动] 同步完成！${data.message}` }
+          ]);
+        } else {
+          setMessages(prev => [
+            ...prev,
+            { role: 'system_info', content: `[RAGFlow联动] 同步出错：${data.detail || '未知错误'}` }
+          ]);
+        }
+      } catch (e) {
+        setMessages(prev => [
+          ...prev,
+          { role: 'system_info', content: `[RAGFlow联动] 请求异常：无法连接到后端。` }
+        ]);
+      }
     } else if (cleanCmd === '/计划') {
       setMessages(prev => [
         ...prev,
@@ -355,12 +489,21 @@ export default function App() {
                 const parsed = JSON.parse(jsonStr);
                 if (parsed && parsed.text) {
                   accumulatedContent += parsed.text;
+                  
+                  // 实时抽离内心独白
+                  let displayContent = accumulatedContent;
+                  const thoughtMatch = accumulatedContent.match(/【此刻内心】[：:]([\s\S]*)$/);
+                  if (thoughtMatch) {
+                    displayContent = accumulatedContent.replace(/【此刻内心】[：:][\s\S]*$/, '').trim();
+                    setCurrentThought(thoughtMatch[1].trim());
+                  }
+
                   // 更新最后一条消息
                   setMessages(prev => {
                     const updated = [...prev];
                     updated[updated.length - 1] = {
                       role: 'assistant',
-                      content: accumulatedContent,
+                      content: displayContent,
                       streaming: true
                     };
                     return updated;
@@ -460,16 +603,30 @@ export default function App() {
   };
 
   return (
-    <div className="app-container">
+    <div className="app-container" style={{ '--chat-font-size': `${fontSize}px` }}>
       {/* 顶部工具栏 */}
       <header className="header-bar">
         <div className="logo-section">
           <span className="logo-icon">🌸</span>
           <span>媚吻锋随身课堂</span>
         </div>
-        <div className="connection-status">
-          <div className={`status-indicator ${isStreaming ? 'pulse' : ''}`} />
-          <span>{isStreaming ? '媚吻锋思考中...' : '课堂连通正常'}</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="settings-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
+            <span style={{ cursor: 'pointer' }} title="设置字体大小">⚙️ 字体大小</span>
+            <input 
+              type="range" 
+              min="12" 
+              max="24" 
+              value={fontSize} 
+              onChange={handleFontSizeChange} 
+              style={{ width: '80px', accentColor: 'var(--accent-pink)' }} 
+            />
+            <span>{fontSize}px</span>
+          </div>
+          <div className="connection-status">
+            <div className={`status-indicator ${isStreaming ? 'pulse' : ''}`} />
+            <span>{isStreaming ? '媚吻锋思考中...' : '课堂连通正常'}</span>
+          </div>
         </div>
       </header>
 
@@ -517,12 +674,28 @@ export default function App() {
               const isUser = msg.role === 'user';
               return (
                 <div key={index} className={`message-row ${isUser ? 'user' : 'assistant'}`}>
-                  <div className="avatar">
-                    {isUser ? '🎓' : '🦊'}
+                  <div 
+                    className="avatar avatar-upload-trigger" 
+                    onClick={() => {
+                      setCropTarget(isUser ? 'user' : 'assistant');
+                      fileInputRef.current?.click();
+                    }}
+                    title="点击更换头像"
+                    style={{ overflow: 'hidden' }}
+                  >
+                    {isUser ? (
+                      userAvatar.startsWith('data:') || userAvatar.startsWith('http') 
+                        ? <img src={userAvatar} alt="user" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> 
+                        : userAvatar
+                    ) : (
+                      assistantAvatar.startsWith('data:') || assistantAvatar.startsWith('http')
+                        ? <img src={assistantAvatar} alt="assistant" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                        : assistantAvatar
+                    )}
                   </div>
                   <div className="message-bubble">
                     <span className="sender-name">
-                      {isUser ? '学生 玄一峰' : '导师 媚吻锋'}
+                      {isUser ? '✦⋆ 学生 玄一峰 ⋆✦' : 'ღ♡ 导师 媚吻锋 ♡ღ'}
                     </span>
                     <div>
                       {renderMessageContent(msg.content)}
@@ -606,19 +779,8 @@ export default function App() {
           <div className="right-content">
             {/* 导师状态卡片 */}
             <div className="character-widget">
-              <div className="character-image-box">
-                <img 
-                  className="character-img" 
-                  src={getAvatarSrc()} 
-                  alt="媚吻锋" 
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                    e.target.nextSibling.style.display = 'block';
-                  }}
-                />
-                <div className="no-image-text" style={{ display: 'none' }}>
-                  🦊 媚吻锋画像加载中...
-                </div>
+              <div className="thought-box">
+                {currentThought}
               </div>
               <div className="character-details">
                 <div className="character-name">媚吻锋</div>
@@ -626,40 +788,6 @@ export default function App() {
                 <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                   当前态度：<span style={{ color: 'var(--accent-pink)', fontWeight: '600' }}>{getAffectionText(affection)}</span>
                 </div>
-                {/* 画像切换选择 */}
-                {avatarList.length > 0 && (
-                  <div style={{ marginTop: '10px' }}>
-                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px', fontWeight: '500' }}>
-                      🖼️ 切换角色画像：
-                    </label>
-                    <select
-                      style={{
-                        width: '100%',
-                        backgroundColor: 'var(--bg-secondary)',
-                        color: 'var(--text-primary)',
-                        border: '1px solid var(--border-color)',
-                        padding: '6px 8px',
-                        fontSize: '12px',
-                        borderRadius: 'var(--border-radius-sm)',
-                        outline: 'none',
-                        cursor: 'pointer',
-                        fontFamily: 'var(--font-sans)'
-                      }}
-                      value={selectedAvatar}
-                      onChange={(e) => {
-                        setSelectedAvatar(e.target.value);
-                        localStorage.setItem('selected_avatar', e.target.value);
-                      }}
-                    >
-                      <option value="">默认AI画作</option>
-                      {avatarList.map(name => (
-                        <option key={name} value={name}>
-                          {name.replace(/\.png|\.jpg|\.jpeg|\.webp/gi, '')}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
               </div>
             </div>
 
@@ -697,6 +825,24 @@ export default function App() {
           </div>
         </section>
       </main>
+
+      {/* 隐藏的文件输入框 */}
+      <input 
+        type="file" 
+        accept="image/*" 
+        ref={fileInputRef} 
+        style={{ display: 'none' }} 
+        onChange={handleFileChange} 
+      />
+
+      {/* 头像裁剪弹窗 */}
+      {showCropModal && (
+        <CropModal 
+          imageSrc={imageSrc} 
+          onClose={() => { setShowCropModal(false); setImageSrc(null); }} 
+          onSave={handleSaveCrop} 
+        />
+      )}
     </div>
   );
 }

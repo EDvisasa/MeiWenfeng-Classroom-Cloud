@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from fastapi import APIRouter, HTTPException, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -6,6 +7,7 @@ from typing import List, Dict, Any
 from backend.services.model_router import stream_chat, get_active_model
 from backend.services.prompts import get_system_prompt
 from backend.database import get_db_connection
+from backend.services.ragflow_client import ragflow_client
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -18,7 +20,7 @@ class ChatRequest(BaseModel):
     messages: List[Message]
 
 @router.post("/send")
-def send_message(payload: ChatRequest):
+async def send_message(payload: ChatRequest):
     """发送对话消息，返回流式 EventSource"""
     # 1. 转换消息格式
     formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content} for msg in payload.messages]
@@ -36,7 +38,18 @@ def send_message(payload: ChatRequest):
     except Exception as e:
         logger.error(f"Failed to fetch affection: {e}")
 
+    # 提取最后一条用户消息用于 RAG 检索
+    last_user_msg = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+    rag_context = ""
+    if last_user_msg:
+        try:
+            rag_context = await ragflow_client.retrieve(last_user_msg)
+        except Exception as e:
+            logger.error(f"RAG Retrieval failed: {e}")
+
     system_prompt = get_system_prompt(affection_value)
+    if rag_context:
+        system_prompt += f"\n\n【附加背景知识库检索结果（作为世界观或讲义参考）】\n{rag_context}\n\n（请结合以上背景知识进行回答，若相关则自然地融入你的话语中，若无关则忽略）"
 
     # 3. 剥离消息以满足 model_router 要求的格式 (role, content)
     cleaned_messages = [{"role": m["role"], "content": m["content"]} for m in formatted_messages]
@@ -55,7 +68,16 @@ def json_escape(text: str) -> str:
     """包装为 JSON 字符串，便于前端原样解析"""
     return json.dumps({"text": text}, ensure_ascii=False)
 
-import json
+class SyncRequest(BaseModel):
+    files: Dict[str, str]
+
+@router.post("/sync_knowledge")
+async def sync_knowledge(payload: SyncRequest):
+    """同步前端知识库文件到 RAGFlow"""
+    result = await ragflow_client.sync_knowledge(payload.files)
+    if result["status"] == "error":
+        raise HTTPException(status_code=500, detail=result["message"])
+    return result
 
 @router.get("/models")
 def list_models():

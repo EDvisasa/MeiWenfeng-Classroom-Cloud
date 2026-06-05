@@ -52,7 +52,7 @@ def stream_chat(
     model_name = model_info["name"]
     
     # 映射模型名称到 API 要求的具体 model 字符串
-    model_id_api = "deepseek-chat"
+    model_id_api = os.getenv("AIRP_MODEL_NAME", "gpt-4o-mini") # GG 兼容通常需要标准的 OpenAI 模型名或 deepseek-chat
     if "qwen" in model_name.lower():
         model_id_api = "qwen3.6-35b"  # 本地 llama.cpp
     elif "gemma" in model_name.lower():
@@ -60,16 +60,15 @@ def stream_chat(
     elif "deepseek" in model_name.lower():
         model_id_api = "deepseek-chat"
         
-    # 如果 API Key 为空且环境变量里有，则使用环境变量的值
-    if not api_key:
-        if "deepseek" in model_name.lower():
-            api_key = os.getenv("DEEPSEEK_API_KEY", "")
-            if api_key:
-                update_model_key_if_empty(model_info["id"], api_key)
-        elif "claude" in model_name.lower():
-            api_key = os.getenv("CLAUDE_API_KEY", "")
-        elif "gemini" in model_name.lower():
-            api_key = os.getenv("GEMINI_API_KEY", "")
+    # 如果是 DeepSeek 或默认的在线模型，优先从环境变量覆盖 base_url 和 api_key（因为 DB 中可能缓存了旧的）
+    if "deepseek" in model_name.lower() or protocol == "openai":
+        env_key = os.getenv("AIRP_MODEL_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
+        env_url = os.getenv("AIRP_MODEL_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL")
+        
+        if env_key:
+            api_key = env_key
+        if env_url:
+            base_url = env_url
 
     # 构造请求 messages，系统提示词放在首位
     formatted_messages = [{"role": "system", "content": system_prompt}] + messages
