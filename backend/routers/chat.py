@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import json
 from fastapi import APIRouter, HTTPException, Body
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
@@ -20,7 +21,7 @@ class ChatRequest(BaseModel):
     messages: List[Message]
 
 @router.post("/send")
-async def send_message(payload: ChatRequest):
+def send_message(payload: ChatRequest):
     """发送对话消息，返回流式 EventSource"""
     # 1. 转换消息格式
     formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content} for msg in payload.messages]
@@ -43,7 +44,7 @@ async def send_message(payload: ChatRequest):
     rag_context = ""
     if last_user_msg:
         try:
-            rag_context = await ragflow_client.retrieve(last_user_msg)
+            rag_context = ragflow_client.retrieve(last_user_msg)
         except Exception as e:
             logger.error(f"RAG Retrieval failed: {e}")
 
@@ -55,12 +56,15 @@ async def send_message(payload: ChatRequest):
     cleaned_messages = [{"role": m["role"], "content": m["content"]} for m in formatted_messages]
 
     def event_generator():
-        # 用 stream_chat 获取生成器
-        content_stream = stream_chat(cleaned_messages, system_prompt)
-        for chunk in content_stream:
-            # 采用 event-stream 格式： "data: {chunk}\n\n"
-            # 替换换行符，防破坏 EventSource 协议，但可以直接传原始文本，在前端按行拼接
-            yield f"data: {json_escape(chunk)}\n\n"
+        try:
+            # 用 stream_chat 获取生成器
+            content_stream = stream_chat(cleaned_messages, system_prompt)
+            for chunk in content_stream:
+                yield f"data: {json_escape(chunk)}\n\n"
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
             
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -72,9 +76,9 @@ class SyncRequest(BaseModel):
     files: Dict[str, str]
 
 @router.post("/sync_knowledge")
-async def sync_knowledge(payload: SyncRequest):
+def sync_knowledge(payload: SyncRequest):
     """同步前端知识库文件到 RAGFlow"""
-    result = await ragflow_client.sync_knowledge(payload.files)
+    result = ragflow_client.sync_knowledge(payload.files)
     if result["status"] == "error":
         raise HTTPException(status_code=500, detail=result["message"])
     return result
