@@ -80,6 +80,10 @@ export default function App() {
   const [courseProgress, setCourseProgress] = useState([]);
   const [affection, setAffection] = useState(100);
   
+  // 角色本地图片包列表
+  const [avatarList, setAvatarList] = useState([]);
+  const [selectedAvatar, setSelectedAvatar] = useState(localStorage.getItem('selected_avatar') || '');
+  
   // 虚拟文件系统
   const [selectedFile, setSelectedFile] = useState('讲义/1-灵气感应.md');
   const [openFolders, setOpenFolders] = useState({ '讲义': true, '角色备忘': true });
@@ -101,6 +105,7 @@ export default function App() {
   useEffect(() => {
     fetchStatus();
     fetchModels();
+    fetchAvatars();
   }, []);
 
   const fetchStatus = async () => {
@@ -127,6 +132,25 @@ export default function App() {
     } catch (e) {
       console.error('Failed to fetch models:', e);
     }
+  };
+
+  const fetchAvatars = async () => {
+    try {
+      const res = await fetch('http://localhost:8000/api/chat/images');
+      if (res.ok) {
+        const data = await res.json();
+        setAvatarList(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch avatars:', e);
+    }
+  };
+
+  const getAvatarSrc = () => {
+    if (selectedAvatar) {
+      return `http://localhost:8000/api/images/static/${encodeURIComponent(selectedAvatar)}`;
+    }
+    return '/mei_wenfeng_avatar.png';
   };
 
   // 处理模型切换
@@ -585,7 +609,7 @@ export default function App() {
               <div className="character-image-box">
                 <img 
                   className="character-img" 
-                  src="/mei_wenfeng_avatar.png" 
+                  src={getAvatarSrc()} 
                   alt="媚吻锋" 
                   onError={(e) => {
                     e.target.style.display = 'none';
@@ -602,6 +626,40 @@ export default function App() {
                 <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
                   当前态度：<span style={{ color: 'var(--accent-pink)', fontWeight: '600' }}>{getAffectionText(affection)}</span>
                 </div>
+                {/* 画像切换选择 */}
+                {avatarList.length > 0 && (
+                  <div style={{ marginTop: '10px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px', fontWeight: '500' }}>
+                      🖼️ 切换角色画像：
+                    </label>
+                    <select
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'var(--bg-secondary)',
+                        color: 'var(--text-primary)',
+                        border: '1px solid var(--border-color)',
+                        padding: '6px 8px',
+                        fontSize: '12px',
+                        borderRadius: 'var(--border-radius-sm)',
+                        outline: 'none',
+                        cursor: 'pointer',
+                        fontFamily: 'var(--font-sans)'
+                      }}
+                      value={selectedAvatar}
+                      onChange={(e) => {
+                        setSelectedAvatar(e.target.value);
+                        localStorage.setItem('selected_avatar', e.target.value);
+                      }}
+                    >
+                      <option value="">默认AI画作</option>
+                      {avatarList.map(name => (
+                        <option key={name} value={name}>
+                          {name.replace(/\.png|\.jpg|\.jpeg|\.webp/gi, '')}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
               </div>
             </div>
 

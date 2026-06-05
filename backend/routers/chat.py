@@ -151,3 +151,21 @@ def update_affection(payload: Dict[str, Any] = Body(...)):
         return {"status": "success", "affection": new_val}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/images")
+def list_character_images():
+    """获取本地目录下所有角色图片文件名"""
+    import os
+    IMAGE_DIR = "D:/Games/AI小说文档/01-SillyTarern文件/01-[roll点开局·遇仙记]/02-角色卡/00-[自创]遇仙记/02-媚吻锋/00-图片资源/正常"
+    if not os.path.exists(IMAGE_DIR):
+        return []
+    try:
+        files = os.listdir(IMAGE_DIR)
+        valid_extensions = {".png", ".jpg", ".jpeg", ".webp"}
+        img_files = [f for f in files if os.path.splitext(f)[1].lower() in valid_extensions]
+        # 排序以保证列表顺序一致
+        img_files.sort()
+        return img_files
+    except Exception as e:
+        logger.error(f"Error listing images: {e}")
+        return []
