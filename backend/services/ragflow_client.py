@@ -114,6 +114,36 @@ class RAGFlowClient:
             traceback.print_exc()
             return {"status": "error", "message": f"同步到 RAGFlow 失败: {str(e)}"}
 
+    def get_sync_status(self, dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
+        """获取已同步文件的同步状态列表"""
+        if not self.api_key or self.api_key == "your_ragflow_api_key_here":
+            return {"status": "error", "message": "RAGFLOW_API_KEY 未配置"}
+        try:
+            dataset_id = self._get_or_create_dataset(dataset_name)
+            with httpx.Client() as client:
+                resp = client.get(
+                    f"{self.base_url}/datasets/{dataset_id}/documents",
+                    headers=self.headers
+                )
+                if resp.status_code == 200:
+                    docs_data = resp.json().get("data", {})
+                    docs = docs_data.get("docs", []) if isinstance(docs_data, dict) else (docs_data if isinstance(docs_data, list) else [])
+                    
+                    status_map = {}
+                    for d in docs:
+                        name = d.get("name")
+                        if name:
+                            status_map[name] = {
+                                "id": d.get("id"),
+                                "run": d.get("run"),
+                                "status": d.get("status")
+                            }
+                    return {"status": "success", "documents": status_map}
+                else:
+                    return {"status": "error", "message": f"RAGFlow API returned status {resp.status_code}"}
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
+
     def retrieve(self, query: str, dataset_names: list = None) -> str:
         """Retrieve relevant context for a query."""
         if dataset_names is None:
@@ -141,3 +171,4 @@ class RAGFlowClient:
         return ""
 
 ragflow_client = RAGFlowClient()
+

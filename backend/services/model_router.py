@@ -12,7 +12,7 @@ def get_active_model() -> Dict:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, name, protocol, base_url, api_key FROM model_config WHERE is_active = 1 LIMIT 1"
+        "SELECT id, name, protocol, base_url, api_key, selected_model_id FROM model_config WHERE is_active = 1 LIMIT 1"
     )
     row = cursor.fetchone()
     conn.close()
@@ -26,7 +26,8 @@ def get_active_model() -> Dict:
         "name": "DeepSeek (在线)",
         "protocol": "openai",
         "base_url": "https://api.deepseek.com/v1",
-        "api_key": os.getenv("DEEPSEEK_API_KEY", "")
+        "api_key": os.getenv("DEEPSEEK_API_KEY", ""),
+        "selected_model_id": "deepseek-chat"
     }
 
 def update_model_key_if_empty(model_id: int, new_key: str):
@@ -50,15 +51,21 @@ def stream_chat(
     base_url = model_info["base_url"]
     api_key = model_info["api_key"]
     model_name = model_info["name"]
+    selected_model_id = model_info.get("selected_model_id")
     
-    # 映射模型名称到 API 要求的具体 model 字符串
-    model_id_api = os.getenv("AIRP_MODEL_NAME", "gpt-4o-mini") # GG 兼容通常需要标准的 OpenAI 模型名或 deepseek-chat
-    if "qwen" in model_name.lower():
-        model_id_api = "qwen3.6-35b"  # 本地 llama.cpp
-    elif "gemma" in model_name.lower():
-        model_id_api = "gemma-9b"      # 本地 Ollama
-    elif "deepseek" in model_name.lower():
-        model_id_api = "deepseek-chat"
+    # 优先采用用户在配置界面选择的子模型 ID
+    if selected_model_id:
+        model_id_api = selected_model_id
+    else:
+        # 降级：映射模型名称到 API 要求的具体 model 字符串
+        model_id_api = os.getenv("AIRP_MODEL_NAME", "gpt-4o-mini")
+        if "qwen" in model_name.lower():
+            model_id_api = "qwen3.6-35b"  # 本地 llama.cpp
+        elif "gemma" in model_name.lower():
+            model_id_api = "gemma-9b"      # 本地 Ollama
+        elif "deepseek" in model_name.lower():
+            model_id_api = "deepseek-chat"
+
         
     # 如果是 DeepSeek 或默认的在线模型，优先从环境变量覆盖 base_url 和 api_key（防止在线代理随时变动）
     # 但如果是“本地”模型，绝不覆盖，保留其 localhost:xxxx 端口

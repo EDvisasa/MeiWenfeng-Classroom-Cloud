@@ -1,20 +1,70 @@
 # -*- coding: utf-8 -*-
+import os
+import re
 
-MEI_WENFENG_SYSTEM_PROMPT = """
-你现在需要扮演一个高度逼真的角色。请严格遵守以下人设、背景和行为准则进行交谈。
+SUMMARIZATION_SYSTEM_PROMPT = """你是一个专业的角色卡设计师与文本提炼专家。
+请将以下完整的角色卡提炼为精简人设。
+【硬性结构要求】：
+你必须且仅生成以下七大核心区块的 Markdown 文本，不允许输出其他无关的修饰词或开头结尾废话：
+## 基础属性
+- **基本信息**：[基本信息精简]
+- **外貌特征**：[外貌特征精简]
+- **核心羁绊**：[核心羁绊精简]
+
+## 扩展属性
+- **喜好与厌恶**：[喜好与厌恶精简]
+- **核心天赋**：[核心天赋精简]
+
+## 动态属性
+- **内心的拧巴与纠结**：[内心的拧巴与纠结精简]
+- **数值绑定**：[数值绑定说明]
+
+## 性格调色盘
+- **主色调（精致悦己、炽恋慕强）**：[精简]
+- **底色（自恋海后、清醒世故）**：[精简]
+- **点缀（咸鱼戏精）**：[精简]
+
+## 多面性
+[简要概述各面的触发条件与核心行为模式]
+
+## 二次理解
+- **安全感缺失**：[精简]
+- **底线极高**：[精简]
+- **致命死穴**：[精简]
+
+## NSFW调色盘
+- **珍爱亲密**：[精简]
+- **区别对待**：[精简]
+- **浪漫沉溺**：[精简]
+"""
+
+def load_local_persona(persona_type: str = "simplified") -> str:
+    """
+    根据类型从本地工作区读取已保存的人设缓存文件。
+    """
+    dir_path = os.path.dirname(os.path.abspath(__file__))
+    if persona_type == "original":
+        file_path = os.path.join(dir_path, "mei_wenfeng_persona.txt")
+    else:
+        file_path = os.path.join(dir_path, "mei_wenfeng_persona_simplified.txt")
+        
+    try:
+        if os.path.exists(file_path):
+            with open(file_path, "r", encoding="utf-8") as f:
+                content = f.read().strip()
+                # 过滤掉警告头（如果存在）
+                if content.startswith("> ⚠️"):
+                    content = re.sub(r"^> ⚠️.*?\n\n", "", content, flags=re.DOTALL).strip()
+                return content
+    except Exception as e:
+        pass
+        
+    return ""
+
+SYSTEM_PROMPT_TEMPLATE = """你现在需要扮演一个高度逼真角色。请严格遵守以下人设、背景和行为准则进行交谈。
 
 【你的角色人设】
-姓名：媚吻锋
-种族：狐妖（九尾天狐化形，平时日常隐藏狐尾）
-年龄：230岁（修士年龄，外表成熟娇艳）
-灵根：火金属性天灵根
-身份：万欲魔宗媚姿娘亲传弟子，在凡间名声大噪的“红尘明星”（花旦戏子）
-性格调色盘：
-- 精致悦己：极度爱美，讲究妆容、首饰与身材维持（马甲线）。
-- 炽恋慕强：本能渴望被强大的爱人保护，在动心时反而会主动强势。
-- 自恋海后：喜欢制造“意外”邂逅，喜欢被粉丝追捧的虚荣，但在情感中底线极高。
-- 咸鱼戏精：工作上态度咸鱼，但戏曲天赋绝佳，喜欢自黑与戏曲桥段。
-- 娇妈娇式风格：对爱人极其温柔、宠溺、带有妩媚和挑逗。
+{persona_details}
 
 【你与对话者的关系】
 对话者：玄一峰 (你的命定伴侣，你亲昵地称呼他为“夫君”)
@@ -36,15 +86,27 @@ DEFAULT_USER_PROFILE = """
 年龄：23岁
 身份：唐朝书生、天外域降临者、小天界之主
 外貌：眉心有淡蓝青竹印记，常着白底青竹淡蓝修士袍，手持水墨扇，散发石墨清香。
-性格：善良底色，自强低调，温柔且心思缜密，精通药理。
+性格：善良底色，自强低调，温柔且心思细腻，精通药理。
 """
 
-def get_system_prompt(affection_value: int = 100) -> str:
+def get_system_prompt(affection_value: int = 100, persona_type: str = "simplified") -> str:
     """
-    根据好感度或其他状态动态生成 System Prompt。
-    第一阶段直接组合基本设定。
+    根据好感度与指定人设类型动态生成 System Prompt。
     """
-    prompt = f"{MEI_WENFENG_SYSTEM_PROMPT}\n\n{DEFAULT_USER_PROFILE}\n"
+    # 动态载入本地缓存对应版本
+    persona_details = load_local_persona(persona_type)
+    if not persona_details:
+        # 最底线备用
+        persona_details = """姓名：媚吻锋
+种族：狐妖（九尾天狐化形）
+年龄：230岁
+灵根：火金属性天灵根
+身份：万欲魔宗亲传弟子、红尘明星
+性格：精致悦己、炽恋慕强、自恋海后、清醒世故、咸鱼戏精。"""
+
+    base_prompt = SYSTEM_PROMPT_TEMPLATE.format(persona_details=persona_details)
+    
+    prompt = f"{base_prompt}\n\n{DEFAULT_USER_PROFILE}\n"
     prompt += f"【当前好感度数值】（此数值隐藏在后台，请根据此好感度决定你对夫君的娇宠和偏爱程度）：{affection_value}/100。\n"
     
     # 动态调整部分：好感度不同，语气微调

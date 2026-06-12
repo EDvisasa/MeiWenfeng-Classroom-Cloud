@@ -57,9 +57,16 @@ def init_db():
         protocol TEXT,
         base_url TEXT,
         api_key TEXT,
-        is_active INTEGER DEFAULT 0
+        is_active INTEGER DEFAULT 0,
+        selected_model_id TEXT
     );
     """)
+
+    # 兼容性升级：如果表已经存在，则尝试动态添加新列
+    try:
+        cursor.execute("ALTER TABLE model_config ADD COLUMN selected_model_id TEXT")
+    except sqlite3.OperationalError:
+        pass
 
     # 2. 预置初始数据
     # 初始化好感度
@@ -72,20 +79,22 @@ def init_db():
 
     # 初始化默认模型
     default_models = [
-        ("DeepSeek (在线)", "openai", "https://api.deepseek.com/v1", os.getenv("DEEPSEEK_API_KEY", ""), 1),
-        ("Gemini-Antigravity (在线)", "gemini", "https://generativelanguage.googleapis.com", os.getenv("GEMINI_API_KEY", ""), 0),
-        ("qwen3.6-35b (本地)", "openai", "http://localhost:8080/v1", "none", 0),
-        ("Gemma-9b (本地)", "openai", "http://localhost:11434/v1", "none", 0),
-        ("Claude (在线)", "claude", "https://api.anthropic.com", os.getenv("CLAUDE_API_KEY", ""), 0)
+        ("DeepSeek (在线)", "openai", "https://api.deepseek.com/v1", os.getenv("DEEPSEEK_API_KEY", ""), 1, "deepseek-chat"),
+        ("Antigravity2API (本地)", "openai", "http://localhost:8045/v1", "sk-text", 0, "gemini-3-pro-high"),
+        ("Gemini-Antigravity (在线)", "gemini", "https://generativelanguage.googleapis.com", os.getenv("GEMINI_API_KEY", ""), 0, "gemini-3-pro-high"),
+        ("qwen3.6-35b (本地)", "openai", "http://localhost:8080/v1", "none", 0, "qwen3.6-35b"),
+        ("Gemma-9b (本地)", "openai", "http://localhost:11434/v1", "none", 0, "gemma-9b"),
+        ("Claude (在线)", "claude", "https://api.anthropic.com", os.getenv("CLAUDE_API_KEY", ""), 0, "claude-sonnet-4-5-thinking")
     ]
-    for name, protocol, base_url, api_key, is_active in default_models:
+    for name, protocol, base_url, api_key, is_active, selected_model_id in default_models:
         try:
             cursor.execute(
-                "INSERT OR IGNORE INTO model_config (name, protocol, base_url, api_key, is_active) VALUES (?, ?, ?, ?, ?)",
-                (name, protocol, base_url, api_key, is_active)
+                "INSERT OR IGNORE INTO model_config (name, protocol, base_url, api_key, is_active, selected_model_id) VALUES (?, ?, ?, ?, ?, ?)",
+                (name, protocol, base_url, api_key, is_active, selected_model_id)
             )
         except sqlite3.Error:
             pass
+
 
     # 初始化课程大纲（如果为空）
     cursor.execute("SELECT COUNT(*) FROM course_progress")
