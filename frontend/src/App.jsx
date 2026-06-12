@@ -69,10 +69,21 @@ export default function App() {
   
   // 状态与配置
   const [activeModel, setActiveModel] = useState('DeepSeek (在线)');
+  const [activeSubModel, setActiveSubModel] = useState('');
   const [models, setModels] = useState([]);
   const [courseProgress, setCourseProgress] = useState([]);
   const [affection, setAffection] = useState(100);
   const [personaType, setPersonaType] = useState(localStorage.getItem('persona_type') || 'simplified');
+
+  // 酒馆式 API 设置和字体弹窗状态
+  const [showFontMenu, setShowFontMenu] = useState(false);
+  const [showApiMenu, setShowApiMenu] = useState(false);
+  const [selectedConfigId, setSelectedConfigId] = useState(1);
+  const [tempBaseUrl, setTempBaseUrl] = useState('');
+  const [tempApiKey, setTempApiKey] = useState('');
+  const [tempSelectedSubModel, setTempSelectedSubModel] = useState('');
+  const [availableModels, setAvailableModels] = useState([]);
+  const [loadingModels, setLoadingModels] = useState(false);
 
   const handlePersonaTypeChange = (type) => {
     setPersonaType(type);
@@ -111,6 +122,45 @@ export default function App() {
     fetchAvatars();
   }, []);
 
+  // 当 models 加载完成，将当前激活的 API 参数回显至设置中
+  useEffect(() => {
+    const active = models.find(m => m.is_active === 1);
+    if (active) {
+      setSelectedConfigId(active.id);
+      setTempBaseUrl(active.base_url);
+      setTempApiKey(active.api_key || '');
+      setTempSelectedSubModel(active.selected_model_id || '');
+    }
+  }, [models]);
+
+  // 当 API 设置菜单打开、切换配置源或代理地址变化时，自动拉取可用模型
+  useEffect(() => {
+    if (showApiMenu && tempBaseUrl) {
+      const fetchModelsAuto = async () => {
+        setLoadingModels(true);
+        try {
+          const selected = models.find(m => m.id === selectedConfigId);
+          const protocol = selected ? selected.protocol : 'openai';
+          const url = `http://localhost:8000/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
+          const res = await fetch(url);
+          if (res.ok) {
+            const data = await res.json();
+            if (data.status === 'success') {
+              setAvailableModels(data.models || []);
+            }
+          }
+        } catch (e) {
+          console.error("Auto fetch available models failed:", e);
+        } finally {
+          setLoadingModels(false);
+        }
+      };
+      
+      fetchModelsAuto();
+    }
+  }, [showApiMenu, selectedConfigId, tempBaseUrl]);
+
+
   const fetchStatus = async () => {
     try {
       const res = await fetch('http://localhost:8000/api/chat/status');
@@ -118,6 +168,7 @@ export default function App() {
         const data = await res.json();
         setAffection(data.affection);
         setActiveModel(data.active_model);
+        setActiveSubModel(data.active_sub_model || '');
         setCourseProgress(data.course_progress || []);
       }
     } catch (e) {
@@ -149,7 +200,123 @@ export default function App() {
     }
   };
 
-  // 处理模型切换
+  // 切换设置面板里选择的模型配置时回显
+  const handleConfigSelection = (e) => {
+    const configId = parseInt(e.target.value);
+    setSelectedConfigId(configId);
+    
+    const selected = models.find(m => m.id === configId);
+    if (selected) {
+      setTempBaseUrl(selected.base_url);
+      setTempApiKey(selected.api_key || '');
+      setTempSelectedSubModel(selected.selected_model_id || '');
+      setAvailableModels([]);
+    }
+  };
+
+  // 保存当前的 API 地址及密钥配置
+  const saveApiConfiguration = async () => {
+    const selected = models.find(m => m.id === selectedConfigId);
+    if (!selected) return;
+
+    try {
+      const res = await fetch('http://localhost:8000/api/chat/models/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedConfigId,
+          base_url: tempBaseUrl,
+          api_key: tempApiKey,
+          protocol: selected.protocol,
+          selected_model_id: tempSelectedSubModel
+        })
+      });
+      if (res.ok) {
+        fetchModels();
+        setMessages(prev => [
+          ...prev,
+          { role: 'system_info', content: `[系统设置] 成功保存 API 配置：《${selected.name}》的新参数。` }
+        ]);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('保存失败，请检查网络或后端状态。');
+    }
+  };
+
+  // 应用当前选中的具体子模型 (并切为活动配置)
+  const saveSelectedModel = async () => {
+    const selected = models.find(m => m.id === selectedConfigId);
+    if (!selected) return;
+
+    try {
+      // 1. 先同步保存修改
+      await fetch('http://localhost:8000/api/chat/models/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedConfigId,
+          base_url: tempBaseUrl,
+          api_key: tempApiKey,
+          protocol: selected.protocol,
+          selected_model_id: tempSelectedSubModel
+        })
+      });
+      
+      // 2. 切换当前模型为激活状态
+      const res = await fetch('http://localhost:8000/api/chat/switch_model', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: selectedConfigId })
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setActiveModel(data.active_model);
+        fetchModels();
+        fetchStatus();
+        setShowApiMenu(false); // 关闭弹窗
+        setMessages(prev => [
+          ...prev,
+          { role: 'system_info', content: `[系统设置] 已成功应用模型并激活：${data.active_model} (${tempSelectedSubModel || '默认'})` }
+        ]);
+      }
+    } catch (e) {
+      console.error(e);
+      alert('应用失败，请检查后端状态。');
+    }
+  };
+
+  // 刷新可用子模型列表
+  const refreshAvailableModels = async () => {
+    setLoadingModels(true);
+    try {
+      const selected = models.find(m => m.id === selectedConfigId);
+      const protocol = selected ? selected.protocol : 'openai';
+      const url = `http://localhost:8000/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
+      const res = await fetch(url);
+      if (res.ok) {
+        const data = await res.json();
+        if (data.status === 'success') {
+          setAvailableModels(data.models || []);
+          if (data.models && data.models.length > 0 && !tempSelectedSubModel) {
+            setTempSelectedSubModel(data.models[0]);
+          }
+        } else {
+          setAvailableModels([]);
+          console.error("API error:", data.message);
+          alert("获取可用模型列表失败: " + data.message + "\n\n提示：某些第三方代理站点(如公益站)可能不支持直接获取模型列表接口，此时请在下方输入框手动输入模型名称(如 gpt-4o 等)。");
+        }
+      }
+    } catch (e) {
+      console.error(e);
+      alert('无法连接到该 API 获取可用模型列表，请确认地址无误且服务正常启动。');
+    } finally {
+      setLoadingModels(false);
+    }
+  };
+
+  // 处理右侧面板的基础模型切换
   const handleModelChange = async (modelId) => {
     try {
       const res = await fetch('http://localhost:8000/api/chat/switch_model', {
@@ -160,11 +327,20 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setActiveModel(data.active_model);
+        fetchModels();
+        fetchStatus();
         
-        // 插入系统提示
+        const switchedObj = models.find(m => m.id === parseInt(modelId));
+        if (switchedObj) {
+          setSelectedConfigId(switchedObj.id);
+          setTempBaseUrl(switchedObj.base_url);
+          setTempApiKey(switchedObj.api_key || '');
+          setTempSelectedSubModel(switchedObj.selected_model_id || '');
+        }
+
         setMessages(prev => [
           ...prev,
-          { role: 'system_info', content: `已成功切换模型至: ${data.active_model}` }
+          { role: 'system_info', content: `已成功切换配置源至: ${data.active_model}` }
         ]);
       }
     } catch (e) {
@@ -290,10 +466,12 @@ export default function App() {
         ]);
       }
     } else if (cleanCmd === '/切换模型') {
+      setShowApiMenu(true);
+      setShowFontMenu(false);
       setMessages(prev => [
         ...prev,
         { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[系统提示] 请在右侧“模型配置”面板直接选择你想要切换的大语言模型。` }
+        { role: 'system_info', content: `[系统提示] 已为你展开右上角的 API 和模型配置菜单。` }
       ]);
     } else if (cleanCmd === '/备课') {
       if (!selectedFilePath) {
@@ -471,19 +649,228 @@ export default function App() {
           <span className="logo-icon">🌸</span>
           <span>媚吻锋随身课堂</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <div className="settings-controls" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px' }}>
-            <span style={{ cursor: 'pointer' }} title="设置字体大小">⚙️ 字体大小</span>
-            <input 
-              type="range" 
-              min="12" 
-              max="24" 
-              value={fontSize} 
-              onChange={handleFontSizeChange} 
-              style={{ width: '80px', accentColor: 'var(--accent-pink)' }} 
-            />
-            <span>{fontSize}px</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+          
+          {/* 字体大小设置下拉菜单 */}
+          <div className="settings-dropdown-container" style={{ position: 'relative' }}>
+            <button 
+              className="header-btn" 
+              onClick={() => {
+                setShowFontMenu(!showFontMenu);
+                setShowApiMenu(false);
+              }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.5)',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: '500',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                color: 'var(--text-primary)'
+              }}
+            >
+              ⚙️ 字体大小
+            </button>
+            {showFontMenu && (
+              <div 
+                className="settings-popover" 
+                style={{
+                  position: 'absolute',
+                  top: '32px',
+                  right: 0,
+                  width: '180px',
+                  background: 'var(--bg-panel)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '8px',
+                  padding: '12px',
+                  boxShadow: 'var(--shadow-lg)',
+                  zIndex: 1000
+                }}
+              >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <label style={{ fontSize: '12px', fontWeight: 'bold' }}>字体大小: {fontSize}px</label>
+                  <input 
+                    type="range" 
+                    min="12" 
+                    max="24" 
+                    value={fontSize} 
+                    onChange={handleFontSizeChange} 
+                    style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
+                  />
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    <button 
+                      onClick={() => setFontSize(Math.max(12, fontSize - 1))}
+                      style={{ flex: 1, padding: '2px 4px', fontSize: '11px', cursor: 'pointer' }}
+                    >
+                      A-
+                    </button>
+                    <button 
+                      onClick={() => setFontSize(Math.min(24, fontSize + 1))}
+                      style={{ flex: 1, padding: '2px 4px', fontSize: '11px', cursor: 'pointer' }}
+                    >
+                      A+
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* 酒馆式 API 设置面板 */}
+          <div className="api-dropdown-container" style={{ position: 'relative' }}>
+            <button 
+              className="header-btn" 
+              onClick={() => {
+                setShowApiMenu(!showApiMenu);
+                setShowFontMenu(false);
+              }}
+              style={{
+                background: 'rgba(255, 255, 255, 0.4)',
+                border: '1px solid rgba(255, 255, 255, 0.5)',
+                padding: '4px 12px',
+                borderRadius: '20px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: '500',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '4px',
+                color: 'var(--text-primary)'
+              }}
+            >
+              ⚡ API 配置
+            </button>
+            {showApiMenu && (
+              <div 
+                className="settings-popover" 
+                style={{
+                  position: 'absolute',
+                  top: '32px',
+                  right: 0,
+                  width: '320px',
+                  background: 'var(--bg-panel)',
+                  backdropFilter: 'blur(10px)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '12px',
+                  padding: '16px',
+                  boxShadow: 'var(--shadow-lg)',
+                  zIndex: 1000,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
+                }}
+              >
+                <h4 style={{ margin: 0, fontSize: '13px', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
+                  🔑 酒馆式 API 设置
+                </h4>
+                
+                {/* API 源 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 配置源</label>
+                  <select 
+                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                    value={selectedConfigId}
+                    onChange={handleConfigSelection}
+                  >
+                    {models.map(m => (
+                      <option key={m.id} value={m.id}>{m.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Base URL */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 代理地址 (Base URL)</label>
+                  <input 
+                    type="text" 
+                    value={tempBaseUrl}
+                    onChange={(e) => setTempBaseUrl(e.target.value)}
+                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                  />
+                </div>
+
+                {/* API Key */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 密钥 (API Key)</label>
+                  <input 
+                    type="password" 
+                    value={tempApiKey}
+                    onChange={(e) => setTempApiKey(e.target.value)}
+                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button 
+                    onClick={saveApiConfiguration}
+                    style={{
+                      flex: 1,
+                      padding: '6px 12px',
+                      fontSize: '12px',
+                      background: 'var(--accent-pink)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontWeight: 'bold'
+                    }}
+                  >
+                    保存 API 地址
+                  </button>
+                </div>
+
+                {/* 子模型选择 */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px', borderTop: '1px solid var(--border-color)', paddingTop: '8px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span>🤖 可用子模型</span>
+                    <button 
+                      onClick={refreshAvailableModels} 
+                      disabled={loadingModels}
+                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '11px', color: 'var(--accent-pink)' }}
+                    >
+                      {loadingModels ? '加载中...' : '🔄 刷新列表'}
+                    </button>
+                  </label>
+                  <input 
+                    list="available-models"
+                    placeholder="请选择或手动输入模型名 (如 gpt-4o)"
+                    value={tempSelectedSubModel}
+                    onChange={(e) => setTempSelectedSubModel(e.target.value)}
+                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                  />
+                  <datalist id="available-models">
+                    {availableModels.map(m => (
+                      <option key={m} value={m} />
+                    ))}
+                  </datalist>
+
+                </div>
+
+                <button 
+                  onClick={saveSelectedModel}
+                  style={{
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    background: 'var(--success)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontWeight: 'bold',
+                    width: '100%'
+                  }}
+                >
+                  应用当前模型
+                </button>
+              </div>
+            )}
+          </div>
+
           <div className="connection-status">
             <div className={`status-indicator ${isStreaming ? 'pulse' : ''}`} />
             <span>{isStreaming ? '媚吻锋思考中...' : '课堂连通正常'}</span>
@@ -536,6 +923,7 @@ export default function App() {
           models={models}
           activeModel={activeModel}
           handleModelChange={handleModelChange}
+          activeSubModel={activeSubModel}
           courseProgress={courseProgress}
         />
       </main>

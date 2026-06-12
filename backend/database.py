@@ -68,6 +68,18 @@ def init_db():
     except sqlite3.OperationalError:
         pass
 
+    # RAG 知识库后端配置表
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS rag_config (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        backend_type TEXT DEFAULT 'chromadb',
+        ragflow_url TEXT DEFAULT 'http://localhost/api/v1',
+        ragflow_key TEXT DEFAULT '',
+        external_url TEXT DEFAULT '',
+        external_key TEXT DEFAULT ''
+    );
+    """)
+
     # 2. 预置初始数据
     # 初始化好感度
     cursor.execute("SELECT COUNT(*) FROM affection")
@@ -75,6 +87,13 @@ def init_db():
         cursor.execute(
             "INSERT INTO affection (id, value, last_updated) VALUES (1, 50, ?)",
             (datetime.now().strftime("%Y-%m-%d %H:%M:%S"),)
+        )
+
+    # 初始化 RAG 配置（只插一次，默认用 chromadb）
+    cursor.execute("SELECT COUNT(*) FROM rag_config")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute(
+            "INSERT INTO rag_config (id, backend_type, ragflow_url, ragflow_key, external_url, external_key) VALUES (1, 'chromadb', 'http://localhost/api/v1', '', '', '')"
         )
 
     # 初始化默认模型

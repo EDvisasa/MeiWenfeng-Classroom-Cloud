@@ -90,9 +90,11 @@ def stream_chat(
             return
 
         try:
+            # Avoid IPv6 connection issues on Windows with httpx by mapping localhost to 127.0.0.1
+            safe_base_url = base_url.replace("://localhost:", "://127.0.0.1:")
             client = OpenAI(
                 api_key=api_key or "no-key-required",
-                base_url=base_url
+                base_url=safe_base_url
             )
             
             response = client.chat.completions.create(
