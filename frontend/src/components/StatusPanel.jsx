@@ -24,7 +24,12 @@ export default function StatusPanel({
   return (
     <section className="ide-panel right-panel">
       <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <span>导师与大纲状态</span>
+        <div style={{ display: 'flex', alignItems: 'center' }}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '6px' }}>
+            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 1c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+          </svg>
+          <span>导师与大纲状态</span>
+        </div>
         <button 
           onClick={() => handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
           style={{
