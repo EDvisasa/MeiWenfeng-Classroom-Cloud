@@ -42,46 +42,7 @@ export default function StatusPanel({
           </div>
         </div>
 
-        {/* 导师人设切换 */}
-        <div className="model-widget" style={{ marginTop: '14px' }}>
-          <div className="widget-title">🎭 导师人设卡类型</div>
-          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-            <button
-              onClick={() => handlePersonaTypeChange('simplified')}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                fontSize: '12px',
-                borderRadius: '4px',
-                border: '1px solid var(--border-color)',
-                background: personaType === 'simplified' ? 'var(--accent-pink)' : 'var(--bg-secondary)',
-                color: personaType === 'simplified' ? 'white' : 'var(--text-primary)',
-                cursor: personaType === 'simplified' ? 'default' : 'pointer',
-                fontWeight: 'bold',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              精简人设
-            </button>
-            <button
-              onClick={() => handlePersonaTypeChange('original')}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                fontSize: '12px',
-                borderRadius: '4px',
-                border: '1px solid var(--border-color)',
-                background: personaType === 'original' ? 'var(--accent-pink)' : 'var(--bg-secondary)',
-                color: personaType === 'original' ? 'white' : 'var(--text-primary)',
-                cursor: personaType === 'original' ? 'default' : 'pointer',
-                fontWeight: 'bold',
-                transition: 'all 0.2s ease'
-              }}
-            >
-              原版人设
-            </button>
-          </div>
-        </div>
+
 
         {/* 模型选择配置 */}
         <div className="model-widget">

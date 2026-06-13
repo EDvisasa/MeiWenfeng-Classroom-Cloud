@@ -753,7 +753,7 @@ export default function App() {
                   position: 'absolute',
                   top: '32px',
                   right: 0,
-                  width: '180px',
+                  width: '260px',
                   background: 'var(--bg-panel)',
                   backdropFilter: 'blur(10px)',
                   border: '1px solid var(--border-color)',
@@ -763,30 +763,79 @@ export default function App() {
                   zIndex: 1000
                 }}
               >
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: 'bold' }}>字体大小: {fontSize}px</label>
-                  <input 
-                    type="range" 
-                    min="12" 
-                    max="24" 
-                    value={fontSize} 
-                    onChange={handleFontSizeChange} 
-                    style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
-                  />
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    <button 
-                      onClick={() => setFontSize(Math.max(12, fontSize - 1))}
-                      style={{ flex: 1, padding: '2px 4px', fontSize: '11px', cursor: 'pointer' }}
-                    >
-                      A-
-                    </button>
-                    <button 
-                      onClick={() => setFontSize(Math.min(24, fontSize + 1))}
-                      style={{ flex: 1, padding: '2px 4px', fontSize: '11px', cursor: 'pointer' }}
-                    >
-                      A+
-                    </button>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                  
+                  {/* 字体设置 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>字体大小: {fontSize}px</label>
+                    <input 
+                      type="range" 
+                      min="12" 
+                      max="24" 
+                      value={fontSize} 
+                      onChange={handleFontSizeChange} 
+                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
+                    />
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        onClick={() => setFontSize(Math.max(12, fontSize - 1))}
+                        style={{ flex: 1, padding: '2px 4px', fontSize: '11px', cursor: 'pointer' }}
+                      >
+                        A-
+                      </button>
+                      <button 
+                        onClick={() => setFontSize(Math.min(24, fontSize + 1))}
+                        style={{ flex: 1, padding: '2px 4px', fontSize: '11px', cursor: 'pointer' }}
+                      >
+                        A+
+                      </button>
+                    </div>
                   </div>
+
+                  {/* 人设切换 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>导师人设类型</label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button
+                        onClick={() => handlePersonaTypeChange('simplified')}
+                        style={{
+                          flex: 1, padding: '6px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)',
+                          background: personaType === 'simplified' ? 'var(--accent-pink)' : 'var(--bg-secondary)',
+                          color: personaType === 'simplified' ? 'white' : 'var(--text-primary)',
+                          cursor: personaType === 'simplified' ? 'default' : 'pointer'
+                        }}
+                      >精简</button>
+                      <button
+                        onClick={() => handlePersonaTypeChange('original')}
+                        style={{
+                          flex: 1, padding: '6px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)',
+                          background: personaType === 'original' ? 'var(--accent-pink)' : 'var(--bg-secondary)',
+                          color: personaType === 'original' ? 'white' : 'var(--text-primary)',
+                          cursor: personaType === 'original' ? 'default' : 'pointer'
+                        }}
+                      >原版</button>
+                    </div>
+                  </div>
+
+                  {/* 头像设置 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>全局头像设置</label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        onClick={() => { setCropTarget('user'); fileInputRef.current.click(); }}
+                        style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}
+                      >
+                        修改我的头像
+                      </button>
+                      <button 
+                        onClick={() => { setCropTarget('assistant'); fileInputRef.current.click(); }}
+                        style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}
+                      >
+                        修改导师头像
+                      </button>
+                    </div>
+                  </div>
+
                 </div>
               </div>
             )}
