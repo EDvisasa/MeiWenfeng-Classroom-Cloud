@@ -57,13 +57,29 @@ def send_message(payload: ChatRequest):
 
     # 提取最后一条用户消息用于 RAG 检索
     rag_context = ""
+    kb_count = 0
+    mem_count = 0
     if last_user_msg:
         try:
             rag_client = get_rag_client()
-            kb_context = rag_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge", "Memory_Knowledge"])
-            mem_context = retrieve_memory(last_user_msg, n_results=3)
-            parts = [p for p in [kb_context, mem_context] if p]
-            rag_context = "\n\n".join(parts)
+            kb_chunks = rag_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge"])
+            mem_chunks_from_kb = rag_client.retrieve(last_user_msg, dataset_names=["Memory_Knowledge"])
+            mem_chunks_raw = retrieve_memory(last_user_msg, n_results=3)
+            
+            # 兼容旧版返回字符串的情况
+            if isinstance(kb_chunks, str): kb_chunks = [kb_chunks] if kb_chunks else []
+            if isinstance(mem_chunks_from_kb, str): mem_chunks_from_kb = [mem_chunks_from_kb] if mem_chunks_from_kb else []
+            if isinstance(mem_chunks_raw, str): mem_chunks_raw = [mem_chunks_raw] if mem_chunks_raw else []
+            
+            kb_chunks = [p for p in kb_chunks if p]
+            mem_chunks = [p for p in mem_chunks_from_kb + mem_chunks_raw if p]
+            
+            kb_count = len(kb_chunks)
+            mem_count = len(mem_chunks)
+            
+            all_chunks = kb_chunks + mem_chunks
+            if all_chunks:
+                rag_context = "\n\n".join(all_chunks)
         except Exception as e:
             logger.error(f"RAG Retrieval failed: {e}")
 
@@ -74,6 +90,14 @@ def send_message(payload: ChatRequest):
     def event_generator():
         accumulated_assistant_content = ""
         try:
+            if kb_count > 0 or mem_count > 0:
+                import json
+                parts = []
+                if kb_count > 0: parts.append(f"{kb_count} 个讲义片段")
+                if mem_count > 0: parts.append(f"{mem_count} 个长期记忆")
+                hint_text = f"🔍 成功检索并加载：{' 和 '.join(parts)}"
+                yield f"data: {json.dumps({'type': 'system_hint', 'text': hint_text}, ensure_ascii=False)}\n\n"
+                
             content_stream = stream_chat(cleaned_messages, system_prompt)
             for chunk in content_stream:
                 accumulated_assistant_content += chunk

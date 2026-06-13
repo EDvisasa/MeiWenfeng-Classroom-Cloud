@@ -3,6 +3,7 @@ import FileTree from './components/FileTree';
 import ChatPanel from './components/ChatPanel';
 import StatusPanel from './components/StatusPanel';
 import CropModal from './components/CropModal';
+import DatabaseViewer from './components/DatabaseViewer';
 
 const COMMANDS = [
   { cmd: '/上课', desc: '开始新的课时，进入授课模式' },
@@ -20,6 +21,7 @@ export default function App() {
 
   const [inputText, setInputText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [showDbViewer, setShowDbViewer] = useState(false);
 
   const syncSessionToBackend = async (session) => {
     try {
@@ -663,6 +665,18 @@ export default function App() {
               try {
                 const jsonStr = line.slice(6).trim();
                 const parsed = JSON.parse(jsonStr);
+                
+                if (parsed && parsed.type === 'system_hint') {
+                  setMessages(prev => {
+                    const updated = [...prev];
+                    const last = updated.pop();
+                    updated.push({ role: 'system_info', content: parsed.text });
+                    updated.push(last);
+                    return updated;
+                  });
+                  continue;
+                }
+
                 if (parsed && parsed.text) {
                   accumulatedContent += parsed.text;
                   
@@ -716,10 +730,37 @@ export default function App() {
     <div className="app-container" style={{ '--chat-font-size': `${fontSize}px` }}>
       {/* 顶部工具栏 */}
       <header className="header-bar">
-        <div className="logo-section">
-          <span className="logo-icon">🌸</span>
-          <span>媚吻锋随身课堂</span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
+          <div className="logo-section">
+            <span className="logo-icon">🌸</span>
+            <span>媚吻锋随身课堂</span>
+          </div>
+          
+          {/* 内置数据库按钮 */}
+          <button 
+            onClick={() => setShowDbViewer(true)}
+            style={{
+              background: 'rgba(255, 255, 255, 0.4)',
+              border: '1px solid rgba(255, 255, 255, 0.5)',
+              padding: '4px 12px',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: '500',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              color: 'var(--text-primary)',
+              boxShadow: 'var(--shadow-sm)',
+              transition: 'all 0.2s'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.7)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.4)'}
+          >
+            🗄️ 数据库
+          </button>
         </div>
+
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
           
           {/* 字体大小设置下拉菜单 */}
@@ -1196,6 +1237,11 @@ export default function App() {
           onClose={() => { setShowCropModal(false); setImageSrc(null); }} 
           onSave={handleSaveCrop} 
         />
+      )}
+
+      {/* 内置数据库查看器 */}
+      {showDbViewer && (
+        <DatabaseViewer onClose={() => setShowDbViewer(false)} />
       )}
     </div>
   );

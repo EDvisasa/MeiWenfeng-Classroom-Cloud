@@ -74,7 +74,7 @@ def save_memory_to_rag(user_msg: str, assistant_msg: str, level: int = 0) -> boo
     return False
 
 
-def retrieve_memory(query: str, n_results: int = 3) -> str:
+def retrieve_memory(query: str, n_results: int = 3) -> list:
     """从当前 RAG 后端检索对话记忆（只对 chromadb 有实际效果）"""
     config = get_rag_config()
     backend_type = config.get("backend_type", "chromadb")
@@ -83,4 +83,4 @@ def retrieve_memory(query: str, n_results: int = 3) -> str:
         from backend.services.chroma_client import chroma_rag_client
         return chroma_rag_client.retrieve_memory(query, n_results)
     
-    return ""
+    return []

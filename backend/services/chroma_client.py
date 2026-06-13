@@ -148,8 +148,8 @@ class ChromaRAGClient:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4) -> str:
-        """语义检索：从知识库 + 对话记忆中分别召回，拼接返回"""
+    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4) -> List[str]:
+        """语义检索：从知识库 + 对话记忆中分别召回，返回 chunk 列表"""
         if dataset_names is None:
             dataset_names = ["Classroom_Knowledge"]
         try:
@@ -169,10 +169,10 @@ class ChromaRAGClient:
                 except Exception:
                     continue
             
-            return "\n\n".join(all_chunks) if all_chunks else ""
+            return all_chunks
         except Exception as e:
             print(f"ChromaDB retrieval error: {e}")
-            return ""
+            return []
 
     # ── 对话记忆专用接口 ──────────────────────────────────────────
     def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0) -> bool:
@@ -199,20 +199,19 @@ class ChromaRAGClient:
             print(f"ChromaDB save_memory error: {e}")
             return False
 
-    def retrieve_memory(self, query: str, n_results: int = 3) -> str:
+    def retrieve_memory(self, query: str, n_results: int = 3) -> List[str]:
         """单独从对话记忆 collection 检索（供外部直接调用）"""
         try:
             self._ensure_client()
             collection = self._get_collection("conversation_memory")
             count = collection.count()
             if count == 0:
-                return ""
+                return []
             results = collection.query(query_texts=[query], n_results=min(n_results, count))
-            docs = results.get("documents", [[]])[0]
-            return "\n\n".join(docs) if docs else ""
+            return results.get("documents", [[]])[0]
         except Exception as e:
             print(f"ChromaDB retrieve_memory error: {e}")
-            return ""
+            return []
 
 
 chroma_rag_client = ChromaRAGClient()

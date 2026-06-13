@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 # 定义延时降级配置
 DECAY_CONFIGS = [
-    {"level": 1, "threshold": "-2 days", "next_level": 2, "prompt": "请将以下这几天的修仙日记进一步压缩，提炼出这段时间的修炼主线和师生关系进展，不超过150字。"},
-    {"level": 2, "threshold": "-7 days", "next_level": 3, "prompt": "请将以下近期的修炼总结高度浓缩为长期记忆标签，包括主角的修为境界突破、重要感情转折点等，不超过200字。"},
-    {"level": 3, "threshold": "-30 days", "next_level": 4, "prompt": "请提炼出过去这一个月甚至更久的核心羁绊与命运轨迹，凝练成一段史诗般的传记记忆。"}
+    {"level": 1, "threshold": "-2 days", "next_level": 2, "prompt": "请将以下这几天的修仙日记进一步压缩，提炼出这段时间的修炼主线和师生关系进展。\n请严格按照以下格式输出：\n【时间跨度】：（根据内容总结时间跨度）\n【涉及事物/功法】：（提炼核心道具、功法或话题）\n【阶段总结】：（一句话高度概括该阶段）\n【详细记忆】：（不超过150字的具体经过）"},
+    {"level": 2, "threshold": "-7 days", "next_level": 3, "prompt": "请将以下近期的修炼总结高度浓缩为长期记忆标签。\n请严格按照以下格式输出：\n【时间跨度】：（如：近一周）\n【核心关键点】：（提炼最重要的突破或转折点）\n【阶段总结】：（一句话概括）\n【详细记忆】：（不超过200字）"},
+    {"level": 3, "threshold": "-30 days", "next_level": 4, "prompt": "请提炼出过去这一个月甚至更久的核心羁绊与命运轨迹，凝练成一段史诗般的传记记忆。\n请严格按照以下格式输出：\n【时间跨度】：（如：近一个月）\n【命运节点】：（最核心的羁绊或境界节点）\n【史诗总结】：（一句话概括）\n【详细记忆】：（不超过300字）"}
 ]
 
 def generate_summary(text: str, prompt: str) -> str:
@@ -110,7 +110,12 @@ def process_memory_decay() -> Dict[str, Any]:
         combined_text += "【新聊天记录】\n"
         combined_text += "\n---\n".join([r["content"] for r in level0_rows])
 
-        prompt = "请将以下【今日旧日记】（如果有）和【新聊天记录】合并浓缩，生成一份不超过150字的全新今日修仙日记，总结今天的核心事件和情感进展。"
+        prompt = """请将以下【今日旧日记】（如果有）和【新聊天记录】合并浓缩，生成一份全新的今日修仙日记。
+请务必严格按照以下格式输出：
+【时间】：（根据内容填写大致时间段）
+【涉及事物/功法】：（提炼聊天中提及的重要道具、功法、知识点或话题）
+【一句话总结】：（用一句话高度概括核心事件）
+【详细记忆】：（总结今天的核心事件和情感进展，不超过150字）"""
         new_summary = generate_summary(combined_text, prompt)
 
         if new_summary:
@@ -130,9 +135,12 @@ def process_memory_decay() -> Dict[str, Any]:
             conn.commit()
             
             # 同步到 RAGFlow 或 当前后端
+            import datetime
+            date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            sync_text = f"【记录时间：{date_str}】\n{new_summary}"
             filename = f"Memory_Level_1_{l1_id}.md"
             rag_client = get_rag_client()
-            rag_client.sync_knowledge({filename: new_summary}, dataset_name="Memory_Knowledge")
+            rag_client.sync_knowledge({filename: sync_text}, dataset_name="Memory_Knowledge")
             
             stats["processed"] += len(level0_rows)
             stats["levels"][0] = len(level0_rows)
@@ -147,7 +155,7 @@ def process_memory_decay() -> Dict[str, Any]:
         prompt = config["prompt"]
         
         cursor.execute(f"""
-            SELECT id, summary FROM memory_logs 
+            SELECT id, summary, timestamp FROM memory_logs 
             WHERE level = ? AND timestamp < datetime('now', ?) AND status = 'active'
             ORDER BY timestamp ASC
         """, (level, threshold))
@@ -156,8 +164,19 @@ def process_memory_decay() -> Dict[str, Any]:
         if not rows:
             continue
             
+        start_date = rows[0]["timestamp"].split()[0]
+        end_date = rows[-1]["timestamp"].split()[0]
+        if start_date == end_date:
+            date_range_str = start_date
+        else:
+            date_range_str = f"{start_date} 至 {end_date}"
+            
+        dynamic_prompt = prompt.replace("（根据内容总结时间跨度）", date_range_str)
+        dynamic_prompt = dynamic_prompt.replace("（如：近一周）", date_range_str)
+        dynamic_prompt = dynamic_prompt.replace("（如：近一个月）", date_range_str)
+            
         combined_text = "\n---\n".join([r["summary"] for r in rows])
-        new_summary = generate_summary(combined_text, prompt)
+        new_summary = generate_summary(combined_text, dynamic_prompt)
         
         if new_summary:
             old_ids = [r["id"] for r in rows]
@@ -172,8 +191,11 @@ def process_memory_decay() -> Dict[str, Any]:
             conn.commit()
             
             filename = f"Memory_Level_{next_level}_{new_id}.md"
+            import datetime
+            date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            sync_text = f"【记录时间：{date_str}】\n{new_summary}"
             rag_client = get_rag_client()
-            rag_client.sync_knowledge({filename: new_summary}, dataset_name="Memory_Knowledge")
+            rag_client.sync_knowledge({filename: sync_text}, dataset_name="Memory_Knowledge")
             
             stats["processed"] += len(rows)
             stats["levels"][level] = len(rows)
