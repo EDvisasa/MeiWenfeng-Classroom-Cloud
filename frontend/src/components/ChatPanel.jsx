@@ -84,7 +84,7 @@ export default function ChatPanel({
               style={{ width: '24px', height: '24px' }}
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-3.5a.75.75 0 0 1 .75.75v3h1.5a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75v-3.75A.75.75 0 0 1 8 4.5z"/>
+                <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-3.5a.75.75 0 0 1 .75.75v3h1.5a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75v-3.75A.75.75 0 0 1 8 4.5z" />
               </svg>
             </button>
             {showSessionList && (
@@ -103,7 +103,7 @@ export default function ChatPanel({
                       title="删除"
                     >
                       <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M2 4h12v1H2V4zm2-2h8v1H4V2zm1 4h1v7H5V6zm4 0h1v7H9V6zM3 5h10l-1 10H4L3 5z"/>
+                        <path d="M2 4h12v1H2V4zm2-2h8v1H4V2zm1 4h1v7H5V6zm4 0h1v7H9V6zM3 5h10l-1 10H4L3 5z" />
                       </svg>
                     </button>
                   </div>
@@ -120,7 +120,7 @@ export default function ChatPanel({
             style={{ width: '24px', height: '24px' }}
           >
             <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm.75 2.25h-1.5v2.5h-2.5v1.5h2.5v2.5h1.5v-2.5h2.5v-1.5h-2.5v-2.5z"/>
+              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm.75 2.25h-1.5v2.5h-2.5v1.5h2.5v2.5h1.5v-2.5h2.5v-1.5h-2.5v-2.5z" />
             </svg>
           </button>
 
@@ -189,32 +189,32 @@ export default function ChatPanel({
                       <span className="sender-name">你</span>
                     </div>
                     <div
-                    className="avatar"
-                    onClick={() => fileInputRef.current?.click()}
-                    title="点击更换头像"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {userAvatar ? (
-                      <img src={userAvatar} alt="用户头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                    ) : (
-                      <span>你</span>
-                    )}
-                  </div>
+                      className="avatar"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="点击更换头像"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {userAvatar ? (
+                        <img src={userAvatar} alt="用户头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                      ) : (
+                        <span>你</span>
+                      )}
+                    </div>
                   </>
                 ) : (
                   <>
                     <div
-                    className="avatar"
-                    onClick={() => setCropTarget('assistant')}
-                    title="点击更换导师头像"
-                    style={{ cursor: 'pointer' }}
-                  >
-                    {assistantAvatar ? (
-                      <img src={assistantAvatar} alt="导师头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
-                    ) : (
-                      <span>师</span>
-                    )}
-                  </div>
+                      className="avatar"
+                      onClick={() => setCropTarget('assistant')}
+                      title="点击更换导师头像"
+                      style={{ cursor: 'pointer' }}
+                    >
+                      {assistantAvatar ? (
+                        <img src={assistantAvatar} alt="导师头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                      ) : (
+                        <span>师</span>
+                      )}
+                    </div>
                     <span className="sender-name">媚吻锋</span>
                   </>
                 )}
@@ -242,7 +242,7 @@ export default function ChatPanel({
                   {isUser && (
                     <button className="edit-msg-btn" onClick={handleStartEdit} title="编辑并重发">
                       <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M11.5 1a.5.5 0 0 1 .354.146l2 2A.5.5 0 0 1 14 3.5v.793L4.5 13.793 1 15l1.207-3.5L11.5 1zm-1.207 2.5L8.5 1.707 2 8.207V9.5h1.293L11.5 1.5zm1.914 0l.793-.793-1.207-1.207-.793.793 1.207 1.207z"/>
+                        <path d="M11.5 1a.5.5 0 0 1 .354.146l2 2A.5.5 0 0 1 14 3.5v.793L4.5 13.793 1 15l1.207-3.5L11.5 1zm-1.207 2.5L8.5 1.707 2 8.207V9.5h1.293L11.5 1.5zm1.914 0l.793-.793-1.207-1.207-.793.793 1.207 1.207z" />
                       </svg>
                     </button>
                   )}
@@ -333,7 +333,7 @@ export default function ChatPanel({
                 title="快捷工具"
               >
                 <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z"/>
+                  <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z" />
                 </svg>
               </button>
               {showShortcuts && (
@@ -396,7 +396,7 @@ export default function ChatPanel({
               title="发送消息"
             >
               <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1l6 6h-5v8H7V7H2l6-6z"/>
+                <path d="M8 1l6 6h-5v8H7V7H2l6-6z" />
               </svg>
             </button>
           </div>

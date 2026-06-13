@@ -1466,6 +1466,15 @@ body {
   color: var(--text-secondary) !important;
   width: 22px !important;
   height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.vscode-env .shortcuts-trigger-btn svg {
+  width: 18px !important;
+  height: 18px !important;
 }
 
 .vscode-env .shortcuts-trigger-btn:hover {
