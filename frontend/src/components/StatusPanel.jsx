@@ -42,7 +42,9 @@ export default function StatusPanel({
             cursor: 'pointer',
             transition: 'all 0.2s',
             outline: 'none',
-            boxSizing: 'border-box'
+            boxSizing: 'border-box',
+            marginRight: '14px',
+            marginTop: '4px'
           }}
           title="点击切换导师人设类型（蓝色为精简版，透明为原版）"
         >
