@@ -1578,5 +1578,18 @@ body {
 
 .vscode-env .character-role {
   font-size: 11px !important;
+}
+
+/* 毛玻璃效果切换 */
+.disable-blur .header-bar,
+.disable-blur .sidebar,
+.disable-blur .chat-panel,
+.disable-blur .settings-popover,
+.disable-blur .crop-modal-content {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.vscode-env .character-role {
   color: var(--accent-pink) !important;
 }

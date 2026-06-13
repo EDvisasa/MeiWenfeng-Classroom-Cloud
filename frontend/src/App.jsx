@@ -165,6 +165,39 @@ export default function App() {
   const [imageSrc, setImageSrc] = useState(null);
   const fileInputRef = useRef(null);
 
+  const [bgImage, setBgImage] = useState(localStorage.getItem('bg_image') || '');
+  const [enableBlur, setEnableBlur] = useState(localStorage.getItem('enable_blur') !== 'false');
+  const bgFileInputRef = useRef(null);
+
+  const handleBgUpload = (e) => {
+    if (e.target.files && e.target.files.length > 0) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const dataUrl = event.target.result;
+        try {
+          localStorage.setItem('bg_image', dataUrl);
+          setBgImage(dataUrl);
+        } catch (err) {
+          alert('图片过大，无法保存到本地存储，请选择较小的图片。');
+        }
+      };
+      reader.readAsDataURL(file);
+      e.target.value = null;
+    }
+  };
+
+  const handleResetBg = () => {
+    localStorage.removeItem('bg_image');
+    setBgImage('');
+  };
+
+  const toggleBlur = () => {
+    const newVal = !enableBlur;
+    setEnableBlur(newVal);
+    localStorage.setItem('enable_blur', newVal.toString());
+  };
+
   const handleFileChange = (e) => {
     if (e.target.files && e.target.files.length > 0) {
       const reader = new FileReader();
@@ -769,11 +802,12 @@ export default function App() {
 
   return (
     <div 
-      className={`app-container ${isVsCode ? 'vscode-env' : 'web-env'} theme-${theme}`} 
+      className={`app-container ${isVsCode ? 'vscode-env' : 'web-env'} theme-${theme} ${!enableBlur ? 'disable-blur' : ''}`} 
       style={{ 
         '--chat-font-size': `${fontSize}px`,
         '--avatar-size': `${avatarSize}px`,
-        '--name-font-size': `${nameFontSize}px`
+        '--name-font-size': `${nameFontSize}px`,
+        backgroundImage: bgImage ? `url(${bgImage})` : undefined
       }}
     >
       {/* 顶部工具栏 */}
@@ -943,6 +977,35 @@ export default function App() {
                         修改导师头像
                       </button>
                     </div>
+                  </div>
+
+                  {/* 全局背景设置 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>全局背景设置</label>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      <button 
+                        onClick={() => bgFileInputRef.current.click()}
+                        style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                      >
+                        更换背景图片
+                      </button>
+                      <button 
+                        onClick={handleResetBg}
+                        style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
+                      >
+                        恢复默认背景
+                      </button>
+                    </div>
+                    <button 
+                      onClick={toggleBlur}
+                      style={{ 
+                        width: '100%', padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', 
+                        background: enableBlur ? 'var(--accent-pink)' : 'var(--bg-secondary)', 
+                        color: enableBlur ? 'white' : 'var(--text-primary)' 
+                      }}
+                    >
+                      毛玻璃背景特效：{enableBlur ? '已开启' : '已关闭'}
+                    </button>
                   </div>
 
                 </div>
@@ -1285,6 +1348,13 @@ export default function App() {
         ref={fileInputRef} 
         style={{ display: 'none' }} 
         onChange={handleFileChange} 
+      />
+      <input 
+        type="file" 
+        accept="image/*" 
+        ref={bgFileInputRef} 
+        style={{ display: 'none' }} 
+        onChange={handleBgUpload} 
       />
 
       {/* 头像裁剪弹窗 */}
