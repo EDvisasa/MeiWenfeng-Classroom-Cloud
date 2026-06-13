@@ -26,7 +26,7 @@ export default function StatusPanel({
       <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '6px' }}>
-            <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6zm0 1c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z"/>
+            <path fillRule="evenodd" clipRule="evenodd" d="M8 1.54L1 4.88v1.37l.86.41v4.83l.25.32 5.56 2.65h.66l5.56-2.65.25-.32V6.66l.86-.41V4.88L8 1.54zm5.14 5.58L8 9.56 2.86 7.12v4.29l5.14 2.45 5.14-2.45V7.12zM8 2.66l5.22 2.5L8 7.66 2.78 5.16 8 2.66z"/>
           </svg>
           <span>导师与大纲状态</span>
         </div>
