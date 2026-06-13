@@ -1047,7 +1047,7 @@ export default function App() {
                   )}
                 </div>
 
-                <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px dashed var(--border-color)' }} />
+                <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border-color)' }} />
                 
                 {/* API 源 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
@@ -1085,27 +1085,10 @@ export default function App() {
                   />
                 </div>
 
-                <div style={{ display: 'flex', gap: '8px' }}>
-                  <button 
-                    onClick={saveApiConfiguration}
-                    style={{
-                      flex: 1,
-                      padding: '6px 12px',
-                      fontSize: '12px',
-                      background: 'var(--accent-pink)',
-                      color: 'white',
-                      border: 'none',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontWeight: 'bold'
-                    }}
-                  >
-                    保存 API 地址
-                  </button>
-                </div>
+
 
                 {/* 子模型选择 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px', borderTop: '1px solid var(--border-color)', paddingTop: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                   <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span>🤖 可用子模型</span>
                     <button 
@@ -1134,18 +1117,19 @@ export default function App() {
                 <button 
                   onClick={saveSelectedModel}
                   style={{
-                    padding: '6px 12px',
+                    padding: '8px 12px',
                     fontSize: '12px',
-                    background: 'var(--success)',
+                    background: 'var(--accent-pink)',
                     color: 'white',
                     border: 'none',
                     borderRadius: '4px',
                     cursor: 'pointer',
                     fontWeight: 'bold',
-                    width: '100%'
+                    width: '100%',
+                    marginTop: '8px'
                   }}
                 >
-                  应用当前模型
+                  保存 API 地址并应用模型
                 </button>
 
                 {/* 知识库后端配置 */}
