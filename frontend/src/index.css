@@ -625,6 +625,9 @@ body {
   resize: vertical;
   min-height: 60px;
   line-height: 1.6;
+  border-radius: 6px !important;
+  padding: 8px !important;
+  box-sizing: border-box;
 }
 
 .edit-actions {
@@ -1453,10 +1456,13 @@ body {
   color: var(--text-primary) !important;
   font-size: var(--chat-font-size, 13px) !important;
   min-height: 18px !important;
-  padding: 8px 12px 4px !important;
+  padding: 8px 12px !important;
   flex: none !important;
   width: 100% !important;
   box-sizing: border-box !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
 }
 
 .vscode-env .input-toolbar {
