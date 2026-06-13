@@ -119,7 +119,7 @@ export default function ChatPanel({
             title="新建对话"
             style={{ width: '24px', height: '24px' }}
           >
-            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor">
               <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm.75 2.25h-1.5v2.5h-2.5v1.5h2.5v2.5h1.5v-2.5h2.5v-1.5h-2.5v-2.5z"/>
             </svg>
           </button>
@@ -332,7 +332,7 @@ export default function ChatPanel({
                 onClick={() => setShowShortcuts(!showShortcuts)}
                 title="快捷工具"
               >
-                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z"/>
                 </svg>
               </button>
