@@ -23,8 +23,24 @@ export default function StatusPanel({
 
   return (
     <section className="ide-panel right-panel">
-      <div className="panel-header">
+      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <span>导师与大纲状态</span>
+        <button 
+          onClick={() => handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
+          style={{
+            padding: '2px 8px',
+            fontSize: '11px',
+            borderRadius: '4px',
+            border: '1px solid var(--border-color)',
+            background: personaType === 'simplified' ? 'var(--accent-pink)' : 'transparent',
+            color: personaType === 'simplified' ? 'white' : 'var(--text-primary)',
+            cursor: 'pointer',
+            transition: 'all 0.2s'
+          }}
+          title="切换人设类型"
+        >
+          {personaType === 'simplified' ? '精简人设' : '原版人设'}
+        </button>
       </div>
 
       <div className="right-content">

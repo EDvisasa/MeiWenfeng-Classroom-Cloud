@@ -935,31 +935,6 @@ export default function App() {
                     />
                   </div>
 
-                  {/* 人设切换 */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>导师人设类型</label>
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button
-                        onClick={() => handlePersonaTypeChange('simplified')}
-                        style={{
-                          flex: 1, padding: '6px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)',
-                          background: personaType === 'simplified' ? 'var(--accent-pink)' : 'var(--bg-secondary)',
-                          color: personaType === 'simplified' ? 'white' : 'var(--text-primary)',
-                          cursor: personaType === 'simplified' ? 'default' : 'pointer'
-                        }}
-                      >精简</button>
-                      <button
-                        onClick={() => handlePersonaTypeChange('original')}
-                        style={{
-                          flex: 1, padding: '6px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)',
-                          background: personaType === 'original' ? 'var(--accent-pink)' : 'var(--bg-secondary)',
-                          color: personaType === 'original' ? 'white' : 'var(--text-primary)',
-                          cursor: personaType === 'original' ? 'default' : 'pointer'
-                        }}
-                      >原版</button>
-                    </div>
-                  </div>
-
                   {/* 头像设置 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 'bold' }}>全局头像设置</label>
