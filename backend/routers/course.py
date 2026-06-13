@@ -54,7 +54,7 @@ def update_affection(payload: Dict[str, Any] = Body(...)):
             current = row["value"]
             
         new_val = max(0, min(100, current + delta))
-        cursor.execute("UPDATE affection SET value = ?, last_updated = datetime('now') WHERE id = 1")
+        cursor.execute("UPDATE affection SET value = ?, last_updated = datetime('now') WHERE id = 1", (new_val,))
         conn.commit()
         conn.close()
         return {"status": "success", "affection": new_val}
