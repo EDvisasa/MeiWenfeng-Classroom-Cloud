@@ -80,7 +80,7 @@ export default function StatusPanel({
 
       <div className="right-content">
         {/* 导师状态卡片 */}
-        <div className="character-widget" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+        <div className="character-widget" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
           <div className="thought-box">
             {currentThought}
           </div>
