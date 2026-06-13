@@ -1090,7 +1090,7 @@ export default function App() {
                 {/* 子模型选择 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
                   <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>🤖 可用子模型</span>
+                    <span>可用子模型</span>
                     <button 
                       onClick={refreshAvailableModels} 
                       disabled={loadingModels}
@@ -1129,7 +1129,7 @@ export default function App() {
                     marginTop: '8px'
                   }}
                 >
-                  保存 API 地址并应用模型
+                  保存 API 地址并应用
                 </button>
 
                 {/* 知识库后端配置 */}
