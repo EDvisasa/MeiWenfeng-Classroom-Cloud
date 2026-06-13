@@ -1454,6 +1454,9 @@ body {
   font-size: var(--chat-font-size, 13px) !important;
   min-height: 18px !important;
   padding: 8px 12px 4px !important;
+  flex: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
 }
 
 .vscode-env .input-toolbar {
