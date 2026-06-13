@@ -332,7 +332,7 @@ export default function ChatPanel({
                 onClick={() => setShowShortcuts(!showShortcuts)}
                 title="快捷工具"
               >
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+                <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
                   <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z"/>
                 </svg>
               </button>
