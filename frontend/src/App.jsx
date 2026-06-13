@@ -791,7 +791,7 @@ export default function App() {
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
           
           {/* 主题切换按钮 */}
           <button 
@@ -819,7 +819,7 @@ export default function App() {
           </button>
 
           {/* 字体大小设置下拉菜单 */}
-          <div className="settings-dropdown-container" style={{ position: 'relative' }}>
+          <div className="settings-dropdown-container">
             <button 
               className="header-btn" 
               onClick={() => {
@@ -837,18 +837,24 @@ export default function App() {
                 className="settings-popover" 
                 style={{
                   position: 'absolute',
-                  top: '32px',
+                  top: '36px',
                   right: 0,
-                  width: '260px',
+                  width: '320px',
                   background: 'var(--bg-panel)',
                   backdropFilter: 'blur(10px)',
                   border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  padding: '12px',
+                  borderRadius: '12px',
+                  padding: '16px',
                   boxShadow: 'var(--shadow-lg)',
-                  zIndex: 1000
+                  zIndex: 1000,
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '12px'
                 }}
               >
+                <h4 style={{ margin: 0, fontSize: '13px', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
+                  ⚙️ UI 设置
+                </h4>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   
                   {/* 头像大小设置 */}
@@ -944,8 +950,8 @@ export default function App() {
             )}
           </div>
 
-          {/* 酒馆式 API 设置面板 */}
-          <div className="api-dropdown-container" style={{ position: 'relative' }}>
+          {/* API 设置面板 */}
+          <div className="api-dropdown-container">
             <button 
               className="header-btn" 
               onClick={() => {
@@ -963,7 +969,7 @@ export default function App() {
                 className="settings-popover" 
                 style={{
                   position: 'absolute',
-                  top: '32px',
+                  top: '36px',
                   right: 0,
                   width: '320px',
                   background: 'var(--bg-panel)',
@@ -979,7 +985,7 @@ export default function App() {
                 }}
               >
                 <h4 style={{ margin: 0, fontSize: '13px', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
-                  🔑 酒馆式 API 设置
+                  🔑 API 设置
                 </h4>
 
                 {/* 模型选择配置 (原右侧面板) */}
