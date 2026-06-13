@@ -37,7 +37,18 @@ app.add_middleware(
 
 # 5. 挂载路由
 from backend.routers.chat import router as chat_router
+from backend.routers.memory import router as memory_router
+from backend.routers.rag import router as rag_router
+from backend.routers.course import router as course_router
+from backend.routers.models import router as models_router
+from backend.routers.files import router as files_router
+
 app.include_router(chat_router)
+app.include_router(memory_router)
+app.include_router(rag_router)
+app.include_router(course_router)
+app.include_router(models_router)
+app.include_router(files_router)
 
 @app.get("/api/health")
 def health_check():

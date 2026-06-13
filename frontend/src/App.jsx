@@ -9,7 +9,6 @@ const COMMANDS = [
   { cmd: '/交作业', desc: '进行课题考核，AI会对你进行提问' },
   { cmd: '/奖励', desc: '获取好感奖励，触发狐妖娘溺爱互动' },
   { cmd: '/总结', desc: '压缩并保存当前记忆，释放上下文' },
-  { cmd: '/切换模型', desc: '快速切换当前所用大语言模型' },
   { cmd: '/备课', desc: '将当前选定的讲义文件上传同步至RAGFlow知识库' },
   { cmd: '/计划', desc: '根据当前进度，重新调整课程大纲' }
 ];
@@ -599,142 +598,12 @@ export default function App() {
     inputRef.current?.focus();
   };
 
-  // 执行具体命令
+  // 快速执行斜杠指令（供快捷按钮调用）
   const executeSlashCommand = async (cmdText) => {
-    const cleanCmd = cmdText.trim();
-    if (cleanCmd === '/奖励') {
-      try {
-        const res = await fetch('http://localhost:8000/api/chat/update_affection', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ delta: 10 })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setAffection(data.affection);
-          setMessages(prev => [
-            ...prev,
-            { role: 'user', content: cleanCmd },
-            { role: 'system_info', content: `[系统提示] 媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度等级已上升。` }
-          ]);
-          triggerAIResponse([...messages, { role: 'user', content: '夫君表现得好，想要奖励嘛~' }]);
-        }
-      } catch (e) {
-        console.error(e);
-      }
-    } else if (cleanCmd === '/上课') {
-      const fileName = selectedFilePath ? selectedFilePath.split('/').pop() : '默认修仙';
-      const topicName = fileName.replace('.md', '');
-      
-      setMessages(prev => [
-        ...prev,
-        { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[系统提示] 开始新课时：媚吻锋已为你加载《${topicName}》讲义内容。` }
-      ]);
-      triggerAIResponse([...messages, { role: 'user', content: `娘子，我们开始上课吧，给我讲讲关于《${topicName}》的修行要点吧！` }]);
-    } else if (cleanCmd === '/交作业') {
-      const fileName = selectedFilePath ? selectedFilePath.split('/').pop() : '当前课题';
-      const topicName = fileName.replace('.md', '');
-      
-      setMessages(prev => [
-        ...prev,
-        { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[系统提示] 开启课题考核：媚吻锋老师开始检查你对《${topicName}》的掌握进度。` }
-      ]);
-      triggerAIResponse([...messages, { role: 'user', content: `娘子，我来交《${topicName}》的作业了，快来考考我吧！` }]);
-    } else if (cleanCmd === '/总结') {
-      setMessages(prev => [
-        ...prev,
-        { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[系统记忆压缩] 正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...` }
-      ]);
-      try {
-        const res = await fetch('http://localhost:8000/api/chat/summarize', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setMessages(prev => [
-            ...prev,
-            { role: 'system_info', content: `[系统记忆压缩] 压缩完成！新记忆已归档入库。处理统计: ${JSON.stringify(data.stats)}` }
-          ]);
-        } else {
-          setMessages(prev => [
-            ...prev,
-            { role: 'system_info', content: `[系统记忆压缩] 压缩失败: ${data.detail || '未知错误'}` }
-          ]);
-        }
-      } catch (e) {
-        setMessages(prev => [
-          ...prev,
-          { role: 'system_info', content: `[系统记忆压缩] 请求异常：无法连接到后端。` }
-        ]);
-      }
-    } else if (cleanCmd === '/切换模型') {
-      setShowApiMenu(true);
-      setShowFontMenu(false);
-      setMessages(prev => [
-        ...prev,
-        { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[系统提示] 已为你展开右上角的 API 和模型配置菜单。` }
-      ]);
-    } else if (cleanCmd === '/备课') {
-      if (!selectedFilePath) {
-        setMessages(prev => [
-          ...prev,
-          { role: 'system_info', content: `[RAGFlow联动] 提示：请先在左侧选择要上传的 Markdown 讲义文件。` }
-        ]);
-        return true;
-      }
-      
-      const fileName = selectedFilePath.split('/').pop();
-      setMessages(prev => [
-        ...prev,
-        { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[RAGFlow联动] 正在同步本地文件《${fileName}》到 RAGFlow 知识库，请稍候...` }
-      ]);
-      try {
-        const res = await fetch('http://localhost:8000/api/chat/files/sync', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ file_path: selectedFilePath })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          setMessages(prev => [
-            ...prev,
-            { role: 'system_info', content: `[RAGFlow联动] 上传成功！已开始触发解析进程。` }
-          ]);
-        } else {
-          setMessages(prev => [
-            ...prev,
-            { role: 'system_info', content: `[RAGFlow联动] 同步出错：${data.detail || '未知错误'}` }
-          ]);
-        }
-      } catch (e) {
-        setMessages(prev => [
-          ...prev,
-          { role: 'system_info', content: `[RAGFlow联动] 请求异常：无法连接到后端。` }
-        ]);
-      }
-    } else if (cleanCmd === '/计划') {
-      setMessages(prev => [
-        ...prev,
-        { role: 'user', content: cleanCmd },
-        { role: 'system_info', content: `[课程规划] 媚吻锋结合你的理解程度，正在微调后续的阶段进度... 后续课程大纲已在右侧更新。` }
-      ]);
-    } else if (cleanCmd === '更新人设' || cleanCmd === '/更新人设') {
-      const nextMessages = [
-        ...messages,
-        { role: 'user', content: '更新人设' }
-      ];
-      setMessages(nextMessages);
-      triggerAIResponse(nextMessages);
-    } else {
-      return false;
-    }
-    return true;
+    if (isStreaming) return;
+    const nextMessages = [...messages, { role: 'user', content: cmdText }];
+    setMessages(nextMessages);
+    await triggerAIResponse(nextMessages);
   };
 
   // 发送对话消息
@@ -744,11 +613,6 @@ export default function App() {
     const userText = inputText.trim();
     setInputText('');
     setShowCommandList(false);
-
-    if (userText.startsWith('/')) {
-      const handled = await executeSlashCommand(userText);
-      if (handled) return;
-    }
 
     const nextMessages = [...messages, { role: 'user', content: userText }];
     setMessages(nextMessages);
@@ -766,7 +630,8 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           messages: apiPayload,
-          persona_type: personaType
+          persona_type: personaType,
+          current_file_path: selectedFilePath
         })
       });
 
@@ -879,7 +744,7 @@ export default function App() {
                 color: 'var(--text-primary)'
               }}
             >
-              ⚙️ 字体大小
+              ⚙️ UI设置
             </button>
             {showFontMenu && (
               <div 

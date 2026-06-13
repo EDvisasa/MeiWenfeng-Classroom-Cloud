@@ -68,16 +68,24 @@ def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 60) -> List[str
     return [c for c in chunks if c.strip()]
 
 
+import threading
+
 class ChromaRAGClient:
     def __init__(self):
         self._client = None
         self._ef = None
+        self._lock = threading.Lock()
 
     def _ensure_client(self):
         if self._client is None:
-            os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
-            self._client = _get_chroma_client()
-            self._ef = _get_embedding_fn()
+            with self._lock:
+                if self._client is None:
+                    os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
+                    # 先初始化变量，最后再赋值给 self._client，避免其他线程过早看到 _client 不为空
+                    client = _get_chroma_client()
+                    ef = _get_embedding_fn()
+                    self._ef = ef
+                    self._client = client
 
     def _get_collection(self, name: str):
         self._ensure_client()

@@ -3,7 +3,7 @@ import sqlite3
 from typing import List, Dict, Any
 from backend.database import get_db_connection
 from backend.services.model_router import get_active_model
-from backend.services.ragflow_client import ragflow_client
+from backend.services.rag_factory import get_rag_client
 from openai import OpenAI
 import os
 
@@ -124,9 +124,10 @@ def process_memory_decay() -> Dict[str, Any]:
                 
             conn.commit()
             
-            # 同步到 RAGFlow
+            # 同步到 RAGFlow 或 当前后端
             filename = f"Memory_Level_1_{l1_id}.md"
-            ragflow_client.sync_knowledge({filename: new_summary}, dataset_name="Memory_Knowledge")
+            rag_client = get_rag_client()
+            rag_client.sync_knowledge({filename: new_summary}, dataset_name="Memory_Knowledge")
             
             stats["processed"] += len(level0_rows)
             stats["levels"][0] = len(level0_rows)
@@ -166,7 +167,8 @@ def process_memory_decay() -> Dict[str, Any]:
             conn.commit()
             
             filename = f"Memory_Level_{next_level}_{new_id}.md"
-            ragflow_client.sync_knowledge({filename: new_summary}, dataset_name="Memory_Knowledge")
+            rag_client = get_rag_client()
+            rag_client.sync_knowledge({filename: new_summary}, dataset_name="Memory_Knowledge")
             
             stats["processed"] += len(rows)
             stats["levels"][level] = len(rows)
