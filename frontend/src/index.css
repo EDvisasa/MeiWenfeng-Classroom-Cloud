@@ -465,11 +465,11 @@ body {
   flex-direction: column;
   margin: 0;
   min-height: 0;
-  background: rgba(255, 255, 255, 0.7);
+  background: var(--bg-panel);
   /* 匹配 JSON 中的 chat_tint_color */
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 0 10px rgba(78, 78, 78, 0.1);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   border-radius: var(--border-radius-md);
   border: 1px solid var(--border-color);
 }
@@ -1169,9 +1169,9 @@ body {
 }
 
 .vscode-env.theme-light .system-info-msg {
-  color: #bc4c00 !important; /* 系统提示: 橙色 */
-  background-color: #fff8f2 !important;
-  border: 1px solid #ffe1b8 !important;
+  color: #0969da !important; /* 系统提示: 蓝色 */
+  background-color: rgba(9, 105, 218, 0.1) !important;
+  border: 1px solid rgba(9, 105, 218, 0.2) !important;
 }
 
 .vscode-env.theme-light .send-button {
@@ -1262,9 +1262,9 @@ body {
 }
 
 .vscode-env.theme-dark .system-info-msg {
-  color: #f0883e !important; /* 系统提示: 亮橙色 */
-  background-color: rgba(240, 136, 62, 0.1) !important;
-  border: 1px solid rgba(240, 136, 62, 0.2) !important;
+  color: #58a6ff !important; /* 系统提示: 蓝色 */
+  background-color: rgba(88, 166, 255, 0.1) !important;
+  border: 1px solid rgba(88, 166, 255, 0.2) !important;
 }
 
 .vscode-env.theme-dark .send-button {
