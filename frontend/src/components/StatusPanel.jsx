@@ -30,7 +30,7 @@ export default function StatusPanel({
           </svg>
           <span>导师与大纲状态</span>
         </div>
-        <div style={{ display: 'flex', gap: '8px', marginRight: '14px', marginTop: '8px' }}>
+        <div style={{ display: 'flex', gap: '6px', marginRight: '14px', marginTop: '2px' }}>
           <button
             style={{
               display: 'flex',
@@ -44,7 +44,7 @@ export default function StatusPanel({
               border: '1px solid var(--border-color)',
               background: 'var(--bg-primary)',
               color: 'var(--text-primary)',
-              cursor: 'default',
+              cursor: 'pointer',
               outline: 'none',
               boxSizing: 'border-box'
             }}
