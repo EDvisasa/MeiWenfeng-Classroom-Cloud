@@ -44,7 +44,7 @@ export default function StatusPanel({
             outline: 'none',
             boxSizing: 'border-box',
             marginRight: '14px',
-            marginTop: '4px'
+            marginTop: '8px'
           }}
           title="点击切换导师人设类型（蓝色为精简版，透明为原版）"
         >
