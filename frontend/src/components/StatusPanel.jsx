@@ -28,18 +28,25 @@ export default function StatusPanel({
         <button 
           onClick={() => handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
           style={{
-            padding: '2px 8px',
-            fontSize: '11px',
-            borderRadius: '4px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '2px 10px',
+            height: '24px',
+            fontSize: '12px',
+            fontWeight: 600,
+            borderRadius: '12px',
             border: '1px solid var(--border-color)',
             background: personaType === 'simplified' ? 'var(--accent-pink)' : 'transparent',
             color: personaType === 'simplified' ? 'white' : 'var(--text-primary)',
             cursor: 'pointer',
-            transition: 'all 0.2s'
+            transition: 'all 0.2s',
+            outline: 'none',
+            boxSizing: 'border-box'
           }}
-          title="切换人设类型"
+          title="点击切换导师人设类型（蓝色为精简版，透明为原版）"
         >
-          {personaType === 'simplified' ? '精简人设' : '原版人设'}
+          {personaType === 'simplified' ? '精简' : '原版'}
         </button>
       </div>
 
