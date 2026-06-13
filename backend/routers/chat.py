@@ -9,7 +9,7 @@ from typing import List, Dict, Any
 from backend.services.model_router import stream_chat, get_active_model
 from backend.services.prompts import get_system_prompt
 from backend.database import get_db_connection
-from backend.services.ragflow_client import ragflow_client
+from backend.services.rag_factory import get_rag_client, get_rag_config, save_memory_to_rag, retrieve_memory
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -165,7 +165,13 @@ def send_message(payload: ChatRequest):
     rag_context = ""
     if last_user_msg:
         try:
-            rag_context = ragflow_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge", "Memory_Knowledge"])
+            rag_client = get_rag_client()
+            # 1. 知识库文件检索
+            kb_context = rag_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge", "Memory_Knowledge"])
+            # 2. 对话记忆语义检索（chromadb 时有效）
+            mem_context = retrieve_memory(last_user_msg, n_results=3)
+            parts = [p for p in [kb_context, mem_context] if p]
+            rag_context = "\n\n".join(parts)
         except Exception as e:
             logger.error(f"RAG Retrieval failed: {e}")
 
@@ -201,6 +207,8 @@ def send_message(payload: ChatRequest):
                     )
                     conn.commit()
                     conn.close()
+                    # 同步写入 RAG 记忆（chromadb 后端时进行语义向量化存储）
+                    save_memory_to_rag(last_user_msg, accumulated_assistant_content, level=0)
                 except Exception as e:
                     logger.error(f"Failed to save memory: {e}")
             
@@ -227,8 +235,9 @@ class SyncRequest(BaseModel):
 
 @router.post("/sync_knowledge")
 def sync_knowledge(payload: SyncRequest):
-    """同步前端知识库文件到 RAGFlow"""
-    result = ragflow_client.sync_knowledge(payload.files)
+    """同步前端知识库文件到当前 RAG 后端"""
+    rag_client = get_rag_client()
+    result = rag_client.sync_knowledge(payload.files)
     if result["status"] == "error":
         raise HTTPException(status_code=500, detail=result["message"])
     return result
@@ -459,10 +468,60 @@ def sync_file(payload: SyncFileRequest):
 
 @router.get("/files/sync_status")
 def get_sync_status_api(dataset_name: str = "Classroom_Knowledge"):
-    result = ragflow_client.get_sync_status(dataset_name)
+    rag_client = get_rag_client()
+    result = rag_client.get_sync_status(dataset_name)
     if result["status"] == "error":
         raise HTTPException(status_code=500, detail=result["message"])
     return result
+
+
+# ── RAG 配置端点 ────────────────────────────────────────────────────
+
+class RagConfigUpdate(BaseModel):
+    backend_type: str  # "chromadb" | "ragflow" | "external"
+    ragflow_url: str = ""
+    ragflow_key: str = ""
+    external_url: str = ""
+    external_key: str = ""
+
+@router.get("/rag/config")
+def get_rag_config_api():
+    """获取当前 RAG 后端配置"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM rag_config WHERE id = 1")
+        row = cursor.fetchone()
+        conn.close()
+        if row:
+            return dict(row)
+        return {"backend_type": "chromadb", "ragflow_url": "", "ragflow_key": "", "external_url": "", "external_key": ""}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/rag/update")
+def update_rag_config(payload: RagConfigUpdate):
+    """保存 RAG 后端配置"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        # 如果行不存在则插入，否则更新
+        cursor.execute("SELECT COUNT(*) FROM rag_config")
+        if cursor.fetchone()[0] == 0:
+            cursor.execute(
+                "INSERT INTO rag_config (id, backend_type, ragflow_url, ragflow_key, external_url, external_key) VALUES (1, ?, ?, ?, ?, ?)",
+                (payload.backend_type, payload.ragflow_url, payload.ragflow_key, payload.external_url, payload.external_key)
+            )
+        else:
+            cursor.execute(
+                """UPDATE rag_config SET backend_type=?, ragflow_url=?, ragflow_key=?, external_url=?, external_key=? WHERE id=1""",
+                (payload.backend_type, payload.ragflow_url, payload.ragflow_key, payload.external_url, payload.external_key)
+            )
+        conn.commit()
+        conn.close()
+        return {"status": "success", "backend_type": payload.backend_type}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.get("/images")
 def list_character_images():
@@ -481,4 +540,85 @@ def list_character_images():
     except Exception as e:
         logger.error(f"Error listing images: {e}")
         return []
+
+
+# ── 聊天会话与历史记录管理 ──────────────────────────────────────────
+
+class SessionSavePayload(BaseModel):
+    id: str
+    title: str
+    messages: List[Message]
+
+@router.get("/sessions")
+def get_sessions():
+    """获取所有历史会话及其消息"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 获取所有会话，按最后更新时间降序排列
+        cursor.execute("SELECT id, title, updated_at FROM chat_sessions ORDER BY updated_at DESC")
+        sessions = [dict(row) for row in cursor.fetchall()]
+        
+        for sess in sessions:
+            cursor.execute(
+                "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY id ASC", 
+                (sess["id"],)
+            )
+            sess["messages"] = [dict(row) for row in cursor.fetchall()]
+            
+        conn.close()
+        return sessions
+    except Exception as e:
+        logger.error(f"Failed to fetch sessions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sessions/save")
+def save_session(payload: SessionSavePayload):
+    """保存或更新会话及其所有关联消息"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 1. 插入或覆盖更新会话
+        cursor.execute(
+            "INSERT OR REPLACE INTO chat_sessions (id, title, updated_at) VALUES (?, ?, datetime('now'))",
+            (payload.id, payload.title)
+        )
+        
+        # 2. 删除原有的消息
+        cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (payload.id,))
+        
+        # 3. 批量插入新消息
+        for msg in payload.messages:
+            cursor.execute(
+                "INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)",
+                (payload.id, msg.role, msg.content)
+            )
+            
+        conn.commit()
+        conn.close()
+        return {"status": "success", "session_id": payload.id}
+    except Exception as e:
+        logger.error(f"Failed to save session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/sessions/{session_id}")
+def delete_session(session_id: str):
+    """删除指定的聊天会话及其消息"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # 删除会话和消息
+        cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
+        cursor.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
+        
+        conn.commit()
+        conn.close()
+        return {"status": "success", "session_id": session_id}
+    except Exception as e:
+        logger.error(f"Failed to delete session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 

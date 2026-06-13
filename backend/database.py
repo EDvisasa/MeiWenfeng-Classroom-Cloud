@@ -9,6 +9,7 @@ DB_PATH = os.path.join(BACKEND_DIR, "classroom.db")
 def get_db_connection():
     """获取 SQLite 连接，并开启外键支持、设为 dict 形式"""
     conn = sqlite3.connect(DB_PATH)
+    conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     return conn
 
@@ -18,6 +19,27 @@ def init_db():
     cursor = conn.cursor()
 
     # 1. 创建表
+    # 聊天会话
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS chat_sessions (
+        id TEXT PRIMARY KEY,
+        title TEXT,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 聊天消息
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS chat_messages (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id TEXT,
+        role TEXT,
+        content TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
+    );
+    """)
+
     # 记忆日志
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS memory_logs (

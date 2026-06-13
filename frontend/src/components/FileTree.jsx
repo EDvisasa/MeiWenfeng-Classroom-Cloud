@@ -5,13 +5,19 @@ export default function FileTree({
   selectedFileContent,
   onFileSelect,
   rootPath,
-  setRootPath
+  setRootPath,
+  sessions = [],
+  activeSessionId = '',
+  onSwitchSession,
+  onNewSession,
+  onDeleteSession
 }) {
   const [treeData, setTreeData] = useState([]);
   const [openNodes, setOpenNodes] = useState({});
   const [syncStatus, setSyncStatus] = useState({});
   const [loading, setLoading] = useState(false);
   const [inputPath, setInputPath] = useState(rootPath || '');
+  const [activeTab, setActiveTab] = useState('files'); // 'files' | 'history'
 
   useEffect(() => {
     fetchFileTree(rootPath);
@@ -201,95 +207,252 @@ export default function FileTree({
 
   return (
     <section className="ide-panel left-panel">
-      {/* 路径控制挂载区域 */}
-      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <input 
-            type="text" 
-            value={inputPath}
-            onChange={(e) => setInputPath(e.target.value)}
-            placeholder="本地路径，如 D:/MeiWenfeng-Classroom"
-            style={{
-              flex: 1,
-              padding: '4px 8px',
-              fontSize: '12px',
-              borderRadius: '4px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-primary)',
-              outline: 'none'
-            }}
-          />
-          <button 
-            onClick={handleMount}
-            style={{
-              padding: '4px 8px',
-              fontSize: '11px',
-              background: 'var(--accent-pink)',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontWeight: 'bold'
-            }}
-          >
-            挂载
-          </button>
-        </div>
-        
-        {/* 工具按钮栏 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
-          <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
-            {loading ? '正在读取...' : '本地项目浏览器'}
-          </span>
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button 
-              onClick={handleRefresh} 
-              title="刷新文件树"
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-            >
-              🔄
-            </button>
-            <button 
-              onClick={handleSyncAllMarkdown} 
-              title="同步所有 Markdown"
-              style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}
-            >
-              🚀
-            </button>
-          </div>
-        </div>
+      {/* Tab 切换栏 */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          borderBottom: '1px solid var(--border-color)', 
+          background: 'rgba(255, 255, 255, 0.2)' 
+        }}
+      >
+        <button 
+          onClick={() => setActiveTab('files')}
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            background: activeTab === 'files' ? 'rgba(255, 255, 255, 0.4)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'files' ? '2.5px solid var(--accent-pink)' : '2.5px solid transparent',
+            cursor: 'pointer',
+            color: activeTab === 'files' ? 'var(--accent-pink)' : 'var(--text-secondary)',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          📁 项目讲义
+        </button>
+        <button 
+          onClick={() => setActiveTab('history')}
+          style={{
+            flex: 1,
+            padding: '10px 12px',
+            fontSize: '12px',
+            fontWeight: 'bold',
+            background: activeTab === 'history' ? 'rgba(255, 255, 255, 0.4)' : 'transparent',
+            border: 'none',
+            borderBottom: activeTab === 'history' ? '2.5px solid var(--accent-pink)' : '2.5px solid transparent',
+            cursor: 'pointer',
+            color: activeTab === 'history' ? 'var(--accent-pink)' : 'var(--text-secondary)',
+            transition: 'all 0.2s',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '6px'
+          }}
+        >
+          📜 历史记录
+        </button>
       </div>
 
-      <div className="panel-header" style={{ height: '30px', padding: '0 12px', background: 'rgba(0,0,0,0.05)' }}>
-        <span style={{ fontSize: '11px', textTransform: 'uppercase' }}>📁 {rootPath ? rootPath.split('/').pop() : '未挂载'}</span>
-      </div>
+      {activeTab === 'files' ? (
+        <>
+          {/* 路径控制挂载区域 */}
+          <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+            <div style={{ display: 'flex', gap: '6px' }}>
+              <input 
+                type="text" 
+                value={inputPath}
+                onChange={(e) => setInputPath(e.target.value)}
+                placeholder="本地路径，如 D:/MeiWenfeng-Classroom"
+                style={{
+                  flex: 1,
+                  padding: '4px 8px',
+                  fontSize: '12px',
+                  borderRadius: '4px',
+                  border: '1px solid var(--border-color)',
+                  background: 'var(--bg-primary)',
+                  color: 'var(--text-primary)',
+                  outline: 'none'
+                }}
+              />
+              <button 
+                onClick={handleMount}
+                style={{
+                  padding: '4px 8px',
+                  fontSize: '11px',
+                  background: 'var(--accent-pink)',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontWeight: 'bold'
+                }}
+              >
+                挂载
+              </button>
+            </div>
+            
+            {/* 工具按钮栏 */}
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '12px' }}>
+              <span style={{ color: 'var(--text-secondary)', fontSize: '11px' }}>
+                {loading ? '正在读取...' : '本地项目浏览器'}
+              </span>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button 
+                  onClick={handleRefresh} 
+                  title="刷新文件树"
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+                >
+                  🔄
+                </button>
+                <button 
+                  onClick={handleSyncAllMarkdown} 
+                  title="同步所有 Markdown"
+                  style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '13px' }}
+                >
+                  🚀
+                </button>
+              </div>
+            </div>
+          </div>
 
-      <ul className="file-tree" style={{ flex: 1 }}>
-        {treeData.length > 0 ? (
-          treeData.map(node => renderNode(node))
-        ) : (
-          <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)' }}>
-            没有文件或文件夹。请输入路径进行挂载。
+          <div className="panel-header" style={{ height: '30px', padding: '0 12px', background: 'rgba(0,0,0,0.05)' }}>
+            <span style={{ fontSize: '11px', textTransform: 'uppercase' }}>📁 {rootPath ? rootPath.split('/').pop() : '未挂载'}</span>
           </div>
-        )}
-      </ul>
-      
-      {/* 文件预览区 */}
-      <div className="panel-header" style={{ borderTop: '1px solid var(--border-color)' }}>
-        <span>📖 文件预览</span>
-      </div>
-      <div style={{ flex: 1.2, padding: '14px', overflowY: 'auto', fontSize: '13px', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
-        {selectedFilePath ? (
-          <div style={{ whiteSpace: 'pre-wrap', fontFamily: selectedFilePath.endsWith('.txt') ? 'var(--font-mono)' : 'var(--font-sans)' }}>
-            {selectedFileContent}
+
+          <ul className="file-tree" style={{ flex: 1 }}>
+            {treeData.length > 0 ? (
+              treeData.map(node => renderNode(node))
+            ) : (
+              <div style={{ padding: '20px', textAlign: 'center', fontSize: '12px', color: 'var(--text-secondary)' }}>
+                没有文件或文件夹。请输入路径进行挂载。
+              </div>
+            )}
+          </ul>
+          
+          {/* 文件预览区 */}
+          <div className="panel-header" style={{ borderTop: '1px solid var(--border-color)' }}>
+            <span>📖 文件预览</span>
           </div>
-        ) : (
-          <div style={{ textAlign: 'center', marginTop: '20px', color: 'var(--text-secondary)', fontSize: '12px' }}>
-            选择左侧文件以进行预览
+          <div style={{ flex: 1.2, padding: '14px', overflowY: 'auto', fontSize: '13px', lineHeight: '1.6', color: 'var(--text-secondary)' }}>
+            {selectedFilePath ? (
+              <div style={{ whiteSpace: 'pre-wrap', fontFamily: selectedFilePath.endsWith('.txt') ? 'var(--font-mono)' : 'var(--font-sans)' }}>
+                {selectedFileContent}
+              </div>
+            ) : (
+              <div style={{ textAlign: 'center', marginTop: '20px', color: 'var(--text-secondary)', fontSize: '12px' }}>
+                选择左侧文件以进行预览
+              </div>
+            )}
           </div>
-        )}
-      </div>
+        </>
+      ) : (
+        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+          {/* 新建会话按钮区域 */}
+          <div style={{ padding: '12px', borderBottom: '1px solid var(--border-color)' }}>
+            <button 
+              onClick={onNewSession}
+              style={{
+                width: '100%',
+                padding: '8px 12px',
+                background: 'var(--accent-pink)',
+                color: 'white',
+                border: 'none',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                boxShadow: '0 2px 8px rgba(75, 108, 183, 0.2)'
+              }}
+              onMouseOver={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-pink-hover)'}
+              onMouseOut={(e) => e.currentTarget.style.backgroundColor = 'var(--accent-pink)'}
+            >
+              ➕ 新建对话会话
+            </button>
+          </div>
+
+          {/* 会话列表 */}
+          <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
+            {sessions.map(s => {
+              const isActive = s.id === activeSessionId;
+              return (
+                <div 
+                  key={s.id}
+                  onClick={() => onSwitchSession(s.id)}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '10px 12px',
+                    borderRadius: '8px',
+                    marginBottom: '6px',
+                    cursor: 'pointer',
+                    background: isActive ? 'rgba(75, 108, 183, 0.08)' : 'transparent',
+                    borderLeft: isActive ? '3px solid var(--accent-pink)' : '3px solid transparent',
+                    transition: 'all 0.2s'
+                  }}
+                  className="session-item"
+                  onMouseOver={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                  }}
+                  onMouseOut={(e) => {
+                    if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', flex: 1 }}>
+                    <span style={{ fontSize: '14px' }}>💬</span>
+                    <span style={{ 
+                      fontSize: '13px', 
+                      color: isActive ? 'var(--accent-pink)' : 'var(--text-primary)',
+                      fontWeight: isActive ? '600' : 'normal',
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {s.title}
+                    </span>
+                  </div>
+                  
+                  <button 
+                    onClick={(e) => onDeleteSession(s.id, e)}
+                    title="删除会话"
+                    style={{
+                      border: 'none',
+                      background: 'transparent',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      color: 'var(--text-secondary)',
+                      padding: '4px',
+                      opacity: isActive ? 1 : 0.6,
+                      transition: 'opacity 0.2s'
+                    }}
+                    onMouseOver={(e) => {
+                      e.stopPropagation();
+                      e.currentTarget.style.opacity = 1;
+                      e.currentTarget.style.color = 'var(--danger)';
+                    }}
+                    onMouseOut={(e) => {
+                      e.currentTarget.style.color = 'var(--text-secondary)';
+                    }}
+                  >
+                    🗑️
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

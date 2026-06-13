@@ -15,14 +15,137 @@ const COMMANDS = [
 ];
 
 export default function App() {
-  const [messages, setMessages] = useState([
-    {
-      role: 'assistant',
-      content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”'
-    }
-  ]);
+  const [sessions, setSessions] = useState([]);
+  const [activeSessionId, setActiveSessionId] = useState('');
+  const [messages, setMessages] = useState([]);
+
   const [inputText, setInputText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+
+  const syncSessionToBackend = async (session) => {
+    try {
+      await fetch('http://localhost:8000/api/chat/sessions/save', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: session.id,
+          title: session.title,
+          messages: session.messages
+        })
+      });
+    } catch (e) {
+      console.error('Failed to sync session to backend:', e);
+    }
+  };
+
+  // 同步当前会话的消息列表到 sessions 以及后端数据库
+  useEffect(() => {
+    if (!activeSessionId || sessions.length === 0) return;
+
+    const currentSession = sessions.find(s => s.id === activeSessionId);
+    if (!currentSession) return;
+
+    if (JSON.stringify(currentSession.messages) === JSON.stringify(messages)) {
+      return;
+    }
+
+    let updatedTitle = currentSession.title;
+    if (updatedTitle === '默认会话' || updatedTitle === '新对话') {
+      const firstUserMsg = messages.find(m => m.role === 'user');
+      if (firstUserMsg) {
+        updatedTitle = firstUserMsg.content.slice(0, 15) + (firstUserMsg.content.length > 15 ? '...' : '');
+      }
+    }
+
+    const updatedSession = { ...currentSession, messages, title: updatedTitle };
+
+    setSessions(prevSessions => prevSessions.map(s => s.id === activeSessionId ? updatedSession : s));
+    syncSessionToBackend(updatedSession);
+  }, [messages, activeSessionId]);
+
+  const handleSwitchSession = (sessionId) => {
+    if (isStreaming) return;
+    const session = sessions.find(s => s.id === sessionId);
+    if (session) {
+      setActiveSessionId(sessionId);
+      localStorage.setItem('mei_wenfeng_classroom_active_session_id', sessionId);
+      setMessages(session.messages);
+    }
+  };
+
+  const handleNewSession = async () => {
+    if (isStreaming) return;
+    const newId = Date.now().toString();
+    const newSession = {
+      id: newId,
+      title: '新对话',
+      messages: [
+        {
+          role: 'assistant',
+          content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”'
+        }
+      ]
+    };
+    
+    setSessions(prev => [newSession, ...prev]);
+    setActiveSessionId(newId);
+    localStorage.setItem('mei_wenfeng_classroom_active_session_id', newId);
+    setMessages(newSession.messages);
+    await syncSessionToBackend(newSession);
+  };
+
+  const handleDeleteSession = async (sessionId, e) => {
+    if (e) e.stopPropagation();
+    if (isStreaming) return;
+    
+    const filtered = sessions.filter(s => s.id !== sessionId);
+    let nextSessions = filtered;
+    
+    try {
+      await fetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, {
+        method: 'DELETE'
+      });
+    } catch (err) {
+      console.error('Failed to delete session on backend:', err);
+    }
+
+    if (filtered.length === 0) {
+      const defaultId = Date.now().toString();
+      const defaultSess = {
+        id: defaultId,
+        title: '默认会话',
+        messages: [
+          {
+            role: 'assistant',
+            content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”'
+          }
+        ]
+      };
+      nextSessions = [defaultSess];
+      await syncSessionToBackend(defaultSess);
+    }
+    
+    setSessions(nextSessions);
+
+    if (activeSessionId === sessionId) {
+      const nextActiveId = nextSessions[0].id;
+      setActiveSessionId(nextActiveId);
+      localStorage.setItem('mei_wenfeng_classroom_active_session_id', nextActiveId);
+      setMessages(nextSessions[0].messages);
+    }
+  };
+
+  const handleEditAndResend = async (index, newContent) => {
+    if (isStreaming) return;
+    
+    // 截断到 index
+    const truncated = messages.slice(0, index);
+    const editedMessage = { role: 'user', content: newContent };
+    const nextMessages = [...truncated, editedMessage];
+    
+    setMessages(nextMessages);
+    await triggerAIResponse(nextMessages);
+  };
 
   // 内心独白
   const [currentThought, setCurrentThought] = useState('暂时没有想法...');
@@ -85,6 +208,16 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
 
+  // RAG 知识库后端配置
+  const [ragConfig, setRagConfig] = useState({
+    backend_type: 'chromadb',
+    ragflow_url: '',
+    ragflow_key: '',
+    external_url: '',
+    external_key: ''
+  });
+  const [savingRag, setSavingRag] = useState(false);
+
   const handlePersonaTypeChange = (type) => {
     setPersonaType(type);
     localStorage.setItem('persona_type', type);
@@ -115,11 +248,48 @@ export default function App() {
     chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
-  // 初始化拉取状态
+  // 初始化拉取状态与历史会话
   useEffect(() => {
+    const loadSessions = async () => {
+      try {
+        const res = await fetch('http://localhost:8000/api/chat/sessions');
+        if (res.ok) {
+          const data = await res.json();
+          if (Array.isArray(data) && data.length > 0) {
+            setSessions(data);
+            const savedActive = localStorage.getItem('mei_wenfeng_classroom_active_session_id');
+            const activeId = (savedActive && data.some(s => s.id === savedActive)) ? savedActive : data[0].id;
+            setActiveSessionId(activeId);
+            const activeSess = data.find(s => s.id === activeId) || data[0];
+            setMessages(activeSess.messages || []);
+          } else {
+            const defaultId = Date.now().toString();
+            const defaultSess = {
+              id: defaultId,
+              title: '默认会话',
+              messages: [
+                {
+                  role: 'assistant',
+                  content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”'
+                }
+              ]
+            };
+            setSessions([defaultSess]);
+            setActiveSessionId(defaultId);
+            setMessages(defaultSess.messages);
+            await syncSessionToBackend(defaultSess);
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load sessions from backend:', e);
+      }
+    };
+    loadSessions();
+
     fetchStatus();
     fetchModels();
     fetchAvatars();
+    fetchRagConfig();
   }, []);
 
   // 当 models 加载完成，将当前激活的 API 参数回显至设置中
@@ -197,6 +367,42 @@ export default function App() {
       }
     } catch (e) {
       console.error('Failed to fetch avatars:', e);
+    }
+  };
+
+  const fetchRagConfig = async () => {
+    try {
+      const res = await fetch('http://localhost:8000/api/chat/rag/config');
+      if (res.ok) {
+        const data = await res.json();
+        setRagConfig(data);
+      }
+    } catch (e) {
+      console.error('Failed to fetch rag config:', e);
+    }
+  };
+
+  const saveRagConfig = async () => {
+    setSavingRag(true);
+    try {
+      const res = await fetch('http://localhost:8000/api/chat/rag/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(ragConfig)
+      });
+      if (res.ok) {
+        setMessages(prev => [
+          ...prev,
+          { role: 'system_info', content: `[知识库配置] 已切换知识库后端为：${ragConfig.backend_type === 'chromadb' ? '🚀 本地 ChromaDB' : ragConfig.backend_type === 'ragflow' ? '☁️ RAGFlow' : '🔗 外部 API'}` }
+        ]);
+      } else {
+        alert('保存知识库配置失败，请检查后端状态。');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('保存失败，请检查网络或后端状态。');
+    } finally {
+      setSavingRag(false);
     }
   };
 
@@ -867,7 +1073,110 @@ export default function App() {
                 >
                   应用当前模型
                 </button>
+
+                {/* 知识库后端配置 */}
+                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  <h4 style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>📚 知识库后端</h4>
+                  
+                  {/* 三档单选 */}
+                  <div style={{ display: 'flex', gap: '6px' }}>
+                    {[
+                      { val: 'chromadb', label: '🚀 ChromaDB', tip: '本地向量库，轻量推荐' },
+                      { val: 'ragflow',  label: '☁️ RAGFlow',  tip: '需要Docker运行' },
+                      { val: 'external', label: '🔗 外部API',  tip: 'Dify/FastGPT等' }
+                    ].map(opt => (
+                      <button
+                        key={opt.val}
+                        title={opt.tip}
+                        onClick={() => setRagConfig(prev => ({ ...prev, backend_type: opt.val }))}
+                        style={{
+                          flex: 1,
+                          padding: '4px 2px',
+                          fontSize: '10px',
+                          border: `1px solid ${ragConfig.backend_type === opt.val ? 'var(--accent-pink)' : 'var(--border-color)'}`,
+                          borderRadius: '4px',
+                          background: ragConfig.backend_type === opt.val ? 'var(--accent-pink)' : 'transparent',
+                          color: ragConfig.backend_type === opt.val ? 'white' : 'var(--text-secondary)',
+                          cursor: 'pointer',
+                          fontWeight: ragConfig.backend_type === opt.val ? 'bold' : 'normal',
+                          transition: 'all 0.2s'
+                        }}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* RAGFlow 配置项 */}
+                  {ragConfig.backend_type === 'ragflow' && (
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>RAGFlow API 地址</label>
+                        <input type="text" value={ragConfig.ragflow_url}
+                          onChange={e => setRagConfig(prev => ({ ...prev, ragflow_url: e.target.value }))}
+                          placeholder="http://localhost/api/v1"
+                          style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>RAGFlow API Key</label>
+                        <input type="password" value={ragConfig.ragflow_key}
+                          onChange={e => setRagConfig(prev => ({ ...prev, ragflow_key: e.target.value }))}
+                          placeholder="ragflow-xxxx"
+                          style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {/* 外部 API 配置项 */}
+                  {ragConfig.backend_type === 'external' && (
+                    <>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>外部 RAG 接口地址</label>
+                        <input type="text" value={ragConfig.external_url}
+                          onChange={e => setRagConfig(prev => ({ ...prev, external_url: e.target.value }))}
+                          placeholder="http://your-rag-service/api"
+                          style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                        />
+                      </div>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                        <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>外部 API Key（可选）</label>
+                        <input type="password" value={ragConfig.external_key}
+                          onChange={e => setRagConfig(prev => ({ ...prev, external_key: e.target.value }))}
+                          placeholder="Bearer token 或留空"
+                          style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                        />
+                      </div>
+                    </>
+                  )}
+
+                  {ragConfig.backend_type === 'chromadb' && (
+                    <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                      ✅ ChromaDB 已内置于后端，无需外部服务。记忆和知识库文件均以语义向量形式本地存储于 <code>backend/rag_index/</code>。
+                    </p>
+                  )}
+
+                  <button
+                    onClick={saveRagConfig}
+                    disabled={savingRag}
+                    style={{
+                      padding: '5px 12px',
+                      fontSize: '11px',
+                      background: savingRag ? 'var(--text-secondary)' : 'var(--accent-pink)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: savingRag ? 'not-allowed' : 'pointer',
+                      fontWeight: 'bold',
+                      width: '100%'
+                    }}
+                  >
+                    {savingRag ? '保存中...' : '💾 保存知识库配置'}
+                  </button>
+                </div>
               </div>
+
             )}
           </div>
 
@@ -880,7 +1189,7 @@ export default function App() {
 
       {/* 主工作区 */}
       <main className="main-layout">
-        {/* 左侧面板：文件树与预览 */}
+        {/* 左侧面板：文件树与预览 / 历史聊天记录 */}
         <FileTree
           selectedFilePath={selectedFilePath}
           selectedFileContent={selectedFileContent}
@@ -890,6 +1199,11 @@ export default function App() {
           }}
           rootPath={rootPath}
           setRootPath={setRootPath}
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onSwitchSession={handleSwitchSession}
+          onNewSession={handleNewSession}
+          onDeleteSession={handleDeleteSession}
         />
 
         {/* 中间面板：核心对话区 */}
@@ -912,6 +1226,7 @@ export default function App() {
           isStreaming={isStreaming}
           executeSlashCommand={executeSlashCommand}
           chatEndRef={chatEndRef}
+          onEditAndResend={handleEditAndResend}
         />
 
         {/* 右侧面板：导师人设与课程大纲 */}
