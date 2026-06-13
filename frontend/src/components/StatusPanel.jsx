@@ -30,31 +30,52 @@ export default function StatusPanel({
           </svg>
           <span>导师与大纲状态</span>
         </div>
-        <button 
-          onClick={() => handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '2px 10px',
-            height: '24px',
-            fontSize: '12px',
-            fontWeight: 600,
-            borderRadius: '12px',
-            border: '1px solid var(--border-color)',
-            background: personaType === 'simplified' ? 'var(--accent-pink)' : 'transparent',
-            color: personaType === 'simplified' ? 'white' : 'var(--text-primary)',
-            cursor: 'pointer',
-            transition: 'all 0.2s',
-            outline: 'none',
-            boxSizing: 'border-box',
-            marginRight: '14px',
-            marginTop: '8px'
-          }}
-          title="点击切换导师人设类型（蓝色为精简版，透明为原版）"
-        >
-          {personaType === 'simplified' ? '精简' : '原版'}
-        </button>
+        <div style={{ display: 'flex', gap: '8px', marginRight: '14px', marginTop: '8px' }}>
+          <button
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '2px 10px',
+              height: '24px',
+              fontSize: '12px',
+              fontWeight: 600,
+              borderRadius: '12px',
+              border: '1px solid var(--border-color)',
+              background: 'var(--bg-primary)',
+              color: 'var(--text-primary)',
+              cursor: 'default',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+            title="选择导师 (暂未开放)"
+          >
+            媚吻锋
+          </button>
+          <button 
+            onClick={() => handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '2px 10px',
+              height: '24px',
+              fontSize: '12px',
+              fontWeight: 600,
+              borderRadius: '12px',
+              border: '1px solid var(--border-color)',
+              background: personaType === 'simplified' ? 'var(--accent-pink)' : 'transparent',
+              color: personaType === 'simplified' ? 'white' : 'var(--text-primary)',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+            title="点击切换导师人设类型（蓝色为精简版，透明为原版）"
+          >
+            {personaType === 'simplified' ? '精简' : '原版'}
+          </button>
+        </div>
       </div>
 
       <div className="right-content">
@@ -64,7 +85,6 @@ export default function StatusPanel({
             {currentThought}
           </div>
           <div className="character-details">
-            <div className="character-name">媚吻锋</div>
             <div className="character-role">授课状态：正在指导修行</div>
             <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-secondary)' }}>
               当前态度：<span style={{ color: 'var(--accent-pink)', fontWeight: '600' }}>{getAffectionText(affection)}</span>
