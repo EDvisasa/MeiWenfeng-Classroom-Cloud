@@ -23,28 +23,33 @@ def generate_summary(text: str, prompt: str) -> str:
     base_url = model_info["base_url"]
     api_key = model_info["api_key"]
     model_name = model_info["name"]
+    selected_model_id = model_info.get("selected_model_id")
     
-    model_id_api = os.getenv("AIRP_MODEL_NAME", "gpt-4o-mini")
-    if "qwen" in model_name.lower():
-        model_id_api = "qwen3.6-35b"
-    elif "gemma" in model_name.lower():
-        model_id_api = "gemma-9b"
-    elif "deepseek" in model_name.lower():
-        model_id_api = "deepseek-chat"
+    if selected_model_id:
+        model_id_api = selected_model_id
+    else:
+        model_id_api = os.getenv("AIRP_MODEL_NAME", "gpt-4o-mini")
+        if "qwen" in model_name.lower():
+            model_id_api = "qwen3.6-35b"
+        elif "gemma" in model_name.lower():
+            model_id_api = "gemma-9b"
+        elif "deepseek" in model_name.lower():
+            model_id_api = "deepseek-chat"
         
-    if "deepseek" in model_name.lower() or protocol == "openai":
+    if ("deepseek" in model_name.lower() or protocol == "openai") and "本地" not in model_name:
         env_key = os.getenv("AIRP_MODEL_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
         env_url = os.getenv("AIRP_MODEL_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL")
         if env_key: api_key = env_key
         if env_url: base_url = env_url
 
-    if not api_key:
+    if not api_key and "localhost" not in base_url and "127.0.0.1" not in base_url:
         logger.warning("No API Key configured, cannot summarize memory.")
         return ""
         
     prompt += "\n【重要指令】：请直接输出纯文本总结，绝对不要包含任何 Markdown 格式或多余的换行，并且整段文字必须严格以完整的中文句号“。”结尾。"
 
-    client = OpenAI(api_key=api_key or "no-key-required", base_url=base_url)
+    safe_base_url = base_url.replace("://localhost:", "://127.0.0.1:")
+    client = OpenAI(api_key=api_key or "no-key-required", base_url=safe_base_url)
     
     for attempt in range(3):
         try:

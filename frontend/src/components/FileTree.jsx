@@ -23,8 +23,8 @@ export default function FileTree({
     fetchFileTree(rootPath);
     fetchSyncStatus();
     
-    // 轮询 RAGFlow 文档解析状态，间隔5秒
-    const interval = setInterval(fetchSyncStatus, 5000);
+    // 轮询知识库文档解析状态，间隔15秒，避免终端日志刷屏
+    const interval = setInterval(fetchSyncStatus, 15000);
     return () => clearInterval(interval);
   }, []);
 
@@ -186,7 +186,7 @@ export default function FileTree({
             {!fileStatus && (
               <button 
                 onClick={(e) => { e.stopPropagation(); handleFileSync(node); }}
-                title="上传至 RAGFlow"
+                title="上传至知识库"
                 style={{
                   border: 'none',
                   background: 'transparent',

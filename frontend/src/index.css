@@ -598,9 +598,8 @@ body {
 
 .topic-status.active {
   border-color: var(--accent-pink);
-  background-color: rgba(244, 114, 182, 0.2);
-  box-shadow: 0 0 4px var(--accent-pink);
-  animation: pulse 2s infinite;
+  background-color: rgba(244, 114, 182, 0.5);
+  box-shadow: 0 0 8px var(--accent-pink);
 }
 
 .topic-status.done {

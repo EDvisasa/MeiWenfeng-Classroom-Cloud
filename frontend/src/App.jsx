@@ -888,6 +888,29 @@ export default function App() {
                 <h4 style={{ margin: 0, fontSize: '13px', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
                   🔑 酒馆式 API 设置
                 </h4>
+
+                {/* 模型选择配置 (原右侧面板) */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>⚡ 切换大语言模型</label>
+                  <select 
+                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--accent-pink)', outline: 'none', background: 'rgba(244, 114, 182, 0.05)', color: 'var(--accent-pink)', fontWeight: 'bold' }}
+                    value={models.find(m => m.name === activeModel)?.id || ''}
+                    onChange={(e) => handleModelChange(e.target.value)}
+                  >
+                    {models.map(m => (
+                      <option key={m.id} value={m.id}>
+                        {m.name} ({m.protocol.toUpperCase()})
+                      </option>
+                    ))}
+                  </select>
+                  {activeSubModel && (
+                    <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                      活动子模型: <span style={{ color: 'var(--accent-pink)', fontWeight: 'bold' }}>{activeSubModel}</span>
+                    </div>
+                  )}
+                </div>
+
+                <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px dashed var(--border-color)' }} />
                 
                 {/* API 源 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>

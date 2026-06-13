@@ -24,7 +24,7 @@ export default function StatusPanel({
   return (
     <section className="ide-panel right-panel">
       <div className="panel-header">
-        <span>⚙️ 导师与大纲状态</span>
+        <span>📖 导师与大纲状态</span>
       </div>
 
       <div className="right-content">
@@ -43,27 +43,6 @@ export default function StatusPanel({
         </div>
 
 
-
-        {/* 模型选择配置 */}
-        <div className="model-widget">
-          <div className="widget-title">⚙️ 切换大语言模型</div>
-          <select 
-            className="model-selector" 
-            value={models.find(m => m.name === activeModel)?.id || ''}
-            onChange={(e) => handleModelChange(e.target.value)}
-          >
-            {models.map(m => (
-              <option key={m.id} value={m.id}>
-                {m.name} ({m.protocol.toUpperCase()})
-              </option>
-            ))}
-          </select>
-          {activeSubModel && (
-            <div style={{ marginTop: '8px', fontSize: '11px', color: 'var(--text-secondary)' }}>
-              活动子模型: <span style={{ color: 'var(--accent-pink)', fontWeight: 'bold' }}>{activeSubModel}</span>
-            </div>
-          )}
-        </div>
 
 
         {/* 课程进度面板 */}

@@ -165,8 +165,7 @@ def _handle_prepare_lesson(file_path: str) -> StreamingResponse:
             yield f"data: {json_escape('[系统提示] 备课失败：未能在上下文中获取到选中的讲义文件路径。')}\n\n"
             return
             
-        filename = os.path.basename(file_path)
-        yield f"data: {json_escape(f'[知识库联动] 正在同步本地文件《{filename}》到当前 RAG 后端，请稍候...')}\n\n"
+        yield f"data: {json_escape(f'[知识库联动] 正在同步本地文件《{filename}》到当前知识库后端，请稍候...')}\n\n"
         
         try:
             if not os.path.exists(file_path) or os.path.isdir(file_path):
