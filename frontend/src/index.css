@@ -672,7 +672,7 @@ body {
 }
 
 .sender-name {
-  font-size: 12px;
+  font-size: var(--name-font-size, 12px);
   font-weight: 600;
   letter-spacing: 0.3px;
 }
@@ -1376,7 +1376,7 @@ body {
 
 
 .vscode-env .sender-name {
-  font-size: 11px !important;
+  font-size: var(--name-font-size, 11px) !important;
   text-align: left !important;
   margin-bottom: 4px !important;
   font-weight: 700 !important;

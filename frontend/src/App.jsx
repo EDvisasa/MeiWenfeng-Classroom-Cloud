@@ -199,6 +199,14 @@ export default function App() {
 
   // 头像大小设置
   const [avatarSize, setAvatarSize] = useState(parseInt(localStorage.getItem('avatar_size')) || 36);
+
+  // 名字大小设置
+  const [nameFontSize, setNameFontSize] = useState(parseInt(localStorage.getItem('name_font_size')) || 12);
+  const handleNameFontSizeChange = (e) => {
+    const newSize = parseInt(e.target.value);
+    setNameFontSize(newSize);
+    localStorage.setItem('name_font_size', newSize.toString());
+  };
   
   // 状态与配置
   const [activeModel, setActiveModel] = useState('DeepSeek (在线)');
@@ -764,7 +772,8 @@ export default function App() {
       className={`app-container ${isVsCode ? 'vscode-env' : 'web-env'} theme-${theme}`} 
       style={{ 
         '--chat-font-size': `${fontSize}px`,
-        '--avatar-size': `${avatarSize}px`
+        '--avatar-size': `${avatarSize}px`,
+        '--name-font-size': `${nameFontSize}px`
       }}
     >
       {/* 顶部工具栏 */}
@@ -884,6 +893,19 @@ export default function App() {
                         A+
                       </button>
                     </div>
+                  </div>
+
+                  {/* 名字大小设置 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>名字大小: {nameFontSize}px</label>
+                    <input 
+                      type="range" 
+                      min="10" 
+                      max="24" 
+                      value={nameFontSize} 
+                      onChange={handleNameFontSizeChange} 
+                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
+                    />
                   </div>
 
                   {/* 人设切换 */}
