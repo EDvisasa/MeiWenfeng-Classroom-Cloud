@@ -879,20 +879,7 @@ export default function App() {
                       onChange={handleFontSizeChange} 
                       style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
                     />
-                    <div style={{ display: 'flex', gap: '6px' }}>
-                      <button 
-                        onClick={() => setFontSize(Math.max(12, fontSize - 1))}
-                        style={{ flex: 1, padding: '2px 4px', fontSize: '11px', cursor: 'pointer' }}
-                      >
-                        A-
-                      </button>
-                      <button 
-                        onClick={() => setFontSize(Math.min(24, fontSize + 1))}
-                        style={{ flex: 1, padding: '2px 4px', fontSize: '11px', cursor: 'pointer' }}
-                      >
-                        A+
-                      </button>
-                    </div>
+
                   </div>
 
                   {/* 名字大小设置 */}
