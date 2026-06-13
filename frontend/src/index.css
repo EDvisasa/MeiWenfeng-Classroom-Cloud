@@ -502,7 +502,8 @@ body {
 }
 
 .user-msg .message-header {
-  justify-content: space-between;
+  justify-content: flex-end;
+  gap: 12px;
 }
 
 .assistant-msg .message-header {
@@ -603,6 +604,65 @@ body {
 .user-msg .edit-msg-btn svg {
   width: 10px;
   height: 10px;
+}
+
+/* 编辑状态的样式 */
+.user-msg .message-bubble.editing {
+  padding: 12px;
+  border: 1px solid var(--accent-pink);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+  background-color: var(--bg-primary);
+}
+
+.edit-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  font-size: inherit;
+  resize: vertical;
+  min-height: 60px;
+  line-height: 1.6;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.edit-confirm-btn, .edit-cancel-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.edit-confirm-btn {
+  background-color: var(--accent-pink);
+  color: white;
+}
+
+.edit-confirm-btn:hover {
+  background-color: var(--accent-pink-hover);
+  transform: translateY(-1px);
+}
+
+.edit-cancel-btn {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.edit-cancel-btn:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
 }
 
 .assistant-msg .message-bubble {
@@ -1268,7 +1328,8 @@ body {
 }
 
 .vscode-env .user-msg .message-header {
-  justify-content: space-between !important;
+  justify-content: flex-end !important;
+  gap: 8px !important;
 }
 
 .vscode-env .assistant-msg .message-header {
@@ -1303,7 +1364,7 @@ body {
 .vscode-env .message-bubble {
   padding: 8px 12px !important;
   border-radius: 12px !important;
-  font-size: 13px !important;
+  font-size: var(--chat-font-size, 13px) !important;
   line-height: 1.5 !important;
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
   display: flex !important;
@@ -1390,7 +1451,7 @@ body {
 
 .vscode-env .chat-input {
   color: var(--text-primary) !important;
-  font-size: 13px !important;
+  font-size: var(--chat-font-size, 13px) !important;
   min-height: 18px !important;
   padding: 8px 12px 4px !important;
 }
