@@ -26,7 +26,7 @@ export default function StatusPanel({
       <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <div style={{ display: 'flex', alignItems: 'center' }}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '6px' }}>
-            <path fillRule="evenodd" clipRule="evenodd" d="M8 1.54L1 4.88v1.37l.86.41v4.83l.25.32 5.56 2.65h.66l5.56-2.65.25-.32V6.66l.86-.41V4.88L8 1.54zm5.14 5.58L8 9.56 2.86 7.12v4.29l5.14 2.45 5.14-2.45V7.12zM8 2.66l5.22 2.5L8 7.66 2.78 5.16 8 2.66z"/>
+            <path fillRule="evenodd" clipRule="evenodd" d="M8 1.54L1 4.88v1.37l.86.41v4.83l.25.32 5.56 2.65h.66l5.56-2.65.25-.32V6.66l.86-.41V4.88L8 1.54zm5.14 5.58L8 9.56 2.86 7.12v4.29l5.14 2.45 5.14-2.45V7.12zM8 2.66l5.22 2.5L8 7.66 2.78 5.16 8 2.66z" />
           </svg>
           <span>导师与大纲状态</span>
         </div>
@@ -52,7 +52,7 @@ export default function StatusPanel({
           >
             媚吻锋
           </button>
-          <button 
+          <button
             onClick={() => handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
             style={{
               display: 'flex',
@@ -80,7 +80,7 @@ export default function StatusPanel({
 
       <div className="right-content">
         {/* 导师状态卡片 */}
-        <div className="character-widget" style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
+        <div className="character-widget" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div className="thought-box">
             {currentThought}
           </div>
