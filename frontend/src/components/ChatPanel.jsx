@@ -19,11 +19,35 @@ export default function ChatPanel({
   isStreaming,
   executeSlashCommand,
   chatEndRef,
-  onEditAndResend
+  onEditAndResend,
+  isVsCode,
+  sessions,
+  activeSessionId,
+  onNewSession,
+  onSwitchSession,
+  onDeleteSession,
+  showSessionList,
+  setShowSessionList
 }) {
+  const [isEditing, setIsEditing] = React.useState(false);
+  const [showShortcuts, setShowShortcuts] = React.useState(false);
   const [editingIndex, setEditingIndex] = React.useState(null);
   const [editContent, setEditContent] = React.useState('');
-  
+
+  // 监听输入文本内容，根据行数自适应高度，未满高度时不显示滚动条
+  React.useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.style.height = 'auto';
+      const scrollHeight = inputRef.current.scrollHeight;
+      inputRef.current.style.height = `${Math.min(150, scrollHeight)}px`;
+      if (scrollHeight > 150) {
+        inputRef.current.style.overflowY = 'auto';
+      } else {
+        inputRef.current.style.overflowY = 'hidden';
+      }
+    }
+  }, [inputText, inputRef]);
+
   // 格式化解析 AI 的动作文本为斜体灰色
   const renderMessageContent = (text) => {
     if (!text) return null;
@@ -43,9 +67,68 @@ export default function ChatPanel({
   return (
     <section className="ide-panel center-panel">
       <div className="panel-header">
-        <span>💬 授课对话区 - 正在与【导师·媚吻锋】交流</span>
-        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'none' }}>
-          当前模型: {activeModel}
+        {/* 当前会话标题 */}
+        <span style={{ fontWeight: 600, fontSize: '13px', maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {(sessions?.find(s => s.id === activeSessionId)?.title || 'Mei Wenfeng').slice(0, 20)}
+        </span>
+
+        {/* 历史对话(时钟) + 新建对话(圆圈加号) 图标按钮 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '6px' }}>
+
+          {/* 历史对话 - 时钟图标 */}
+          <div style={{ position: 'relative' }}>
+            <button
+              className={`cc-icon-btn ${showSessionList ? 'active' : ''}`}
+              onClick={() => setShowSessionList(v => !v)}
+              title="历史对话"
+              style={{ width: '24px', height: '24px' }}
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1.5a6.5 6.5 0 1 0 0 13 6.5 6.5 0 0 0 0-13zM0 8a8 8 0 1 1 16 0A8 8 0 0 1 0 8zm8-3.5a.75.75 0 0 1 .75.75v3h1.5a.75.75 0 0 1 0 1.5H8a.75.75 0 0 1-.75-.75v-3.75A.75.75 0 0 1 8 4.5z"/>
+              </svg>
+            </button>
+            {showSessionList && (
+              <div className="session-list-popover">
+                <div className="session-list-header">历史对话</div>
+                {sessions && sessions.map(s => (
+                  <div
+                    key={s.id}
+                    className={`session-item ${s.id === activeSessionId ? 'active' : ''}`}
+                    onClick={() => { onSwitchSession(s.id); setShowSessionList(false); }}
+                  >
+                    <span className="session-title">{s.title}</span>
+                    <button
+                      className="session-delete-btn"
+                      onClick={(e) => onDeleteSession(s.id, e)}
+                      title="删除"
+                    >
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M2 4h12v1H2V4zm2-2h8v1H4V2zm1 4h1v7H5V6zm4 0h1v7H9V6zM3 5h10l-1 10H4L3 5z"/>
+                      </svg>
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* 新建对话 - 圆圈加号图标 */}
+          <button
+            className="cc-icon-btn"
+            onClick={onNewSession}
+            title="新建对话"
+            style={{ width: '24px', height: '24px' }}
+          >
+            <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M8 1a7 7 0 1 0 0 14A7 7 0 0 0 8 1zm0 1.5a5.5 5.5 0 1 1 0 11 5.5 5.5 0 0 1 0-11zm.75 2.25h-1.5v2.5h-2.5v1.5h2.5v2.5h1.5v-2.5h2.5v-1.5h-2.5v-2.5z"/>
+            </svg>
+          </button>
+
+        </div>
+
+        <span style={{ flex: 1 }} />
+        <span style={{ fontSize: '11px', color: 'var(--text-secondary)', textTransform: 'none', letterSpacing: 'normal' }}>
+          {activeModel}
         </span>
       </div>
 
@@ -53,16 +136,20 @@ export default function ChatPanel({
         {messages.map((msg, index) => {
           if (msg.role === 'system_info') {
             return (
-              <div 
-                key={index} 
-                style={{ 
-                  alignSelf: 'center', 
-                  backgroundColor: 'var(--bg-tertiary)', 
-                  border: '1px solid var(--border-color)', 
-                  borderRadius: '6px', 
-                  padding: '6px 12px', 
-                  fontSize: '12px', 
-                  color: 'var(--text-secondary)' 
+              <div
+                key={index}
+                className="system-info-msg"
+                style={{
+                  alignSelf: 'center',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '6px',
+                  padding: '6px 14px',
+                  fontSize: '11px',
+                  color: 'var(--text-secondary)',
+                  margin: '8px 0',
+                  maxWidth: '90%',
+                  textAlign: 'center',
                 }}
               >
                 {msg.content}
@@ -71,178 +158,139 @@ export default function ChatPanel({
           }
 
           const isUser = msg.role === 'user';
-          const isEditing = editingIndex === index;
+
+          const handleStartEdit = () => {
+            setEditingIndex(index);
+            setEditContent(msg.content);
+            setIsEditing(true);
+          };
+
+          const handleCancelEdit = () => {
+            setIsEditing(false);
+            setEditingIndex(null);
+            setEditContent('');
+          };
+
+          const handleConfirmEdit = () => {
+            if (onEditAndResend && editContent.trim()) {
+              onEditAndResend(index, editContent.trim());
+            }
+            handleCancelEdit();
+          };
 
           return (
-            <div key={index} className={`message-row ${isUser ? 'user' : 'assistant'}`} style={{ position: 'relative' }}>
-              <div 
-                className="avatar avatar-upload-trigger" 
-                onClick={() => {
-                  setCropTarget(isUser ? 'user' : 'assistant');
-                  fileInputRef.current?.click();
-                }}
-                title="点击更换头像"
-                style={{ overflow: 'hidden' }}
-              >
+            <div key={index} className={`message-item ${isUser ? 'user-msg' : 'assistant-msg'}`}>
+
+              {/* Header Row: Avatar + Name + Edit Button */}
+              <div className="message-header">
                 {isUser ? (
-                  userAvatar.startsWith('data:') || userAvatar.startsWith('http') 
-                    ? <img src={userAvatar} alt="user" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> 
-                    : userAvatar
+                  <>
+                    <div className="sender-group">
+                      <span className="sender-name">你</span>
+                    </div>
+                    <div
+                    className="avatar"
+                    onClick={() => fileInputRef.current?.click()}
+                    title="点击更换头像"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {userAvatar ? (
+                      <img src={userAvatar} alt="用户头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                    ) : (
+                      <span>你</span>
+                    )}
+                  </div>
+                  </>
                 ) : (
-                  assistantAvatar.startsWith('data:') || assistantAvatar.startsWith('http')
-                    ? <img src={assistantAvatar} alt="assistant" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : assistantAvatar
+                  <>
+                    <div
+                    className="avatar"
+                    onClick={() => setCropTarget('assistant')}
+                    title="点击更换导师头像"
+                    style={{ cursor: 'pointer' }}
+                  >
+                    {assistantAvatar ? (
+                      <img src={assistantAvatar} alt="导师头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
+                    ) : (
+                      <span>师</span>
+                    )}
+                  </div>
+                    <span className="sender-name">媚吻锋</span>
+                  </>
                 )}
               </div>
-              <div className="message-bubble" style={{ position: 'relative' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-                  <span className="sender-name">
-                    {isUser ? '✦⋆ 学生 玄一峰 ⋆✦' : 'ღ♡ 导师 媚吻锋 ♡ღ'}
-                  </span>
-                  
-                  {isUser && !isEditing && !isStreaming && (
-                    <button 
-                      onClick={() => {
-                        setEditingIndex(index);
-                        setEditContent(msg.content);
-                      }}
-                      title="编辑并重新发送"
-                      style={{
-                        background: 'transparent',
-                        border: 'none',
-                        cursor: 'pointer',
-                        fontSize: '11px',
-                        color: 'var(--text-secondary)',
-                        marginLeft: '8px',
-                        padding: '2px 6px',
-                        borderRadius: '4px',
-                        transition: 'all 0.2s',
-                        opacity: 0.6
-                      }}
-                      onMouseOver={(e) => {
-                        e.currentTarget.style.opacity = 1;
-                        e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
-                        e.currentTarget.style.color = 'var(--accent-pink)';
-                      }}
-                      onMouseOut={(e) => {
-                        e.currentTarget.style.opacity = 0.6;
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.color = 'var(--text-secondary)';
-                      }}
-                    >
-                      ✏️ 编辑
+
+              {/* Message Bubble */}
+              {isUser && isEditing && editingIndex === index ? (
+                <div className="message-bubble editing">
+                  <textarea
+                    className="edit-textarea"
+                    value={editContent}
+                    onChange={(e) => setEditContent(e.target.value)}
+                    rows={3}
+                    autoFocus
+                  />
+                  <div className="edit-actions">
+                    <button className="edit-confirm-btn" onClick={handleConfirmEdit}>重新发送</button>
+                    <button className="edit-cancel-btn" onClick={handleCancelEdit}>取消</button>
+                  </div>
+                </div>
+              ) : (
+                <div className="message-bubble">
+                  {renderMessageContent(msg.content)}
+                  {msg.streaming && <span className="typing-cursor" />}
+                  {isUser && (
+                    <button className="edit-msg-btn" onClick={handleStartEdit} title="编辑并重发">
+                      <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M11.5 1a.5.5 0 0 1 .354.146l2 2A.5.5 0 0 1 14 3.5v.793L4.5 13.793 1 15l1.207-3.5L11.5 1zm-1.207 2.5L8.5 1.707 2 8.207V9.5h1.293L11.5 1.5zm1.914 0l.793-.793-1.207-1.207-.793.793 1.207 1.207z"/>
+                      </svg>
                     </button>
                   )}
                 </div>
-                
-                {isEditing ? (
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px', minWidth: '220px' }}>
-                    <textarea
-                      value={editContent}
-                      onChange={(e) => setEditContent(e.target.value)}
-                      style={{
-                        width: '100%',
-                        minHeight: '60px',
-                        padding: '8px',
-                        borderRadius: '6px',
-                        border: '1px solid var(--accent-pink)',
-                        fontSize: '14px',
-                        background: 'var(--bg-primary)',
-                        color: 'var(--text-primary)',
-                        resize: 'vertical',
-                        outline: 'none',
-                        lineHeight: '1.5'
-                      }}
-                    />
-                    <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                      <button
-                        onClick={() => {
-                          setEditingIndex(null);
-                          setEditContent('');
-                        }}
-                        style={{
-                          padding: '4px 10px',
-                          fontSize: '12px',
-                          borderRadius: '4px',
-                          border: '1px solid var(--border-color)',
-                          background: 'transparent',
-                          color: 'var(--text-secondary)',
-                          cursor: 'pointer'
-                        }}
-                      >
-                        取消
-                      </button>
-                      <button
-                        onClick={() => {
-                          if (editContent.trim()) {
-                            onEditAndResend(index, editContent.trim());
-                            setEditingIndex(null);
-                            setEditContent('');
-                          }
-                        }}
-                        disabled={!editContent.trim()}
-                        style={{
-                          padding: '4px 10px',
-                          fontSize: '12px',
-                          borderRadius: '4px',
-                          border: 'none',
-                          background: 'var(--accent-pink)',
-                          color: 'white',
-                          cursor: 'pointer',
-                          fontWeight: 'bold'
-                        }}
-                      >
-                        保存并发送
-                      </button>
-                    </div>
-                  </div>
-                ) : (
-                  <div>
-                    {renderMessageContent(msg.content)}
-                    {msg.streaming && <span className="typing-cursor" />}
-                  </div>
-                )}
-              </div>
+              )}
+
             </div>
           );
         })}
         <div ref={chatEndRef} />
       </div>
 
-      {/* 对话输入框 */}
-      <div className="input-area">
+      {/* 对话输入框 - Claude Code 风格双行卡片 */}
+      <div className="input-area" style={{ position: 'relative' }}>
         {/* 自动补全浮窗 */}
         {showCommandList && (
-          <div 
-            style={{ 
-              position: 'absolute', 
-              bottom: '90px', 
-              left: '24px', 
-              right: '24px', 
-              backgroundColor: 'var(--bg-secondary)', 
-              border: '1px solid var(--border-color)', 
-              borderRadius: '8px', 
-              zIndex: 100, 
-              overflow: 'hidden', 
-              boxShadow: 'var(--shadow-lg)' 
+          <div
+            className="command-list-popover"
+            style={{
+              position: 'absolute',
+              bottom: '100%',
+              marginBottom: '8px',
+              left: '24px',
+              right: '24px',
+              backgroundColor: 'var(--bg-secondary)',
+              border: '1px solid var(--border-color)',
+              borderRadius: '8px',
+              zIndex: 9999,
+              boxShadow: 'var(--shadow-lg)'
             }}
           >
-            <div 
-              style={{ 
-                padding: '8px 12px', 
-                fontSize: '11px', 
-                color: 'var(--text-secondary)', 
-                borderBottom: '1px solid var(--border-color)', 
-                fontWeight: 'bold' 
+            <div
+              style={{
+                padding: '8px 12px',
+                fontSize: '11px',
+                color: 'var(--text-secondary)',
+                borderBottom: '1px solid var(--border-color)',
+                fontWeight: 'bold'
               }}
             >
               ⚡ 快捷课室命令
             </div>
             <ul style={{ listStyle: 'none' }}>
               {filteredCommands.map((item, idx) => (
-                <li 
+                <li
                   key={item.cmd}
                   onClick={() => selectCommand(item)}
+                  className={`command-item ${idx === activeCommandIndex ? 'active' : ''}`}
                   style={{
                     padding: '10px 16px',
                     fontSize: '13px',
@@ -262,33 +310,96 @@ export default function ChatPanel({
           </div>
         )}
 
+        {/* 卡片式输入框 */}
         <div className="input-wrapper">
+          {/* 行1：文字输入区 */}
           <textarea
             ref={inputRef}
             className="chat-input"
-            placeholder="在此输入消息与媚吻锋交流... 输入 '/' 触发课室快捷指令"
+            placeholder="与媚吻锋交流…"
             value={inputText}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
             rows={1}
           />
-          <button 
-            className="send-button"
-            onClick={sendMessage}
-            disabled={!inputText.trim() || isStreaming}
-          >
-            发送
-          </button>
-        </div>
 
-        {/* 指令快捷气泡 */}
-        <div className="input-hints">
-          <span className="hint-badge" onClick={() => executeSlashCommand('/上课')}>⚡ 开始上课</span>
-          <span className="hint-badge" onClick={() => executeSlashCommand('/交作业')}>📝 交作业</span>
-          <span className="hint-badge" onClick={() => executeSlashCommand('/奖励')}>🌸 讨要奖励</span>
-          <span className="hint-badge" onClick={() => executeSlashCommand('/总结')}>💾 总结记忆</span>
-          <span className="hint-badge" onClick={() => executeSlashCommand('/备课')}>📂 备课同步</span>
-          <span className="hint-badge" onClick={() => executeSlashCommand('更新人设')}>🔄 更新人设</span>
+          {/* 行2：工具栏 */}
+          <div className="input-toolbar">
+            {/* 左侧：快捷指令按钮 */}
+            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                className="shortcuts-trigger-btn"
+                onClick={() => setShowShortcuts(!showShortcuts)}
+                title="快捷工具"
+              >
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z"/>
+                </svg>
+              </button>
+              {showShortcuts && (
+                <div
+                  className="shortcuts-popover"
+                  style={{
+                    position: 'absolute',
+                    bottom: '100%',
+                    marginBottom: '8px',
+                    left: 0,
+                    background: 'var(--bg-panel)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '8px',
+                    padding: '8px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '4px',
+                    boxShadow: 'var(--shadow-lg)',
+                    zIndex: 9999,
+                    width: '140px'
+                  }}
+                >
+                  {[
+                    { cmd: '/上课', label: '⚡ 开始上课' },
+                    { cmd: '/交作业', label: '📝 交作业' },
+                    { cmd: '/奖励', label: '🌸 讨要奖励' },
+                    { cmd: '/总结', label: '💾 总结记忆' },
+                    { cmd: '/备课', label: '📂 备课同步' },
+                    { cmd: '更新人设', label: '🔄 更新人设' },
+                  ].map(item => (
+                    <div
+                      key={item.cmd}
+                      onClick={() => {
+                        executeSlashCommand(item.cmd);
+                        setShowShortcuts(false);
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        borderRadius: '4px',
+                        transition: 'background 0.2s',
+                        color: 'var(--text-primary)'
+                      }}
+                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                      onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                    >
+                      {item.label}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* 右侧：发送按钮 */}
+            <button
+              className="send-button"
+              onClick={sendMessage}
+              disabled={!inputText.trim() || isStreaming}
+              title="发送消息"
+            >
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M8 1l6 6h-5v8H7V7H2l6-6z"/>
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </section>

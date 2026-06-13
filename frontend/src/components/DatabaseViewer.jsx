@@ -71,9 +71,10 @@ export default function DatabaseViewer({ onClose }) {
         }}
       >
         {/* Header */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.5)' }}>
-          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-            <span>🗄️</span> 内置数据库查看器 (只读)
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)' }}>
+          <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style={{ verticalAlign: 'middle' }}><path d="M14 3c0 1.1-2.7 2-6 2S2 4.1 2 3s2.7-2 6-2 6 .9 6 2zm0 4c0 1.1-2.7 2-6 2S2 8.1 2 7V5c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm0 4c0 1.1-2.7 2-6 2S2 12.1 2 11V9c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm-6 4c-3.3 0-6-.9-6-2v-2c.8.6 2.3 1 4 1s3.2-.4 4-1v2c0 1.1-2.7 2-6 2z"/></svg>
+            内置数据库查看器 (只读)
           </h3>
           <button 
             onClick={onClose}
@@ -102,10 +103,13 @@ export default function DatabaseViewer({ onClose }) {
                     borderLeft: selectedTable === t ? '3px solid var(--accent-pink)' : '3px solid transparent',
                     color: selectedTable === t ? 'var(--accent-pink)' : 'var(--text-primary)',
                     fontWeight: selectedTable === t ? 'bold' : 'normal',
-                    transition: 'all 0.2s'
+                    transition: 'all 0.2s',
+                    display: 'flex',
+                    alignItems: 'center'
                   }}
                 >
-                  📄 {t}
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '6px', flexShrink: 0 }}><path d="M1 3h14v10H1V3zm2 2v2h3V5H3zm5 0v2h5V5H8zM3 8v3h3V8H3zm5 0v3h5V8H8z"/></svg>
+                  {t}
                 </div>
               ))}
             </div>

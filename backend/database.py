@@ -102,6 +102,25 @@ def init_db():
     );
     """)
 
+    # 用户的宏大目标 Mission (Matt Pocock 理念)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS user_mission (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        mission_text TEXT,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 专属修仙辞典 Glossary (Matt Pocock 理念)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS glossary (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        term TEXT UNIQUE,
+        definition TEXT,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
     # 2. 预置初始数据
     # 初始化好感度
     cursor.execute("SELECT COUNT(*) FROM affection")

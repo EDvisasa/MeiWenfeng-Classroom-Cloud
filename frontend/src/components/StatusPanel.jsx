@@ -24,7 +24,7 @@ export default function StatusPanel({
   return (
     <section className="ide-panel right-panel">
       <div className="panel-header">
-        <span>📖 导师与大纲状态</span>
+        <span>导师与大纲状态</span>
       </div>
 
       <div className="right-content">
@@ -47,7 +47,7 @@ export default function StatusPanel({
 
         {/* 课程进度面板 */}
         <div className="progress-widget">
-          <div className="widget-title">📖 修行进度表</div>
+          <div className="widget-title">修行进度表</div>
           <ul className="syllabus-list">
             {courseProgress.map((item) => (
               <li key={item.id} className={`syllabus-item ${item.status}`}>

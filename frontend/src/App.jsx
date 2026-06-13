@@ -22,6 +22,12 @@ export default function App() {
   const [inputText, setInputText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
   const [showDbViewer, setShowDbViewer] = useState(false);
+  const [showMobileStatus, setShowMobileStatus] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('mei_theme') || 'light');
+  const [showSessionList, setShowSessionList] = useState(false);
+  
+  // 检测是否在 VS Code 插件环境中运行
+  const isVsCode = new URLSearchParams(window.location.search).get('env') === 'vscode';
 
   const syncSessionToBackend = async (session) => {
     try {
@@ -190,6 +196,9 @@ export default function App() {
     setFontSize(newSize);
     localStorage.setItem('chat_font_size', newSize.toString());
   };
+
+  // 头像大小设置
+  const [avatarSize, setAvatarSize] = useState(parseInt(localStorage.getItem('avatar_size')) || 36);
   
   // 状态与配置
   const [activeModel, setActiveModel] = useState('DeepSeek (在线)');
@@ -291,6 +300,18 @@ export default function App() {
     fetchModels();
     fetchAvatars();
     fetchRagConfig();
+  }, []);
+
+  // 监听来自 VS Code 插件的消息
+  useEffect(() => {
+    const handleMessage = (event) => {
+      const message = event.data;
+      if (message.type === 'activeFileChanged') {
+        setSelectedFilePath(message.filePath);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
   }, []);
 
   // 当 models 加载完成，将当前激活的 API 参数回显至设置中
@@ -677,6 +698,12 @@ export default function App() {
                   continue;
                 }
 
+                if (parsed && parsed.type === 'open_explainer') {
+                  // 通过 postMessage 发送给父级(VS Code Extension) 以打开文件
+                  window.parent.postMessage({ type: 'openExplainer', filePath: parsed.filePath }, '*');
+                  continue;
+                }
+
                 if (parsed && parsed.text) {
                   accumulatedContent += parsed.text;
                   
@@ -726,43 +753,62 @@ export default function App() {
     }
   };
 
+  const toggleTheme = () => {
+    const nextTheme = theme === 'light' ? 'dark' : 'light';
+    setTheme(nextTheme);
+    localStorage.setItem('mei_theme', nextTheme);
+  };
+
   return (
-    <div className="app-container" style={{ '--chat-font-size': `${fontSize}px` }}>
+    <div 
+      className={`app-container ${isVsCode ? 'vscode-env' : 'web-env'} theme-${theme}`} 
+      style={{ 
+        '--chat-font-size': `${fontSize}px`,
+        '--avatar-size': `${avatarSize}px`
+      }}
+    >
       {/* 顶部工具栏 */}
       <header className="header-bar">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-          <div className="logo-section">
-            <span className="logo-icon">🌸</span>
-            <span>媚吻锋随身课堂</span>
-          </div>
-          
-          {/* 内置数据库按钮 */}
-          <button 
+        {/* 左上角：数据库图标 */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          <button
+            className="cc-icon-btn"
             onClick={() => setShowDbViewer(true)}
-            style={{
-              background: 'rgba(255, 255, 255, 0.4)',
-              border: '1px solid rgba(255, 255, 255, 0.5)',
-              padding: '4px 12px',
-              borderRadius: '20px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: '500',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              color: 'var(--text-primary)',
-              boxShadow: 'var(--shadow-sm)',
-              transition: 'all 0.2s'
-            }}
-            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.7)'}
-            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.4)'}
+            title="查看数据库"
           >
-            🗄️ 数据库
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M14 3c0 1.1-2.7 2-6 2S2 4.1 2 3s2.7-2 6-2 6 .9 6 2zm0 4c0 1.1-2.7 2-6 2S2 8.1 2 7V5c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm0 4c0 1.1-2.7 2-6 2S2 12.1 2 11V9c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm-6 4c-3.3 0-6-.9-6-2v-2c.8.6 2.3 1 4 1s3.2-.4 4-1v2c0 1.1-2.7 2-6 2z"/>
+            </svg>
           </button>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           
+          {/* 主题切换按钮 */}
+          <button 
+            className="header-btn" 
+            onClick={toggleTheme}
+            title="切换明暗主题"
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            {theme === 'light' ? (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8.5 2.5a6 6 0 1 0 5 9.8c-.5-.4-1.2-.2-1.4.4a4.5 4.5 0 1 1-5.1-6c.6-.2.8-.9.4-1.4a5.9 5.9 0 0 0 1.1-2.8z"/></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0-2a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1c0-.4.3-.75.75-.75zm0 11a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1c0-.4.3-.75.75-.75zm5.66-8.24a.75.75 0 0 1 0 1.06l-.7.7a.75.75 0 1 1-1.06-1.06l.7-.7a.75.75 0 0 1 1.06 0zm-8.48 8.48a.75.75 0 0 1 0 1.06l-.7.7a.75.75 0 1 1-1.06-1.06l.7-.7a.75.75 0 0 1 1.06 0zM14.5 8a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1 0-1.5h1c.4 0 .75.3.75.75zM3.5 8a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1 0-1.5h1c.4 0 .75.3.75.75zm10.16 4.34a.75.75 0 0 1-1.06 0l-.7-.7a.75.75 0 1 1 1.06-1.06l.7.7a.75.75 0 0 1 0 1.06zm-8.48-8.48a.75.75 0 0 1-1.06 0l-.7-.7a.75.75 0 1 1 1.06-1.06l.7.7a.75.75 0 0 1 0 1.06z"/></svg>
+            )}
+          </button>
+
+          {/* 大纲与状态面板切换按钮（移动端/窄边栏专属） */}
+          <button 
+            className="header-btn mobile-only-btn" 
+            onClick={() => setShowMobileStatus(!showMobileStatus)}
+            title="大纲与状态"
+            style={{ background: showMobileStatus ? 'var(--accent-pink)' : '', color: showMobileStatus ? 'white' : '', display: 'flex', alignItems: 'center' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M2 3h12v1H2V3zm0 4h12v1H2V7zm0 4h12v1H2v-1z"/></svg>
+            <span>大纲/属性</span>
+          </button>
+
           {/* 字体大小设置下拉菜单 */}
           <div className="settings-dropdown-container" style={{ position: 'relative' }}>
             <button 
@@ -771,21 +817,11 @@ export default function App() {
                 setShowFontMenu(!showFontMenu);
                 setShowApiMenu(false);
               }}
-              style={{
-                background: 'rgba(255, 255, 255, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.5)',
-                padding: '4px 12px',
-                borderRadius: '20px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                color: 'var(--text-primary)'
-              }}
+              title="UI 设置"
+              style={{ display: 'flex', alignItems: 'center' }}
             >
-              ⚙️ UI设置
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M9.1 1.1L8.8 2.5C8.3 2.7 7.8 3 7.3 3.3L6.0 2.5L4.4 4.1L5.3 5.4C5.0 5.9 4.7 6.4 4.5 6.9L3.1 7.2V9.4L4.5 9.7C4.7 10.2 5.0 10.7 5.3 11.2L4.4 12.5L6.0 14.1L7.3 13.3C7.8 13.6 8.3 13.9 8.8 14.1L9.1 15.5H11.3L11.6 14.1C12.1 13.9 12.6 13.6 13.1 13.3L14.4 14.1L16.0 12.5L15.1 11.2C15.4 10.7 15.7 10.2 15.9 9.7L17.3 9.4V7.2L15.9 6.9C15.7 6.4 15.4 5.9 15.1 5.4L16.0 4.1L14.4 2.5L13.1 3.3C12.6 3.0 12.1 2.7 11.6 2.5L11.3 1.1H9.1zm1.1 4.5C11.9 5.6 13.0 6.7 13.0 8.0s-1.1 2.4-2.4 2.4S8.2 9.3 8.2 8.0s1.1-2.4 2.4-2.4z" transform="scale(0.85) translate(1, 1)"/></svg>
+              <span>UI设置</span>
             </button>
             {showFontMenu && (
               <div 
@@ -806,6 +842,23 @@ export default function App() {
               >
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   
+                  {/* 头像大小设置 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <label style={{ fontSize: '12px', fontWeight: 'bold' }}>头像大小: {avatarSize}px</label>
+                    <input 
+                      type="range" 
+                      min="24" 
+                      max="64" 
+                      value={avatarSize} 
+                      onChange={(e) => {
+                        const size = parseInt(e.target.value);
+                        setAvatarSize(size);
+                        localStorage.setItem('avatar_size', size.toString());
+                      }} 
+                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
+                    />
+                  </div>
+
                   {/* 字体设置 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 'bold' }}>字体大小: {fontSize}px</label>
@@ -890,21 +943,11 @@ export default function App() {
                 setShowApiMenu(!showApiMenu);
                 setShowFontMenu(false);
               }}
-              style={{
-                background: 'rgba(255, 255, 255, 0.4)',
-                border: '1px solid rgba(255, 255, 255, 0.5)',
-                padding: '4px 12px',
-                borderRadius: '20px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '4px',
-                color: 'var(--text-primary)'
-              }}
+              title="API 配置"
+              style={{ display: 'flex', alignItems: 'center' }}
             >
-              ⚡ API 配置
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M10.5 1L3 8.5h4.5L6 15l7.5-7.5H9L10.5 1z"/></svg>
+              <span>API 配置</span>
             </button>
             {showApiMenu && (
               <div 
@@ -1167,25 +1210,10 @@ export default function App() {
 
       {/* 主工作区 */}
       <main className="main-layout">
-        {/* 左侧面板：文件树与预览 / 历史聊天记录 */}
-        <FileTree
-          selectedFilePath={selectedFilePath}
-          selectedFileContent={selectedFileContent}
-          onFileSelect={(path, content) => {
-            setSelectedFilePath(path);
-            setSelectedFileContent(content);
-          }}
-          rootPath={rootPath}
-          setRootPath={setRootPath}
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onSwitchSession={handleSwitchSession}
-          onNewSession={handleNewSession}
-          onDeleteSession={handleDeleteSession}
-        />
-
+        {/* 左侧面板：原本是文件树，现已被抛弃，将直接潜入 VS Code 原生生态 */}
         {/* 中间面板：核心对话区 */}
         <ChatPanel
+          isVsCode={isVsCode}
           messages={messages}
           activeModel={activeModel}
           userAvatar={userAvatar}
@@ -1205,20 +1233,34 @@ export default function App() {
           executeSlashCommand={executeSlashCommand}
           chatEndRef={chatEndRef}
           onEditAndResend={handleEditAndResend}
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onNewSession={handleNewSession}
+          onSwitchSession={handleSwitchSession}
+          onDeleteSession={handleDeleteSession}
+          showSessionList={showSessionList}
+          setShowSessionList={setShowSessionList}
         />
 
         {/* 右侧面板：导师人设与课程大纲 */}
-        <StatusPanel
-          currentThought={currentThought}
-          affection={affection}
-          personaType={personaType}
-          handlePersonaTypeChange={handlePersonaTypeChange}
-          models={models}
-          activeModel={activeModel}
-          handleModelChange={handleModelChange}
-          activeSubModel={activeSubModel}
-          courseProgress={courseProgress}
-        />
+        <div className={`right-panel-container ${showMobileStatus ? 'show-mobile' : ''}`}>
+          <StatusPanel
+            currentThought={currentThought}
+            affection={affection}
+            personaType={personaType}
+            handlePersonaTypeChange={handlePersonaTypeChange}
+            models={models}
+            activeModel={activeModel}
+            handleModelChange={handleModelChange}
+            activeSubModel={activeSubModel}
+            courseProgress={courseProgress}
+          />
+          {showMobileStatus && (
+            <button className="mobile-close-btn" onClick={() => setShowMobileStatus(false)}>
+              ✖ 返回聊天
+            </button>
+          )}
+        </div>
       </main>
 
       {/* 隐藏的文件输入框 */}

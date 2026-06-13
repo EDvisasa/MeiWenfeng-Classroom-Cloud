@@ -11,9 +11,9 @@ logger = logging.getLogger(__name__)
 
 # 定义延时降级配置
 DECAY_CONFIGS = [
-    {"level": 1, "threshold": "-2 days", "next_level": 2, "prompt": "请将以下这几天的修仙日记进一步压缩，提炼出这段时间的修炼主线和师生关系进展。\n请严格按照以下格式输出：\n【时间跨度】：（根据内容总结时间跨度）\n【涉及事物/功法】：（提炼核心道具、功法或话题）\n【阶段总结】：（一句话高度概括该阶段）\n【详细记忆】：（不超过150字的具体经过）"},
-    {"level": 2, "threshold": "-7 days", "next_level": 3, "prompt": "请将以下近期的修炼总结高度浓缩为长期记忆标签。\n请严格按照以下格式输出：\n【时间跨度】：（如：近一周）\n【核心关键点】：（提炼最重要的突破或转折点）\n【阶段总结】：（一句话概括）\n【详细记忆】：（不超过200字）"},
-    {"level": 3, "threshold": "-30 days", "next_level": 4, "prompt": "请提炼出过去这一个月甚至更久的核心羁绊与命运轨迹，凝练成一段史诗般的传记记忆。\n请严格按照以下格式输出：\n【时间跨度】：（如：近一个月）\n【命运节点】：（最核心的羁绊或境界节点）\n【史诗总结】：（一句话概括）\n【详细记忆】：（不超过300字）"}
+    {"level": 1, "threshold": "-2 days", "next_level": 2, "prompt": "请将以下这几天的修仙日记进一步压缩，提炼出这段时间的修炼主线和师生关系进展。\n请严格按照以下格式输出：\n【时间跨度】：（根据内容总结时间跨度）\n【涉及事物/功法】：（提炼核心道具、功法或话题）\n【阶段总结】：（一句话高度概括该阶段）\n【修行心得】：（提炼出易错点、非直觉洞察和下一步学习方向）\n【详细记忆】：（不超过150字的具体经过）"},
+    {"level": 2, "threshold": "-7 days", "next_level": 3, "prompt": "请将以下近期的修炼总结高度浓缩为长期记忆标签。\n请严格按照以下格式输出：\n【时间跨度】：（如：近一周）\n【核心关键点】：（提炼最重要的突破或转折点）\n【阶段总结】：（一句话概括）\n【修行心得】：（提炼这段时间总体的认知成长和下一阶段方向）\n【详细记忆】：（不超过200字）"},
+    {"level": 3, "threshold": "-30 days", "next_level": 4, "prompt": "请提炼出过去这一个月甚至更久的核心羁绊与命运轨迹，凝练成一段史诗般的传记记忆。\n请严格按照以下格式输出：\n【时间跨度】：（如：近一个月）\n【命运节点】：（最核心的羁绊或境界节点）\n【史诗总结】：（一句话概括）\n【修行心得】：（境界或心境的重大突破领悟）\n【详细记忆】：（不超过300字）"}
 ]
 
 def generate_summary(text: str, prompt: str) -> str:
@@ -46,7 +46,7 @@ def generate_summary(text: str, prompt: str) -> str:
         logger.warning("No API Key configured, cannot summarize memory.")
         return ""
         
-    prompt += "\n【重要指令】：请直接输出纯文本总结，绝对不要包含任何 Markdown 格式或多余的换行，并且整段文字必须严格以完整的中文句号“。”结尾。"
+    prompt += "\\n【重要指令】：请直接输出纯文本总结，绝对不要包含任何 Markdown 格式或多余的换行，并且整段文字必须严格以完整的中文句号“。”结尾。"
 
     safe_base_url = base_url.replace("://localhost:", "://127.0.0.1:")
     client = OpenAI(api_key=api_key or "no-key-required", base_url=safe_base_url)
@@ -105,16 +105,17 @@ def process_memory_decay() -> Dict[str, Any]:
 
         combined_text = ""
         if today_level1:
-            combined_text += f"【今日旧日记】\n{today_level1['summary']}\n---\n"
+            combined_text += f"【今日旧日记】\\n{today_level1['summary']}\\n---\\n"
         
-        combined_text += "【新聊天记录】\n"
-        combined_text += "\n---\n".join([r["content"] for r in level0_rows])
+        combined_text += "【新聊天记录】\\n"
+        combined_text += "\\n---\\n".join([r["content"] for r in level0_rows])
 
         prompt = """请将以下【今日旧日记】（如果有）和【新聊天记录】合并浓缩，生成一份全新的今日修仙日记。
 请务必严格按照以下格式输出：
 【时间】：（根据内容填写大致时间段）
 【涉及事物/功法】：（提炼聊天中提及的重要道具、功法、知识点或话题）
 【一句话总结】：（用一句话高度概括核心事件）
+【修行心得】：（提炼出易错点、非直觉洞察和下一步的 Zone of Proximal Development 挑战区）
 【详细记忆】：（总结今天的核心事件和情感进展，不超过150字）"""
         new_summary = generate_summary(combined_text, prompt)
 

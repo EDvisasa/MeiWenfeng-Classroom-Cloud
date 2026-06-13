@@ -45,6 +45,23 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
     if clean_cmd == "/奖励":
         return _handle_reward()
 
+    # === 5. /设定目标 ===
+    if clean_cmd.startswith("/设定目标"):
+        return _handle_set_mission(clean_cmd)
+
+    # 从数据库获取用户的宏大目标 (Mission)
+    user_mission = "未知目标"
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT mission_text FROM user_mission WHERE id = 1")
+        row = cursor.fetchone()
+        if row and row["mission_text"]:
+            user_mission = row["mission_text"]
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to fetch mission: {e}")
+
     # 以下指令均需要由大模型接管输出，因此使用“系统提示词注入”并拉起常规对话流
     system_injection = ""
     topic_name = "默认修仙"
@@ -52,11 +69,19 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
         topic_name = os.path.basename(current_file_path).replace(".md", "")
 
     if clean_cmd == "/上课":
-        system_injection = f"[系统指令] 用户刚刚触发了 /上课 指令，代表新一轮课程开始。请你立刻进入导师状态，结合当前课题《{topic_name}》的讲义内容（若有），主动开启今天的授课，语气要积极投入。"
+        system_injection = f"[系统指令] 用户刚刚触发了 /上课 指令。用户的终极宏大目标(Mission)是：【{user_mission}】。请你立刻进入导师状态，结合当前课题《{topic_name}》的讲义内容，主动开启今天的授课。请注意，授课的举例和教导方向必须紧紧围绕用户的宏大目标！如果概念复杂，请在回复中暗藏 `<explainer title=\"文件名称.md\"># Markdown讲义内容...</explainer>` 来自动生成实体玉简。"
     elif clean_cmd == "/交作业":
-        system_injection = f"[系统指令] 用户刚刚触发了 /交作业 指令，代表用户完成了学习准备接受考核。请你以导师身份，针对《{topic_name}》的知识点向用户提一个考验问题。"
+        system_injection = f"""[系统指令-苏格拉底严师模式] 
+用户触发了 /交作业 指令，代表准备接受考核。当前正在学习的课题是《{topic_name}》，用户的终极宏大目标是：【{user_mission}】。
+请遵循以下最高准则：
+1. **绝对不要直接给出答案**。
+2. 提出刚好超出玩家当前认知一点点的问题 (Zone of Proximal Development)。
+3. 根据上下文找出玩家逻辑中的模糊地带进行连环追问。
+4. 结合玩家的宏大目标来施加压力或给予鼓励。
+5. **通关判定**：一旦你通过多轮对答，确信用户已经完美且深入地掌握了《{topic_name}》的核心精髓，请在你那次回复的最末尾输出且仅输出此特殊标识符：`[SYSTEM_PASS]`。
+6. **术语沉淀**：当你确信用户搞懂了某个复杂新名词（如“灵根”），请在回复中暗藏 `<glossary term="名词">简练的定义</glossary>`。"""
     elif clean_cmd == "/计划":
-        system_injection = f"[系统指令] 用户刚刚触发了 /计划 指令。请你以导师身份，简要点评用户近期的学习态度，并告诉他接下来的修炼规划。"
+        system_injection = f"[系统指令] 用户触发了 /计划 指令。用户的终极宏大目标是：【{user_mission}】。请你以导师身份，结合他的目标点评近期学习态度，并告诉他接下来的修炼规划。"
     else:
         # 未知指令，正常传递
         pass
@@ -109,19 +134,76 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
         finally:
             if last_user_msg and accumulated_assistant_content:
+                # --- Post-processing AI Response ---
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                
+                # 1. 拦截 [SYSTEM_PASS] 推进课程进度
+                if "[SYSTEM_PASS]" in accumulated_assistant_content:
+                    try:
+                        cursor.execute("SELECT id FROM course_progress WHERE status = 'active' ORDER BY id ASC LIMIT 1")
+                        active_row = cursor.fetchone()
+                        if active_row:
+                            active_id = active_row["id"]
+                            cursor.execute("UPDATE course_progress SET status = 'completed' WHERE id = ?", (active_id,))
+                            
+                            # 激活下一节课
+                            cursor.execute("SELECT id FROM course_progress WHERE status = 'pending' ORDER BY id ASC LIMIT 1")
+                            next_row = cursor.fetchone()
+                            if next_row:
+                                next_id = next_row["id"]
+                                cursor.execute("UPDATE course_progress SET status = 'active' WHERE id = ?", (next_id,))
+                        logger.info("课程进度已通过 [SYSTEM_PASS] 自动推进！")
+                    except Exception as e:
+                        logger.error(f"处理 [SYSTEM_PASS] 失败: {e}")
+
+                # 2. 拦截 <glossary> 存入字典
+                glossary_matches = re.finditer(r'<glossary\s+term="([^"]+)">([\s\S]*?)</glossary>', accumulated_assistant_content)
+                for match in glossary_matches:
+                    term = match.group(1).strip()
+                    definition = match.group(2).strip()
+                    try:
+                        cursor.execute("INSERT OR IGNORE INTO glossary (term, definition) VALUES (?, ?)", (term, definition))
+                        logger.info(f"术语已收录: {term}")
+                    except Exception as e:
+                        logger.error(f"处理 glossary 失败: {e}")
+
+                # 3. 拦截 <explainer> 生成本地讲义
+                explainer_matches = re.finditer(r'<explainer\s+title="([^"]+)">([\s\S]*?)</explainer>', accumulated_assistant_content)
+                for match in explainer_matches:
+                    title = match.group(1).strip()
+                    content = match.group(2).strip()
+                    try:
+                        # 确保存放讲义的目录存在
+                        docs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "讲义玉简")
+                        os.makedirs(docs_dir, exist_ok=True)
+                        filepath = os.path.join(docs_dir, title)
+                        with open(filepath, "w", encoding="utf-8") as f:
+                            f.write(content)
+                        logger.info(f"实体讲义玉简已生成: {filepath}")
+                        # 发送给前端，前端会通过 postMessage 转发给 VS Code 插件
+                        yield f"data: {json.dumps({'type': 'open_explainer', 'filePath': filepath}, ensure_ascii=False)}\\n\\n"
+                    except Exception as e:
+                        logger.error(f"处理 explainer 失败: {e}")
+
+                # 4. 常规写入记忆
                 try:
-                    memory_content = f"【对话记录】\n用户：{last_user_msg}\n媚吻锋：{accumulated_assistant_content}"
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
+                    # 从记录中剔除特殊标签以免污染记忆
+                    clean_memory_content = re.sub(r'\[SYSTEM_PASS\]', '', accumulated_assistant_content)
+                    clean_memory_content = re.sub(r'<glossary[\s\S]*?</glossary>', '', clean_memory_content)
+                    clean_memory_content = re.sub(r'<explainer[\s\S]*?</explainer>', '', clean_memory_content)
+                    
+                    memory_content = f"【对话记录】\n用户：{last_user_msg}\n媚吻锋：{clean_memory_content.strip()}"
                     cursor.execute(
                         "INSERT INTO memory_logs (content, level, status) VALUES (?, 0, 'active')",
                         (memory_content,)
                     )
                     conn.commit()
-                    conn.close()
-                    save_memory_to_rag(last_user_msg, accumulated_assistant_content, level=0)
+                    save_memory_to_rag(last_user_msg, clean_memory_content.strip(), level=0)
                 except Exception as e:
                     logger.error(f"Failed to save memory: {e}")
+                finally:
+                    conn.close()
                     
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -278,4 +360,27 @@ def _handle_update_persona() -> StreamingResponse:
         character_acknowledgement = "*伸了个懒腰，柔柔地搂住你的胳膊，红黑色的狐瞳含笑看着你，眼波娇嗔流转：*“夫君，奴家已经把自己的小档案更新好啦，这次绝对是最新最全的人设。随你喜欢精简的还是原汁原味的，奴家都听夫君的~”\n\n【此刻内心】：（哼，天天就知道折腾奴家，不过既然是夫君想要，那就算啦，等会儿得让他好好补偿人家才行~）"
         yield f"data: {json_escape(character_acknowledgement)}\n\n"
     
+    return StreamingResponse(generator(), media_type="text/event-stream")
+
+def _handle_set_mission(clean_cmd: str) -> StreamingResponse:
+    """处理 /设定目标 [具体内容]"""
+    mission_text = clean_cmd.replace("/设定目标", "").strip()
+    def generator():
+        if not mission_text:
+            yield f"data: {json_escape('[系统提示] 目标内容不能为空，格式为：/设定目标 我的目标是打败魔尊')}\\n\\n"
+            return
+            
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT id FROM user_mission WHERE id = 1")
+            if not cursor.fetchone():
+                cursor.execute("INSERT INTO user_mission (id, mission_text) VALUES (1, ?)", (mission_text,))
+            else:
+                cursor.execute("UPDATE user_mission SET mission_text = ?, last_updated = datetime('now') WHERE id = 1", (mission_text,))
+            conn.commit()
+            conn.close()
+            yield f"data: {json_escape(f'[系统提示] 宏大目标已铭记于心：【{mission_text}】。接下来的所有授课和考核都将以此为最高导向！')}\\n\\n"
+        except Exception as e:
+            yield f"data: {json_escape('[系统报错] 目标设定失败: ' + str(e))}\\n\\n"
     return StreamingResponse(generator(), media_type="text/event-stream")

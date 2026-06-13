@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//d/MeiWenfeng-Classroom/frontend/src/**)"
+    ],
+    "additionalDirectories": [
+      "d:\\MeiWenfeng-Classroom\\frontend\\src\\components",
+      "d:\\MeiWenfeng-Classroom\\frontend\\src"
+    ]
+  }
+}
