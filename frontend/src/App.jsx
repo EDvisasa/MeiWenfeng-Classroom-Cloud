@@ -975,7 +975,7 @@ export default function App() {
 
           <div className="connection-status">
             <div className={`status-indicator ${isStreaming ? 'pulse' : ''}`} />
-            <span>{isStreaming ? '媚吻锋思考中...' : '课堂连通正常'}</span>
+            <span>{isStreaming ? '导师思考中...' : '课堂连通正常'}</span>
           </div>
         </div>
       </header>
