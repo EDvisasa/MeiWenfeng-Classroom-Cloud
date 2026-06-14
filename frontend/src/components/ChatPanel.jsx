@@ -341,10 +341,15 @@ export default function ChatPanel({
                       title="点击更换头像"
                       style={{ cursor: 'pointer' }}
                     >
-                      {userAvatar ? (
+                      {userAvatar && userAvatar !== 'default_student' ? (
                         <img src={userAvatar} alt="用户头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                       ) : (
-                        <span>你</span>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '65%', height: '65%', color: 'var(--text-primary)' }}>
+                          <circle cx="12" cy="6" r="3" />
+                          <path d="M12 13c-2.5-1.5-6.5-1.5-9 0v6.5c2.5-1.5 6.5-1.5 9 0" />
+                          <path d="M12 13c2.5-1.5 6.5-1.5 9 0v6.5c-2.5-1.5-6.5-1.5-9 0" />
+                          <line x1="12" y1="13" x2="12" y2="19.5" />
+                        </svg>
                       )}
                     </div>
                   </>
@@ -356,10 +361,13 @@ export default function ChatPanel({
                       title="点击更换导师头像"
                       style={{ cursor: 'pointer' }}
                     >
-                      {assistantAvatar ? (
+                      {assistantAvatar && assistantAvatar !== 'default_tutor' ? (
                         <img src={assistantAvatar} alt="导师头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                       ) : (
-                        <span>师</span>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '65%', height: '65%', color: 'var(--accent-pink)' }}>
+                          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                          <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                        </svg>
                       )}
                     </div>
                     <span className="sender-name">媚吻锋</span>

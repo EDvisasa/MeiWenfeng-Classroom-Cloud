@@ -203,8 +203,13 @@ export default function App() {
   }, [messages, activeSessionId]);
 
   // 头像裁剪相关
-  const [userAvatar, setUserAvatar] = useState(localStorage.getItem('user_avatar') || '🎓');
-  const [assistantAvatar, setAssistantAvatar] = useState(localStorage.getItem('assistant_avatar') || '🦊');
+  const storedUser = localStorage.getItem('user_avatar');
+  const initialUser = (storedUser === '🎓' || !storedUser) ? 'default_student' : storedUser;
+  const storedAssistant = localStorage.getItem('assistant_avatar');
+  const initialAssistant = (storedAssistant === '🦊' || !storedAssistant) ? 'default_tutor' : storedAssistant;
+
+  const [userAvatar, setUserAvatar] = useState(initialUser);
+  const [assistantAvatar, setAssistantAvatar] = useState(initialAssistant);
   const [cropTarget, setCropTarget] = useState('user');
   const [showCropModal, setShowCropModal] = useState(false);
   const [imageSrc, setImageSrc] = useState(null);
