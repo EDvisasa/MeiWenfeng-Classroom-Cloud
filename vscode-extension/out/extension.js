@@ -174,6 +174,19 @@ class SidebarProvider {
                     }
                     break;
                 }
+                case 'openVirtualDocument': {
+                    try {
+                        const doc = await vscode.workspace.openTextDocument({
+                            content: data.content,
+                            language: data.language || 'plaintext'
+                        });
+                        await vscode.window.showTextDocument(doc, { preview: false });
+                    }
+                    catch (e) {
+                        vscode.window.showErrorMessage('无法打开虚拟文档');
+                    }
+                    break;
+                }
             }
         });
     }

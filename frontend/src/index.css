@@ -1629,3 +1629,150 @@ body {
 .vscode-env .character-role {
   color: var(--accent-pink) !important;
 }
+
+/* Claude Code Tool Block Styles */
+/* Elegant Thinking Block */
+.thinking-block {
+  margin: 12px 0;
+}
+
+.thinking-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  cursor: pointer;
+  user-select: none;
+  list-style: none !important;
+}
+
+.thinking-summary::marker {
+  display: none;
+  content: "";
+}
+
+.thinking-summary::-webkit-details-marker {
+  display: none;
+}
+
+.thinking-summary-icon {
+  transition: transform 0.2s;
+}
+
+.thinking-block[open] .thinking-summary-icon {
+  transform: rotate(180deg);
+}
+
+.thinking-content {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.claude-tool-block {
+  margin: 12px 0;
+  font-family: var(--font-sans);
+}
+
+.claude-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.claude-tool-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #2ea043; /* Green */
+}
+
+.claude-tool-status-dot.running {
+  background-color: #d29922; /* Yellow */
+  box-shadow: 0 0 5px #d29922;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.claude-tool-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.claude-tool-io {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  position: relative;
+  transition: max-height 0.3s ease-out, border-color 0.2s;
+  max-height: 2000px;
+}
+
+.claude-tool-io.collapsed {
+  max-height: 90px;
+}
+
+.claude-tool-io:not(.collapsed) {
+  overflow-x: auto;
+}
+
+.claude-tool-io.clickable {
+  cursor: pointer;
+}
+
+.claude-tool-io.clickable:hover {
+  border-color: var(--text-secondary);
+}
+
+.claude-tool-io.collapsed::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, var(--bg-secondary));
+  pointer-events: none;
+}
+
+.claude-tool-io-row {
+  display: flex;
+  gap: 16px;
+}
+
+.claude-tool-io-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  opacity: 0.5;
+  width: 25px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.claude-tool-io-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-primary);
+}

@@ -71,23 +71,47 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
     
     file_context = ""
     if current_file_path:
-        file_context = f"（用户当前正在查阅讲义：{os.path.basename(current_file_path)}）"
+        file_context = f"<active_document>The user is currently reviewing the document: {os.path.basename(current_file_path)}</active_document>"
 
     if clean_cmd == "/lesson":
-        system_injection = f"[系统指令] 用户刚刚触发了 /lesson 指令。用户的终极宏大目标(Mission)是：【{user_mission}】。{file_context} 请你立刻进入导师状态，围绕当前课题《{topic_name}》主动开启今天的授课！如果概念复杂，请在回复中暗藏 `<explainer title=\"文件名称.md\"># Markdown讲义内容...</explainer>` 来自动生成实体玉简。"
+        system_injection = f"""<system_directive>
+Event: The user just triggered the `/lesson` command.
+User's Ultimate Mission: {user_mission}
+Current Topic: {topic_name}
+{file_context}
+
+Action Required: Immediately enter your mentor persona. Proactively start today's lesson focused on the Current Topic. 
+Output Format: If the concept is complex, you MUST secretly embed an explainer in your response using this exact XML format: `<explainer title="Filename.md"># Markdown Content...</explainer>`. This will automatically generate a physical jade slip (document) for the user.
+</system_directive>"""
     elif clean_cmd == "/submit":
-        system_injection = f"""[系统指令-苏格拉底严师模式] 
-用户触发了 /submit 指令，代表准备接受考核。当前考核课题是《{topic_name}》。{file_context} 用户的终极宏大目标是：【{user_mission}】。
-请遵循以下最高准则：
-1. **绝对不要直接给出答案**。
-2. 提出刚好超出玩家当前认知一点点的问题 (Zone of Proximal Development)。
-3. 根据上下文找出玩家逻辑中的模糊地带进行连环追问。
-4. 结合玩家的宏大目标来施加压力或给予鼓励。
-5. **通关判定**：一旦你确信用户已经完美掌握了《{topic_name}》，请在回复最末尾输出且仅输出此特殊标识符：`[SYSTEM_PASS]`。
-6. **术语沉淀**：当你确信用户搞懂了某个复杂新名词，请暗藏 `<glossary term="名词">简练定义</glossary>`。"""
+        system_injection = f"""<system_directive mode="socratic_strict_mentor">
+Event: The user triggered the `/submit` command, indicating they are ready for assessment.
+Current Assessment Topic: {topic_name}
+User's Ultimate Mission: {user_mission}
+{file_context}
+
+<critical_rules>
+1. NEVER GIVE DIRECT ANSWERS.
+2. Ask questions that are just slightly beyond the user's current understanding (Zone of Proximal Development).
+3. Identify ambiguous areas in the user's logic and pursue them with follow-up questions.
+4. Apply pressure or give encouragement by tying the assessment to their Ultimate Mission.
+5. PASS CONDITION: Once you are absolutely certain the user has perfectly mastered '{topic_name}', you MUST output the exact identifier `[SYSTEM_PASS]` at the very end of your response.
+6. GLOSSARY EXTRACTION: When you are certain the user has understood a complex new term, embed it using: `<glossary term="TermName">Concise Definition</glossary>`.
+</critical_rules>
+</system_directive>"""
     elif clean_cmd == "/plan":
         syllabus_text = get_formatted_syllabus()
-        system_injection = f"[系统指令] 用户触发了 /plan 指令。用户的终极宏大目标是：【{user_mission}】。\n当前大纲进度如下：\n{syllabus_text}\n\n请你以导师身份点评近期进度，并告诉他接下来的修炼规划。如果需要向大纲中追加新的课题，请在回复中暗藏标签 `<new_course phase=\"阶段名称\" topic=\"课题名称\" />`，系统会自动将其加入待办进度中。"
+        system_injection = f"""<system_directive>
+Event: The user triggered the `/plan` command.
+User's Ultimate Mission: {user_mission}
+
+<current_syllabus_progress>
+{syllabus_text}
+</current_syllabus_progress>
+
+Action Required: As a mentor, review their recent progress and outline their upcoming cultivation plan.
+Output Format: If you need to append new topics to the syllabus, embed the following tag in your response: `<new_course phase="Phase Name" topic="Topic Name" />`. The system will automatically add it to the pending progress.
+</system_directive>"""
     else:
         # 未知指令，正常传递
         pass
@@ -122,7 +146,7 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
 
     system_prompt = get_system_prompt(affection_value, persona_type)
     if rag_context:
-        system_prompt += f"\n\n【附加背景知识库检索结果（作为世界观或讲义参考）】\n{rag_context}\n\n（请结合以上背景知识进行回答，若相关则自然地融入你的话语中，若无关则忽略）"
+        system_prompt += f"\n\n<retrieved_background_knowledge>\n{rag_context}\n</retrieved_background_knowledge>\n<instruction>Integrate this background knowledge naturally into your response if relevant. If irrelevant, ignore it.</instruction>"
         
     if system_injection:
         system_prompt += f"\n\n{system_injection}\n"

@@ -97,13 +97,37 @@ def stream_chat(
                 base_url=safe_base_url
             )
             
-            system_injection = """
-【重要系统指令：工具调用】
-你现在拥有执行本地终端命令的能力。如果需要读取文件、列出目录、搜索内容等，请在回答的**末尾**输出以下格式：
+            import platform
+            current_os = platform.system()
+            os_instruction = f"Operating System: {current_os}."
+            if current_os == "Windows":
+                os_instruction += " You are using Windows cmd.exe. CRITICAL: Multiline strings do NOT work well in `python -c` or standard terminal commands here. If you need to run a python script, write it entirely on ONE line using semicolons (e.g. `python -c \"import os; print('hi')\"`), or write it to a temporary .py file and execute that file. Use Windows commands (e.g., `dir` instead of `ls`)."
+            else:
+                os_instruction += " You are using a standard Unix bash shell."
+
+            system_injection = f"""
+<tool_use_guidelines>
+You have access to a local command-line terminal. 
+{os_instruction}
+
+When you need to gather information, explore directories, read files, or execute scripts, you MUST use the terminal tool BEFORE providing your final response.
+
+CRITICAL RULES:
+1. WORK FIRST, CHAT LATER: If you need to use the tool, you MUST NOT output any conversational text, pleasantries, or roleplay. You must ONLY output your internal thought process and the tool call.
+2. CHAIN OF THOUGHT: Always explain your plan internally using <thought> tags before calling the tool.
+3. ONE TOOL AT A TIME: You may only execute one terminal command per turn. Wait for the system to return the output before proceeding.
+4. FINAL RESPONSE: Only when you have gathered all necessary information and do not need to use the tool anymore, you may output your final conversational and roleplay response. Do NOT output tool calls in your final response.
+
+FORMAT:
+<thought>
+I need to check the current directory contents.
+</thought>
 <execute_bash>
-你要执行的完整命令
+{"dir" if current_os == "Windows" else "ls -la"}
 </execute_bash>
-系统会自动拦截并执行，然后将结果返回给你。每次只能执行一个命令，收到结果前请不要继续回答。如果不需要执行命令，则正常回答即可。
+
+Remember: NEVER mix conversational text with tool calls. Be strictly silent (except for <thought>) until the work is done.
+</tool_use_guidelines>
 """
             # Insert the system instruction into the first message
             if len(formatted_messages) > 0 and formatted_messages[0]["role"] == "system":
@@ -158,8 +182,19 @@ def stream_chat(
                 
                 import subprocess
                 try:
-                    result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10)
-                    output = result.stdout + result.stderr
+                    result = subprocess.run(command, shell=True, capture_output=True, timeout=10)
+                    
+                    try:
+                        stdout_str = result.stdout.decode('utf-8')
+                    except UnicodeDecodeError:
+                        stdout_str = result.stdout.decode('gbk', errors='replace')
+                        
+                    try:
+                        stderr_str = result.stderr.decode('utf-8')
+                    except UnicodeDecodeError:
+                        stderr_str = result.stderr.decode('gbk', errors='replace')
+                        
+                    output = stdout_str + stderr_str
                     if not output.strip():
                         output = "[Command executed successfully with no output]"
                 except subprocess.TimeoutExpired:

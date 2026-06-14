@@ -1,5 +1,53 @@
 import React from 'react';
 
+const ToolBlock = ({ block, idx }) => {
+  const isRunning = block.status === 'running';
+  const friendlyName = block.tool_name === 'execute_bash' ? 'Bash' 
+                     : block.tool_name === 'default_api:run_command' ? 'Bash'
+                     : block.tool_name;
+
+  const [isExpanded, setIsExpanded] = React.useState(false);
+  const THRESHOLD = 30;
+  const hasLongOutput = block.output && block.output.length > THRESHOLD;
+
+  return (
+    <div key={idx} className="claude-tool-block">
+      <div className="claude-tool-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: hasLongOutput ? 'pointer' : 'default' }} onClick={() => hasLongOutput && setIsExpanded(!isExpanded)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className={`claude-tool-status-dot ${isRunning ? 'running' : 'done'}`}></div>
+          <span className="claude-tool-name">{friendlyName}</span>
+        </div>
+        {hasLongOutput && (
+          <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+            {isExpanded ? (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z"/></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z"/></svg>
+            )}
+          </div>
+        )}
+      </div>
+      <div 
+        className={`claude-tool-io ${hasLongOutput && !isExpanded ? 'collapsed' : ''} ${hasLongOutput ? 'clickable' : ''}`}
+        onClick={() => hasLongOutput && setIsExpanded(!isExpanded)}
+      >
+        <div className="claude-tool-io-row">
+          <span className="claude-tool-io-label">IN</span>
+          <span className="claude-tool-io-content">{block.command}</span>
+        </div>
+        {block.output && (
+          <div className="claude-tool-io-row">
+            <span className="claude-tool-io-label">OUT</span>
+            <span className="claude-tool-io-content" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+              {block.output}
+            </span>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
 export default function ChatPanel({
   messages,
   activeModel,
@@ -49,24 +97,54 @@ export default function ChatPanel({
     }
   }, [inputText, inputRef]);
 
-  // 格式化解析 AI 的动作文本为斜体灰色
-  const renderMessageContent = (text) => {
-    if (!text) return null;
-    // 移除内心的内容，避免在文本气泡中显示
-    text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
-    // 移除原始的 <execute_bash> 标签内容（因为下面有专用的 block 渲染）
-    text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
-    const parts = text.split(/(\*[^*]+\*)/g);
+  // 解析斜体动作文本
+  const renderItalics = (str, offset) => {
+    const parts = str.split(/(\*[^*]+\*)/g);
     return parts.map((part, idx) => {
       if (part.startsWith('*') && part.endsWith('*')) {
-        return (
-          <span key={idx} className="action-text">
-            {part.slice(1, -1)}
-          </span>
-        );
+        return <span key={`i_${offset}_${idx}`} className="action-text">{part.slice(1, -1)}</span>;
       }
-      return part;
+      return <span key={`t_${offset}_${idx}`}>{part}</span>;
     });
+  };
+
+  // 格式化解析 AI 的内容
+  const renderMessageContent = (text) => {
+    if (!text) return null;
+    text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
+    text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
+
+    const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
+    let match;
+    let elements = [];
+    let lastIndex = 0;
+
+    while ((match = thoughtRegex.exec(text)) !== null) {
+      if (match.index > lastIndex) {
+        elements.push(...renderItalics(text.substring(lastIndex, match.index), lastIndex));
+      }
+      const isRunning = !text.substring(match.index).includes('</thought>');
+      elements.push(
+        <details key={`thought_${match.index}`} open={isRunning} className="thinking-block">
+          <summary className="thinking-summary">
+            <span className="claude-tool-name">Thinking</span>
+            <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+              <svg className="thinking-summary-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z"/>
+              </svg>
+            </div>
+          </summary>
+          <div className="thinking-content">{match[1].trim()}</div>
+        </details>
+      );
+      lastIndex = thoughtRegex.lastIndex;
+    }
+
+    if (lastIndex < text.length) {
+      elements.push(...renderItalics(text.substring(lastIndex), lastIndex));
+    }
+
+    return elements;
   };
 
   const renderBlocks = (blocks) => {
@@ -74,28 +152,20 @@ export default function ChatPanel({
       if (block.type === 'thinking') {
         const isRunning = block.status === 'running';
         return (
-          <details key={idx} open={isRunning} className="block-details thinking-block">
-            <summary className={`block-summary ${isRunning ? 'glow' : 'dim'}`}>
-              {isRunning ? '🤔 正在思考...' : '💭 思考完毕'}
+          <details key={idx} open={isRunning} className="thinking-block">
+            <summary className="thinking-summary">
+              <span className="claude-tool-name">Thinking</span>
+              <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+                <svg className="thinking-summary-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z"/>
+                </svg>
+              </div>
             </summary>
-            <div className="block-content thinking-content">
-              {block.text}
-            </div>
+            <div className="thinking-content">{block.text.trim()}</div>
           </details>
         );
       } else if (block.type === 'tool') {
-        const isRunning = block.status === 'running';
-        return (
-          <details key={idx} open={isRunning} className="block-details tool-block">
-            <summary className={`block-summary ${isRunning ? 'glow-green' : ''}`}>
-              🔧 正在执行工具: {block.tool_name}
-            </summary>
-            <div className="block-content terminal-content">
-              <div className="cmd-line">$ {block.command}</div>
-              <pre>{block.output}</pre>
-            </div>
-          </details>
-        );
+        return <ToolBlock key={idx} block={block} idx={idx} />;
       } else if (block.type === 'text') {
         return <div key={idx} className="text-block">{renderMessageContent(block.text)}</div>;
       }

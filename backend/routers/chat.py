@@ -22,6 +22,7 @@ class ChatRequest(BaseModel):
     messages: List[Message]
     persona_type: str = "simplified"
     current_file_path: str = ""
+    cursor_line: int = 0
 
 def json_escape(text: str) -> str:
     """包装为 JSON 字符串，便于前端原样解析"""
@@ -51,7 +52,7 @@ def send_message(payload: ChatRequest):
                     file_content = f.read()
                 
                 # Replace "@current_file" with the file content in the last user message
-                file_info = f"\n\n【当前激活文件内容: {os.path.basename(payload.current_file_path)}】\n{file_content}\n"
+                file_info = f"\n\n<file_content filename=\"{os.path.basename(payload.current_file_path)}\">\n{file_content}\n</file_content>\n"
                 last_user_msg = last_user_msg.replace("@current_file", f"@current_file {file_info}")
                 
                 # Update the cleaned_messages for the AI
@@ -81,7 +82,7 @@ def send_message(payload: ChatRequest):
                         img_data = base64.b64encode(f.read()).decode('utf-8')
                     mime_type = "image/jpeg" if ext in ['jpg', 'jpeg'] else f"image/{ext}"
                     
-                    replacement_text = f"[图片已挂载: {os.path.basename(file_path)}]"
+                    replacement_text = f"<image_attached filename=\"{os.path.basename(file_path)}\"/>"
                     last_user_msg = last_user_msg.replace(full_match, replacement_text)
                     
                     for msg in reversed(cleaned_messages):
@@ -105,7 +106,7 @@ def send_message(payload: ChatRequest):
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         file_content = f.read()
                     
-                    file_info = f"\n\n【引入文件内容: {os.path.basename(file_path)}】\n{file_content}\n"
+                    file_info = f"\n\n<file_content filename=\"{os.path.basename(file_path)}\">\n{file_content}\n</file_content>\n"
                     last_user_msg = last_user_msg.replace(full_match, f"{full_match} {file_info}")
                     
                     for msg in reversed(cleaned_messages):
@@ -162,6 +163,13 @@ def send_message(payload: ChatRequest):
             logger.error(f"RAG Retrieval failed: {e}")
 
     system_prompt = get_system_prompt(affection_value, payload.persona_type)
+    
+    if payload.current_file_path:
+        import os
+        filename = os.path.basename(payload.current_file_path)
+        line_str = f"Line {payload.cursor_line}" if payload.cursor_line > 0 else "Unknown"
+        system_prompt += f"\n\n<ide_context>\nThe user is currently viewing the following file in their VS Code editor:\n- File Name: {filename}\n- Absolute Path: {payload.current_file_path}\n- Cursor Position: {line_str}\nYou should use this context implicitly if the user asks about 'this file' or 'here'.\n</ide_context>"
+
     if rag_context:
         system_prompt += f"\n\n【附加背景知识库检索结果（作为世界观或讲义参考）】\n{rag_context}\n\n（请结合以上背景知识进行回答，若相关则自然地融入你的话语中，若无关则忽略）"
 
