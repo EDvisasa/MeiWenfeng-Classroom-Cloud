@@ -1630,9 +1630,22 @@ body {
 }
 
 /* 毛玻璃效果切换 */
+.disable-blur {
+  --bg-primary: #ffffff !important;
+  --bg-secondary: #f5f5f5 !important;
+  --bg-tertiary: #e6e6e6 !important;
+  --bg-panel: #ffffff !important;
+}
+
+.disable-blur.theme-dark {
+  --bg-primary: #141418 !important;
+  --bg-secondary: #23232d !important;
+  --bg-tertiary: #323241 !important;
+  --bg-panel: #121216 !important;
+}
+
 .disable-blur .header-bar,
-.disable-blur .sidebar,
-.disable-blur .chat-panel,
+.disable-blur .ide-panel,
 .disable-blur .settings-popover,
 .disable-blur .crop-modal-content {
   backdrop-filter: none !important;
