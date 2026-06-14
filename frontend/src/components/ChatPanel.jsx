@@ -77,7 +77,7 @@ const ThinkingBlock = ({ block, idx }) => {
       </div>
       <div 
         className={`thinking-content ${hasLongOutput && !isExpanded ? 'collapsed' : ''} ${hasLongOutput ? 'clickable' : ''}`}
-        onClick={() => { if (hasLongOutput && !isExpanded) setIsExpanded(true); }}
+        onClick={() => hasLongOutput && setIsExpanded(!isExpanded)}
       >
         {block.text}
       </div>

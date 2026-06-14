@@ -114,17 +114,25 @@ When you need to gather information, explore directories, read files, or execute
 
 CRITICAL RULES:
 1. THINK BEFORE YOU ACT: You MUST ALWAYS start your response with a <thought> block to explain your plan and reasoning. NEVER use a tool without thinking first.
-2. ONE TOOL AT A TIME: You may only execute one terminal command per turn. Wait for the system to return the output before proceeding.
-3. NO CHITCHAT DURING WORK: If you need to use the tool, do NOT output any conversational text, pleasantries, or roleplay. ONLY output your <thought> and the <execute_bash> call.
-4. FINAL RESPONSE: Only when you have gathered all necessary information and do not need to use the tool anymore, you may output your final conversational and roleplay response. Do NOT output tool calls in your final response.
+2. ONE TOOL AT A TIME: You may only execute one terminal command per turn. 
+3. STOP AND WAIT: After closing the </execute_bash> tag, you MUST STOP generating immediately. Do not add any text after it. The system will automatically reply with "[系统返回的执行结果]".
+4. ERROR RECOVERY: If the system execution result contains an error (e.g., file not found, syntax error), analyze the error in your next <thought> block and try a different command. Do NOT bother the user with technical terminal errors.
+5. NO CHITCHAT DURING WORK: If you need to use the tool, do NOT output any conversational text, pleasantries, or roleplay. ONLY output your <thought> and the <execute_bash> call.
+6. FINAL RESPONSE: Only when you have gathered all necessary information, you may output your final conversational and roleplay response.
 
-FORMAT:
+TOOL EXECUTION FORMAT:
 <thought>
 I need to check the current directory contents to find the user's file.
 </thought>
 <execute_bash>
 {"dir" if current_os == "Windows" else "ls -la"}
 </execute_bash>
+
+FINAL RESPONSE FORMAT:
+<thought>
+I have gathered all the necessary information from the file. I will now reply to the user.
+</thought>
+[Your final roleplay response goes here]
 
 Remember: ALWAYS start with <thought>. NEVER mix conversational text with tool calls. Be strictly silent (except for <thought>) until the work is done.
 </tool_use_guidelines>

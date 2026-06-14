@@ -23,7 +23,14 @@ function activate(context) {
             console.log(`[FastAPI] ${data}`);
         });
         backendProcess.stderr?.on('data', (data) => {
-            console.error(`[FastAPI Error] ${data}`);
+            const strData = data.toString();
+            // Uvicorn and Python logging output to stderr by default. We should only treat it as an error if it actually contains error keywords.
+            if (strData.includes('ERROR') || strData.includes('Exception') || strData.includes('Traceback')) {
+                console.error(`[FastAPI Error] ${strData}`);
+            }
+            else {
+                console.log(`[FastAPI Log] ${strData}`);
+            }
         });
         vscode.window.showInformationMessage('🌸 媚吻锋已苏醒 (FastAPI Backend Started)');
     }
