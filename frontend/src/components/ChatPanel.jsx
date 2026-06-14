@@ -48,6 +48,43 @@ const ToolBlock = ({ block, idx }) => {
   );
 };
 
+const ThinkingBlock = ({ block, idx }) => {
+  const isRunning = block.status === 'running';
+  const [isExpanded, setIsExpanded] = React.useState(isRunning);
+  
+  React.useEffect(() => {
+    setIsExpanded(isRunning);
+  }, [isRunning]);
+
+  const hasLongOutput = block.text && (block.text.length > 50 || block.text.includes('\n'));
+
+  return (
+    <div key={`thought_${idx}`} className="claude-tool-block">
+      <div className="claude-tool-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: hasLongOutput ? 'pointer' : 'default' }} onClick={() => hasLongOutput && setIsExpanded(!isExpanded)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div className={`claude-tool-status-dot ${isRunning ? 'running' : 'done'}`}></div>
+          <span className="claude-tool-name">Thinking</span>
+        </div>
+        {hasLongOutput && (
+          <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+            {isExpanded ? (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z"/></svg>
+            ) : (
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z"/></svg>
+            )}
+          </div>
+        )}
+      </div>
+      <div 
+        className={`thinking-content ${hasLongOutput && !isExpanded ? 'collapsed' : ''} ${hasLongOutput ? 'clickable' : ''}`}
+        onClick={() => { if (hasLongOutput && !isExpanded) setIsExpanded(true); }}
+      >
+        {block.text}
+      </div>
+    </div>
+  );
+};
+
 export default function ChatPanel({
   messages,
   activeModel,
@@ -108,66 +145,67 @@ export default function ChatPanel({
     });
   };
 
-  // 格式化解析 AI 的内容
-  const renderMessageContent = (text) => {
-    if (!text) return null;
-    text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
-    text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
-
-    const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
-    let match;
-    let elements = [];
-    let lastIndex = 0;
-
-    while ((match = thoughtRegex.exec(text)) !== null) {
-      if (match.index > lastIndex) {
-        elements.push(...renderItalics(text.substring(lastIndex, match.index), lastIndex));
+  // 统一解析和合并块（处理文本和 msg.blocks）
+  const parseAndMergeBlocks = (blocksOrText) => {
+    let rawBlocks = Array.isArray(blocksOrText) ? blocksOrText : [{ type: 'text', text: blocksOrText || '' }];
+    
+    // 1. Normalize: split text blocks containing <thought> into separate blocks
+    let normalized = [];
+    rawBlocks.forEach(b => {
+      if (b.type === 'text') {
+        let text = b.text || '';
+        text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
+        text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
+        
+        const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
+        let match;
+        let lastIndex = 0;
+        while ((match = thoughtRegex.exec(text)) !== null) {
+          if (match.index > lastIndex) {
+            const snippet = text.substring(lastIndex, match.index).trim();
+            if (snippet) normalized.push({ type: 'text', text: snippet });
+          }
+          const isRunning = !text.substring(match.index).includes('</thought>');
+          normalized.push({ type: 'thinking', text: match[1].trim(), status: isRunning ? 'running' : 'done' });
+          lastIndex = thoughtRegex.lastIndex;
+        }
+        if (lastIndex < text.length) {
+          const snippet = text.substring(lastIndex).trim();
+          if (snippet) normalized.push({ type: 'text', text: snippet });
+        }
+      } else {
+        normalized.push({ ...b });
       }
-      const isRunning = !text.substring(match.index).includes('</thought>');
-      elements.push(
-        <details key={`thought_${match.index}`} open={isRunning} className="thinking-block">
-          <summary className="thinking-summary">
-            <span className="claude-tool-name">Thinking</span>
-            <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
-              <svg className="thinking-summary-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z"/>
-              </svg>
-            </div>
-          </summary>
-          <div className="thinking-content">{match[1].trim()}</div>
-        </details>
-      );
-      lastIndex = thoughtRegex.lastIndex;
-    }
+    });
 
-    if (lastIndex < text.length) {
-      elements.push(...renderItalics(text.substring(lastIndex), lastIndex));
-    }
-
-    return elements;
+    // 2. Merge adjacent thinking blocks
+    let merged = [];
+    normalized.forEach(b => {
+      if (b.type === 'thinking') {
+        const last = merged[merged.length - 1];
+        if (last && last.type === 'thinking') {
+          if (b.text) {
+             last.text = last.text ? (last.text + '\n\n' + b.text) : b.text;
+          }
+          if (b.status === 'running') last.status = 'running';
+        } else {
+          merged.push({ ...b });
+        }
+      } else {
+        merged.push(b);
+      }
+    });
+    return merged;
   };
 
-  const renderBlocks = (blocks) => {
+  const renderNormalizedBlocks = (blocks) => {
     return blocks.map((block, idx) => {
       if (block.type === 'thinking') {
-        const isRunning = block.status === 'running';
-        return (
-          <details key={idx} open={isRunning} className="thinking-block">
-            <summary className="thinking-summary">
-              <span className="claude-tool-name">Thinking</span>
-              <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
-                <svg className="thinking-summary-icon" width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z"/>
-                </svg>
-              </div>
-            </summary>
-            <div className="thinking-content">{block.text.trim()}</div>
-          </details>
-        );
+        return <ThinkingBlock key={`thought_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'tool') {
-        return <ToolBlock key={idx} block={block} idx={idx} />;
+        return <ToolBlock key={`tool_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'text') {
-        return <div key={idx} className="text-block">{renderMessageContent(block.text)}</div>;
+        return <div key={`text_${idx}`} className="text-block">{renderItalics(block.text, idx)}</div>;
       }
       return null;
     });
@@ -347,9 +385,11 @@ export default function ChatPanel({
               ) : (
                 <div className="message-bubble">
                   {msg.blocks && msg.blocks.length > 0 ? (
-                    renderBlocks(msg.blocks)
+                    renderNormalizedBlocks(parseAndMergeBlocks(msg.blocks))
                   ) : (
-                    renderMessageContent(msg.content)
+                    <div className="message-content">
+                      {renderNormalizedBlocks(parseAndMergeBlocks(msg.content))}
+                    </div>
                   )}
                   {msg.streaming && <span className="typing-cursor" />}
                   {isUser && (

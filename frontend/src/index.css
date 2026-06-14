@@ -1632,37 +1632,6 @@ body {
 
 /* Claude Code Tool Block Styles */
 /* Elegant Thinking Block */
-.thinking-block {
-  margin: 12px 0;
-}
-
-.thinking-summary {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-  cursor: pointer;
-  user-select: none;
-  list-style: none !important;
-}
-
-.thinking-summary::marker {
-  display: none;
-  content: "";
-}
-
-.thinking-summary::-webkit-details-marker {
-  display: none;
-}
-
-.thinking-summary-icon {
-  transition: transform 0.2s;
-}
-
-.thinking-block[open] .thinking-summary-icon {
-  transform: rotate(180deg);
-}
-
 .thinking-content {
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -1673,6 +1642,38 @@ body {
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
+  position: relative;
+  overflow: hidden;
+  margin-top: 8px;
+  transition: max-height 0.3s ease-out, border-color 0.2s;
+  max-height: 2000px;
+}
+
+.thinking-content.collapsed {
+  max-height: 42px; /* Approx 1 line + padding */
+}
+
+.thinking-content:not(.collapsed) {
+  overflow-y: auto;
+}
+
+.thinking-content.clickable {
+  cursor: pointer;
+}
+
+.thinking-content.clickable:hover {
+  border-color: var(--text-secondary);
+}
+
+.thinking-content.collapsed::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(to bottom, transparent, var(--bg-secondary));
+  pointer-events: none;
 }
 
 .claude-tool-block {
