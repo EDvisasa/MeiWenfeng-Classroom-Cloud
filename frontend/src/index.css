@@ -880,9 +880,10 @@ body {
   position: relative;
 }
 
-.thought-box::before {
-  content: '💭 此刻内心';
-  display: block;
+.thought-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   font-size: 12px;
   font-style: normal;
   color: var(--text-secondary);
@@ -1578,10 +1579,7 @@ body {
   padding: 10px 12px !important;
 }
 
-.vscode-env .thought-box::before {
-  content: "导师内心独白" !important;
-  color: var(--text-secondary) !important;
-}
+
 
 .vscode-env .progress-widget,
 .vscode-env .model-widget {

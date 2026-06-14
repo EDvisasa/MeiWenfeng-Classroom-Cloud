@@ -82,6 +82,14 @@ export default function StatusPanel({
         {/* 导师状态卡片 */}
         <div className="character-widget" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
           <div className="thought-box">
+            <div className="thought-header">
+              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 17h6a6 6 0 1 0-3-11.2A6.5 6.5 0 0 0 4 12.5 5 5 0 0 0 9 17Z" />
+                <circle cx="6" cy="20" r="1.5" stroke="none" fill="currentColor" />
+                <circle cx="3" cy="22" r="1" stroke="none" fill="currentColor" />
+              </svg>
+              此刻内心
+            </div>
             {currentThought}
           </div>
           <div className="character-details">
