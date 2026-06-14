@@ -8,10 +8,17 @@ router = APIRouter(prefix="/api/chat", tags=["models"])
 
 class ModelUpdateRequest(BaseModel):
     id: int
+    name: str = ""
     base_url: str
     api_key: str = ""
     protocol: str = "openai"
     selected_model_id: str = ""
+
+class ModelCreateRequest(BaseModel):
+    name: str
+    protocol: str = "openai"
+    base_url: str = ""
+    api_key: str = ""
 
 @router.get("/models")
 def list_models():
@@ -31,15 +38,82 @@ def update_model_config(payload: ModelUpdateRequest):
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # Check if updating name, ensure uniqueness
+        if payload.name:
+            cursor.execute("SELECT id FROM model_config WHERE name = ? AND id != ?", (payload.name, payload.id))
+            if cursor.fetchone():
+                conn.close()
+                raise HTTPException(status_code=400, detail="配置名称已存在，请使用其他名称")
+
         cursor.execute(
             """UPDATE model_config 
-               SET base_url = ?, api_key = ?, protocol = ?, selected_model_id = ? 
+               SET name = ?, base_url = ?, api_key = ?, protocol = ?, selected_model_id = ? 
                WHERE id = ?""",
-            (payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, payload.id)
+            (payload.name, payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, payload.id)
         )
         conn.commit()
         conn.close()
         return {"status": "success"}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/models/create")
+def create_model_config(payload: ModelCreateRequest):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Verify unique name
+        cursor.execute("SELECT id FROM model_config WHERE name = ?", (payload.name,))
+        if cursor.fetchone():
+            conn.close()
+            raise HTTPException(status_code=400, detail="配置名称已存在，请使用其他名称")
+            
+        cursor.execute(
+            """INSERT INTO model_config (name, protocol, base_url, api_key, is_active, selected_model_id)
+               VALUES (?, ?, ?, ?, 0, '')""",
+            (payload.name, payload.protocol, payload.base_url, payload.api_key)
+        )
+        new_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+        return {"status": "success", "id": new_id}
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.delete("/models/{id}")
+def delete_model_config(id: int):
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT is_active, name FROM model_config WHERE id = ?", (id,))
+        row = cursor.fetchone()
+        if not row:
+            conn.close()
+            raise HTTPException(status_code=404, detail="未找到该配置")
+            
+        if row["is_active"] == 1:
+            conn.close()
+            raise HTTPException(status_code=400, detail="不能删除当前激活的配置")
+            
+        cursor.execute("SELECT COUNT(*) as count FROM model_config")
+        count_row = cursor.fetchone()
+        if count_row["count"] <= 1:
+            conn.close()
+            raise HTTPException(status_code=400, detail="不能删除最后一个配置")
+            
+        cursor.execute("DELETE FROM model_config WHERE id = ?", (id,))
+        conn.commit()
+        conn.close()
+        return {"status": "success"}
+    except HTTPException as he:
+        raise he
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

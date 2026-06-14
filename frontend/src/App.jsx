@@ -309,6 +309,15 @@ export default function App() {
   const [availableModels, setAvailableModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
 
+  // API 配置源管理相关状态
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [newConfigName, setNewConfigName] = useState('');
+  const [newConfigProtocol, setNewConfigProtocol] = useState('openai');
+  const [newConfigBaseUrl, setNewConfigBaseUrl] = useState('');
+  const [newConfigApiKey, setNewConfigApiKey] = useState('');
+  const [renameConfigName, setRenameConfigName] = useState('');
+
   // RAG 知识库后端配置
   const [ragConfig, setRagConfig] = useState({
     backend_type: 'chromadb',
@@ -601,6 +610,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedConfigId,
+          name: selected.name,
           base_url: tempBaseUrl,
           api_key: tempApiKey,
           protocol: selected.protocol,
@@ -632,6 +642,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           id: selectedConfigId,
+          name: selected.name,
           base_url: tempBaseUrl,
           api_key: tempApiKey,
           protocol: selected.protocol,
@@ -660,6 +671,143 @@ export default function App() {
     } catch (e) {
       console.error(e);
       alert('应用失败，请检查后端状态。');
+    }
+  };
+
+  // 创建新的 API 配置
+  const handleCreateModel = async () => {
+    if (!newConfigName.trim()) {
+      alert("请输入配置名称！");
+      return;
+    }
+    try {
+      const res = await fetch('http://localhost:12701/api/chat/models/create', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: newConfigName.trim(),
+          protocol: newConfigProtocol,
+          base_url: newConfigBaseUrl.trim(),
+          api_key: newConfigApiKey.trim()
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        setShowCreateModal(false);
+        setNewConfigName('');
+        setNewConfigBaseUrl('');
+        setNewConfigApiKey('');
+        setNewConfigProtocol('openai');
+        
+        // 刷新列表并选中新创建的配置
+        await fetchModels();
+        setSelectedConfigId(data.id);
+        setTempBaseUrl(newConfigBaseUrl.trim());
+        setTempApiKey(newConfigApiKey.trim());
+        setTempSelectedSubModel('');
+        setAvailableModels([]);
+        
+        setMessages(prev => [
+          ...prev,
+          { role: 'system_info', content: `[系统设置] 成功创建 API 配置源：《${newConfigName.trim()}》。` }
+        ]);
+      } else {
+        alert(data.detail || '创建失败，请检查名称是否重复或后端状态。');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('创建失败，请确认后端连接正常。');
+    }
+  };
+
+  // 重命名 API 配置
+  const handleRenameModel = async () => {
+    if (!renameConfigName.trim()) {
+      alert("请输入新名称！");
+      return;
+    }
+    const selected = models.find(m => m.id === selectedConfigId);
+    if (!selected) return;
+    if (selected.is_active === 1) {
+      alert("当前激活的配置不能重命名！");
+      return;
+    }
+    try {
+      const res = await fetch('http://localhost:12701/api/chat/models/update', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: selectedConfigId,
+          name: renameConfigName.trim(),
+          base_url: tempBaseUrl,
+          api_key: tempApiKey,
+          protocol: selected.protocol,
+          selected_model_id: tempSelectedSubModel
+        })
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        setShowRenameModal(false);
+        setRenameConfigName('');
+        await fetchModels();
+        setMessages(prev => [
+          ...prev,
+          { role: 'system_info', content: `[系统设置] 成功将配置源重命名为：《${renameConfigName.trim()}》。` }
+        ]);
+      } else {
+        alert(data.detail || '保存失败，可能名称已存在。');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('保存失败，请检查网络或后端状态。');
+    }
+  };
+
+  // 删除 API 配置
+  const handleDeleteModel = async () => {
+    const selected = models.find(m => m.id === selectedConfigId);
+    if (!selected) return;
+    if (selected.is_active === 1) {
+      alert("当前激活的配置不能删除！");
+      return;
+    }
+    if (models.length <= 1) {
+      alert("不能删除最后一个配置！");
+      return;
+    }
+    if (!window.confirm(`确认删除 API 配置源 《${selected.name}》 吗？`)) {
+      return;
+    }
+    try {
+      const res = await fetch(`http://localhost:12701/api/chat/models/${selectedConfigId}`, {
+        method: 'DELETE'
+      });
+      const data = await res.json();
+      if (res.ok && data.status === 'success') {
+        // 找到另一个配置并选中
+        const remaining = models.filter(m => m.id !== selectedConfigId);
+        const nextSelected = remaining[0];
+        
+        await fetchModels();
+        
+        if (nextSelected) {
+          setSelectedConfigId(nextSelected.id);
+          setTempBaseUrl(nextSelected.base_url);
+          setTempApiKey(nextSelected.api_key || '');
+          setTempSelectedSubModel(nextSelected.selected_model_id || '');
+          setAvailableModels([]);
+        }
+        
+        setMessages(prev => [
+          ...prev,
+          { role: 'system_info', content: `[系统设置] 已成功删除配置源：《${selected.name}》。` }
+        ]);
+      } else {
+        alert(data.detail || '删除失败');
+      }
+    } catch (e) {
+      console.error(e);
+      alert('删除失败，请检查网络或后端状态。');
     }
   };
 
@@ -968,6 +1116,9 @@ export default function App() {
     localStorage.setItem('mei_theme', nextTheme);
   };
 
+  const selectedConfig = models.find(m => m.id === selectedConfigId);
+  const selectedConfigIsActive = selectedConfig ? selectedConfig.is_active === 1 : false;
+
   return (
     <>
       {/* 全屏加载遮罩层 */}
@@ -1212,13 +1363,13 @@ export default function App() {
                     <div style={{ display: 'flex', gap: '6px' }}>
                       <button 
                         onClick={() => { setCropTarget('user'); fileInputRef.current.click(); }}
-                        style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}
+                        style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                       >
                         修改我的头像
                       </button>
                       <button 
                         onClick={() => { setCropTarget('assistant'); fileInputRef.current.click(); }}
-                        style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)' }}
+                        style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                       >
                         修改导师头像
                       </button>
@@ -1294,9 +1445,81 @@ export default function App() {
                 
                 {/* API 源 */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 配置源</label>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 配置源</label>
+                    <div style={{ display: 'flex', gap: '4px' }}>
+                      <button 
+                        onClick={() => setShowCreateModal(true)}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: '11px',
+                          background: 'var(--bg-tertiary)',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: 'pointer',
+                          color: 'var(--text-primary)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '2px'
+                        }}
+                        title="新增配置"
+                      >
+                        ➕
+                      </button>
+                      <button 
+                        onClick={() => {
+                          if (selectedConfigIsActive) return;
+                          setRenameConfigName(selectedConfig ? selectedConfig.name : '');
+                          setShowRenameModal(true);
+                        }}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: '11px',
+                          background: 'var(--bg-tertiary)',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: selectedConfigIsActive ? 'not-allowed' : 'pointer',
+                          color: 'var(--text-primary)',
+                          opacity: selectedConfigIsActive ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '2px'
+                        }}
+                        title={selectedConfigIsActive ? "当前激活的配置不能重命名" : "重命名配置"}
+                        disabled={selectedConfigIsActive}
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        onClick={handleDeleteModel}
+                        style={{
+                          padding: '2px 6px',
+                          fontSize: '11px',
+                          background: 'var(--bg-tertiary)',
+                          border: 'none',
+                          borderRadius: '3px',
+                          cursor: (selectedConfigIsActive || models.length <= 1) ? 'not-allowed' : 'pointer',
+                          color: 'var(--text-primary)',
+                          opacity: (selectedConfigIsActive || models.length <= 1) ? 0.5 : 1,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '2px'
+                        }}
+                        title={
+                          selectedConfigIsActive 
+                            ? "当前激活的配置不能删除" 
+                            : models.length <= 1 
+                              ? "不能删除最后一个配置" 
+                              : "删除配置"
+                        }
+                        disabled={selectedConfigIsActive || models.length <= 1}
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  </div>
                   <select 
-                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
                     value={selectedConfigId}
                     onChange={handleConfigSelection}
                   >
@@ -1526,6 +1749,124 @@ export default function App() {
       {/* 内置数据库查看器 */}
       {showDbViewer && (
         <DatabaseViewer onClose={() => setShowDbViewer(false)} />
+      )}
+
+      {/* 新增 API 配置模态弹窗 */}
+      {showCreateModal && (
+        <div className="crop-modal-overlay" style={{ zIndex: 1010 }}>
+          <div className="crop-modal-content" style={{ width: '450px', background: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>➕ 新增 API 配置源</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>配置名称</label>
+                <input 
+                  type="text" 
+                  value={newConfigName} 
+                  onChange={(e) => setNewConfigName(e.target.value)} 
+                  placeholder="例如：My Custom API"
+                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>协议类型</label>
+                <select 
+                  value={newConfigProtocol} 
+                  onChange={(e) => setNewConfigProtocol(e.target.value)} 
+                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                >
+                  <option value="openai">OpenAI (推荐)</option>
+                  <option value="gemini">Gemini</option>
+                  <option value="claude">Claude</option>
+                </select>
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>代理地址 (Base URL)</label>
+                <input 
+                  type="text" 
+                  value={newConfigBaseUrl} 
+                  onChange={(e) => setNewConfigBaseUrl(e.target.value)} 
+                  placeholder="https://api.openai.com/v1"
+                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                />
+              </div>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>API 密钥 (API Key)</label>
+                <input 
+                  type="password" 
+                  value={newConfigApiKey} 
+                  onChange={(e) => setNewConfigApiKey(e.target.value)} 
+                  placeholder="sk-..."
+                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+              <button 
+                onClick={() => {
+                  setShowCreateModal(false);
+                  setNewConfigName('');
+                  setNewConfigBaseUrl('');
+                  setNewConfigApiKey('');
+                  setNewConfigProtocol('openai');
+                }}
+                style={{ padding: '8px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                取消
+              </button>
+              <button 
+                onClick={handleCreateModel}
+                style={{ padding: '8px 16px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                确认创建
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 重命名 API 配置模态弹窗 */}
+      {showRenameModal && (
+        <div className="crop-modal-overlay" style={{ zIndex: 1010 }}>
+          <div className="crop-modal-content" style={{ width: '400px', background: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+            <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>✏️ 重命名 API 配置源</h3>
+            
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>新名称</label>
+                <input 
+                  type="text" 
+                  value={renameConfigName} 
+                  onChange={(e) => setRenameConfigName(e.target.value)} 
+                  placeholder="输入新配置名称"
+                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                />
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+              <button 
+                onClick={() => {
+                  setShowRenameModal(false);
+                  setRenameConfigName('');
+                }}
+                style={{ padding: '8px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+              >
+                取消
+              </button>
+              <button 
+                onClick={handleRenameModel}
+                style={{ padding: '8px 16px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+              >
+                保存修改
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
     </>
