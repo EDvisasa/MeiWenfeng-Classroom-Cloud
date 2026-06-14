@@ -6,6 +6,9 @@ const vscode = require("vscode");
 const child_process_1 = require("child_process");
 const path = require("path");
 let backendProcess = null;
+let lastActiveEditorPath = '';
+let lastCursorLine = 0;
+let lastCursorChar = 0;
 function activate(context) {
     console.log('🌸 媚吻锋随身课堂插件已激活！');
     // 1. 启动后台 FastAPI 服务
@@ -30,24 +33,37 @@ function activate(context) {
     // 2. 注册 Webview 侧边栏
     const provider = new SidebarProvider(context.extensionUri);
     context.subscriptions.push(vscode.window.registerWebviewViewProvider("mei-wenfeng-sidebar", provider));
+    if (vscode.window.activeTextEditor) {
+        lastActiveEditorPath = vscode.window.activeTextEditor.document.uri.fsPath;
+        lastCursorLine = vscode.window.activeTextEditor.selection.active.line + 1;
+        lastCursorChar = vscode.window.activeTextEditor.selection.active.character;
+    }
     // 3. 监听编辑器活动文件变化，实时发送给 Webview
     vscode.window.onDidChangeActiveTextEditor(editor => {
-        if (editor && provider.view) {
-            provider.view.webview.postMessage({
-                type: 'activeFileChanged',
-                filePath: editor.document.uri.fsPath,
-                cursorLine: editor.selection.active.line + 1,
-                cursorCharacter: editor.selection.active.character
-            });
+        if (editor) {
+            lastActiveEditorPath = editor.document.uri.fsPath;
+            lastCursorLine = editor.selection.active.line + 1;
+            lastCursorChar = editor.selection.active.character;
+            if (provider.view) {
+                provider.view.webview.postMessage({
+                    type: 'activeFileChanged',
+                    filePath: lastActiveEditorPath,
+                    cursorLine: lastCursorLine,
+                    cursorCharacter: lastCursorChar
+                });
+            }
         }
     });
     vscode.window.onDidChangeTextEditorSelection(event => {
+        lastActiveEditorPath = event.textEditor.document.uri.fsPath;
+        lastCursorLine = event.selections[0].active.line + 1;
+        lastCursorChar = event.selections[0].active.character;
         if (provider.view) {
             provider.view.webview.postMessage({
                 type: 'cursorMoved',
-                filePath: event.textEditor.document.uri.fsPath,
-                cursorLine: event.selections[0].active.line + 1,
-                cursorCharacter: event.selections[0].active.character
+                filePath: lastActiveEditorPath,
+                cursorLine: lastCursorLine,
+                cursorCharacter: lastCursorChar
             });
         }
     });
@@ -145,6 +161,17 @@ class SidebarProvider {
                     terminal.show();
                     terminal.sendText(command);
                     vscode.window.showInformationMessage('媚吻锋已帮您执行底层终端命令');
+                    break;
+                }
+                case 'webviewReady': {
+                    if (lastActiveEditorPath && this.view) {
+                        this.view.webview.postMessage({
+                            type: 'activeFileChanged',
+                            filePath: lastActiveEditorPath,
+                            cursorLine: lastCursorLine,
+                            cursorCharacter: lastCursorChar
+                        });
+                    }
                     break;
                 }
             }

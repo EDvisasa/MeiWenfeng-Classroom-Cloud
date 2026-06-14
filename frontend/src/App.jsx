@@ -6,12 +6,12 @@ import CropModal from './components/CropModal';
 import DatabaseViewer from './components/DatabaseViewer';
 
 const COMMANDS = [
-  { cmd: '/上课', desc: '开始新的课时，进入授课模式' },
-  { cmd: '/交作业', desc: '进行课题考核，AI会对你进行提问' },
-  { cmd: '/奖励', desc: '获取好感奖励，触发狐妖娘溺爱互动' },
-  { cmd: '/总结', desc: '压缩并保存当前记忆，释放上下文' },
-  { cmd: '/备课', desc: '将当前选定的讲义文件上传同步至RAGFlow知识库' },
-  { cmd: '/计划', desc: '根据当前进度，重新调整课程大纲' }
+  { cmd: '/lesson', desc: '开始新的课时，进入授课模式' },
+  { cmd: '/submit', desc: '进行课题考核，AI会对你进行提问' },
+  { cmd: '/reward', desc: '获取好感奖励，触发狐妖娘溺爱互动' },
+  { cmd: '/summarize', desc: '压缩并保存当前记忆，释放上下文' },
+  { cmd: '/prepare', desc: '将当前选定的讲义文件上传同步至RAGFlow知识库' },
+  { cmd: '/plan', desc: '根据当前进度，重新调整课程大纲' }
 ];
 
 export default function App() {
@@ -355,8 +355,14 @@ export default function App() {
       }
     };
     window.addEventListener('message', handleMessage);
+    
+    // 通知 VS Code 插件 Webview 已经准备好，可以发送当前活动的编辑器信息
+    if (isVsCode) {
+      window.parent.postMessage({ type: 'webviewReady' }, '*');
+    }
+    
     return () => window.removeEventListener('message', handleMessage);
-  }, []);
+  }, [isVsCode]);
 
   // 当 models 加载完成，将当前激活的 API 参数回显至设置中
   useEffect(() => {
@@ -636,7 +642,7 @@ export default function App() {
       const parts = value.split('@');
       const query = parts[parts.length - 1].toLowerCase();
       const matched = [
-        { cmd: '@当前文件', desc: '引用当前激活的文件' },
+        { cmd: '@current_file', desc: '引用当前激活的文件' },
         { cmd: '@workspace', desc: '扫描整个工作区' }
       ].filter(c => c.cmd.toLowerCase().includes(query) || c.desc.includes(query));
       setFilteredCommands(matched);
@@ -1298,6 +1304,7 @@ export default function App() {
           onDeleteSession={handleDeleteSession}
           showSessionList={showSessionList}
           setShowSessionList={setShowSessionList}
+          selectedFilePath={selectedFilePath}
         />
 
         {/* 右侧面板：导师人设与课程大纲 */}

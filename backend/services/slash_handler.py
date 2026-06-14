@@ -29,24 +29,24 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
     current_file_path = getattr(payload, 'current_file_path', None)
     persona_type = getattr(payload, 'persona_type', 'simplified')
     
-    # === 1. /更新人设 ===
-    if clean_cmd in ("/更新人设", "更新人设"):
+    # === 1. /update_persona ===
+    if clean_cmd in ("/update_persona", "update_persona"):
         return _handle_update_persona()
         
-    # === 2. /总结 ===
-    if clean_cmd == "/总结":
+    # === 2. /summarize ===
+    if clean_cmd == "/summarize":
         return _handle_summarize()
         
-    # === 3. /备课 ===
-    if clean_cmd == "/备课":
+    # === 3. /prepare ===
+    if clean_cmd == "/prepare":
         return _handle_prepare_lesson(current_file_path)
         
-    # === 4. /奖励 ===
-    if clean_cmd == "/奖励":
+    # === 4. /reward ===
+    if clean_cmd == "/reward":
         return _handle_reward()
 
-    # === 5. /设定目标 ===
-    if clean_cmd.startswith("/设定目标"):
+    # === 5. /set_mission ===
+    if clean_cmd.startswith("/set_mission"):
         return _handle_set_mission(clean_cmd)
 
     # 从数据库获取用户的宏大目标 (Mission)
@@ -73,11 +73,11 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
     if current_file_path:
         file_context = f"（用户当前正在查阅讲义：{os.path.basename(current_file_path)}）"
 
-    if clean_cmd == "/上课":
-        system_injection = f"[系统指令] 用户刚刚触发了 /上课 指令。用户的终极宏大目标(Mission)是：【{user_mission}】。{file_context} 请你立刻进入导师状态，围绕当前课题《{topic_name}》主动开启今天的授课！如果概念复杂，请在回复中暗藏 `<explainer title=\"文件名称.md\"># Markdown讲义内容...</explainer>` 来自动生成实体玉简。"
-    elif clean_cmd == "/交作业":
+    if clean_cmd == "/lesson":
+        system_injection = f"[系统指令] 用户刚刚触发了 /lesson 指令。用户的终极宏大目标(Mission)是：【{user_mission}】。{file_context} 请你立刻进入导师状态，围绕当前课题《{topic_name}》主动开启今天的授课！如果概念复杂，请在回复中暗藏 `<explainer title=\"文件名称.md\"># Markdown讲义内容...</explainer>` 来自动生成实体玉简。"
+    elif clean_cmd == "/submit":
         system_injection = f"""[系统指令-苏格拉底严师模式] 
-用户触发了 /交作业 指令，代表准备接受考核。当前考核课题是《{topic_name}》。{file_context} 用户的终极宏大目标是：【{user_mission}】。
+用户触发了 /submit 指令，代表准备接受考核。当前考核课题是《{topic_name}》。{file_context} 用户的终极宏大目标是：【{user_mission}】。
 请遵循以下最高准则：
 1. **绝对不要直接给出答案**。
 2. 提出刚好超出玩家当前认知一点点的问题 (Zone of Proximal Development)。
@@ -85,9 +85,9 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
 4. 结合玩家的宏大目标来施加压力或给予鼓励。
 5. **通关判定**：一旦你确信用户已经完美掌握了《{topic_name}》，请在回复最末尾输出且仅输出此特殊标识符：`[SYSTEM_PASS]`。
 6. **术语沉淀**：当你确信用户搞懂了某个复杂新名词，请暗藏 `<glossary term="名词">简练定义</glossary>`。"""
-    elif clean_cmd == "/计划":
+    elif clean_cmd == "/plan":
         syllabus_text = get_formatted_syllabus()
-        system_injection = f"[系统指令] 用户触发了 /计划 指令。用户的终极宏大目标是：【{user_mission}】。\n当前大纲进度如下：\n{syllabus_text}\n\n请你以导师身份点评近期进度，并告诉他接下来的修炼规划。如果需要向大纲中追加新的课题，请在回复中暗藏标签 `<new_course phase=\"阶段名称\" topic=\"课题名称\" />`，系统会自动将其加入待办进度中。"
+        system_injection = f"[系统指令] 用户触发了 /plan 指令。用户的终极宏大目标是：【{user_mission}】。\n当前大纲进度如下：\n{syllabus_text}\n\n请你以导师身份点评近期进度，并告诉他接下来的修炼规划。如果需要向大纲中追加新的课题，请在回复中暗藏标签 `<new_course phase=\"阶段名称\" topic=\"课题名称\" />`，系统会自动将其加入待办进度中。"
     else:
         # 未知指令，正常传递
         pass
@@ -250,12 +250,13 @@ def _handle_summarize() -> StreamingResponse:
     return StreamingResponse(generator(), media_type="text/event-stream")
 
 def _handle_prepare_lesson(file_path: str) -> StreamingResponse:
-    """处理 /备课：同步选中的讲义到知识库"""
+    """处理 /prepare：同步选中的讲义到知识库"""
     def generator():
         if not file_path:
             yield f"data: {json_escape('[系统提示] 备课失败：未能在上下文中获取到选中的讲义文件路径。')}\n\n"
             return
             
+        filename = os.path.basename(file_path)
         yield f"data: {json_escape(f'[知识库联动] 正在同步本地文件《{filename}》到当前知识库后端，请稍候...')}\n\n"
         
         try:
@@ -372,8 +373,8 @@ def _handle_update_persona() -> StreamingResponse:
     return StreamingResponse(generator(), media_type="text/event-stream")
 
 def _handle_set_mission(clean_cmd: str) -> StreamingResponse:
-    """处理 /设定目标 [具体内容]"""
-    mission_text = clean_cmd.replace("/设定目标", "").strip()
+    """处理 /set_mission [具体内容]"""
+    mission_text = clean_cmd.replace("/set_mission", "").strip()
     def generator():
         if not mission_text:
             yield f"data: {json_escape('[系统提示] 目标内容不能为空，格式为：/设定目标 我的目标是打败魔尊')}\\n\\n"

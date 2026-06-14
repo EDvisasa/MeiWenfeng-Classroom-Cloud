@@ -27,7 +27,8 @@ export default function ChatPanel({
   onSwitchSession,
   onDeleteSession,
   showSessionList,
-  setShowSessionList
+  setShowSessionList,
+  selectedFilePath
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -310,8 +311,30 @@ export default function ChatPanel({
           </div>
         )}
 
+        {/* 显示当前跟踪的激活文件 (给用户的视觉反馈) */}
+        {isVsCode && selectedFilePath && (
+          <div style={{
+            padding: '4px 10px',
+            fontSize: '10px',
+            color: 'var(--text-secondary)',
+            backgroundColor: 'var(--bg-secondary)',
+            borderTopLeftRadius: '8px',
+            borderTopRightRadius: '8px',
+            borderBottom: '1px solid var(--border-color)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis'
+          }}>
+            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M13.85 4.44l-3.28-3.3a.5.5 0 0 0-.35-.14H2.5a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5V4.8a.5.5 0 0 0-.15-.36zM10.5 2.21L12.79 4.5H10.5V2.21zM13 14H3V2h6.5v3a.5.5 0 0 0 .5.5h3v8.5z"/></svg>
+            当前追踪 (@current_file): {selectedFilePath.split('\\').pop().split('/').pop()}
+          </div>
+        )}
+
         {/* 卡片式输入框 */}
-        <div className="input-wrapper">
+        <div className="input-wrapper" style={{ borderTopLeftRadius: isVsCode && selectedFilePath ? '0' : '8px', borderTopRightRadius: isVsCode && selectedFilePath ? '0' : '8px' }}>
           {/* 行1：文字输入区 */}
           <textarea
             ref={inputRef}
@@ -357,12 +380,12 @@ export default function ChatPanel({
                   }}
                 >
                   {[
-                    { cmd: '/上课', label: '⚡ 开始上课' },
-                    { cmd: '/交作业', label: '📝 交作业' },
-                    { cmd: '/奖励', label: '🌸 讨要奖励' },
-                    { cmd: '/总结', label: '💾 总结记忆' },
-                    { cmd: '/备课', label: '📂 备课同步' },
-                    { cmd: '更新人设', label: '🔄 更新人设' },
+                    { cmd: '/lesson', label: '⚡ 开始上课' },
+                    { cmd: '/submit', label: '📝 交作业' },
+                    { cmd: '/reward', label: '🌸 讨要奖励' },
+                    { cmd: '/summarize', label: '💾 总结记忆' },
+                    { cmd: '/prepare', label: '📂 备课同步' },
+                    { cmd: '/update_persona', label: '🔄 更新人设' },
                   ].map(item => (
                     <div
                       key={item.cmd}

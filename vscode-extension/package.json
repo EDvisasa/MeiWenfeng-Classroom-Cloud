@@ -13,7 +13,7 @@
   "activationEvents": [
     "onView:mei-wenfeng-sidebar"
   ],
-  "main": "./dist/extension.js",
+  "main": "./out/extension.js",
   "contributes": {
     "viewsContainers": {
       "activitybar": [

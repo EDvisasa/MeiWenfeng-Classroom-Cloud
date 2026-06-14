@@ -39,8 +39,86 @@ def send_message(payload: ChatRequest):
     
     # 拦截斜杠指令
     clean_msg = last_user_msg.strip()
-    if clean_msg.startswith('/') or clean_msg in ("更新人设",):
+    if clean_msg.startswith('/') or clean_msg in ("/update_persona",):
         return handle_slash_command(clean_msg, payload, last_user_msg, cleaned_messages)
+
+    # 处理 @current_file
+    if "@current_file" in last_user_msg and payload.current_file_path:
+        try:
+            import os
+            if os.path.exists(payload.current_file_path) and os.path.isfile(payload.current_file_path):
+                with open(payload.current_file_path, "r", encoding="utf-8", errors="ignore") as f:
+                    file_content = f.read()
+                
+                # Replace "@current_file" with the file content in the last user message
+                file_info = f"\n\n【当前激活文件内容: {os.path.basename(payload.current_file_path)}】\n{file_content}\n"
+                last_user_msg = last_user_msg.replace("@current_file", f"@current_file {file_info}")
+                
+                # Update the cleaned_messages for the AI
+                for msg in reversed(cleaned_messages):
+                    if msg["role"] == "user":
+                        msg["content"] = msg["content"].replace("@current_file", f"@current_file {file_info}")
+                        break
+        except Exception as e:
+            logger.error(f"Failed to read current file: {e}")
+
+    # 处理任意绝对路径，例如 @D:\...\file.txt 或 @/Users/.../file.txt
+    import re
+    import os
+    import base64
+    # 匹配以 @ 开头的绝对路径（支持 Windows 和 Unix 风格，遇到空格结束）
+    path_matches = list(re.finditer(r'@([a-zA-Z]:\\[^\s<>"]+|/[^\s<>"]+)', last_user_msg))
+    for match in path_matches:
+        full_match = match.group(0)
+        file_path = match.group(1)
+        
+        try:
+            if os.path.exists(file_path) and os.path.isfile(file_path):
+                ext = file_path.lower().split('.')[-1]
+                if ext in ['png', 'jpg', 'jpeg', 'webp', 'gif']:
+                    # Image processing: vision multimodal format
+                    with open(file_path, "rb") as f:
+                        img_data = base64.b64encode(f.read()).decode('utf-8')
+                    mime_type = "image/jpeg" if ext in ['jpg', 'jpeg'] else f"image/{ext}"
+                    
+                    replacement_text = f"[图片已挂载: {os.path.basename(file_path)}]"
+                    last_user_msg = last_user_msg.replace(full_match, replacement_text)
+                    
+                    for msg in reversed(cleaned_messages):
+                        if msg["role"] == "user":
+                            if isinstance(msg["content"], str):
+                                msg["content"] = [
+                                    {"type": "text", "text": msg["content"].replace(full_match, replacement_text)}
+                                ]
+                            else:
+                                for item in msg["content"]:
+                                    if item.get("type") == "text":
+                                        item["text"] = item["text"].replace(full_match, replacement_text)
+                            
+                            msg["content"].append({
+                                "type": "image_url",
+                                "image_url": {"url": f"data:{mime_type};base64,{img_data}"}
+                            })
+                            break
+                else:
+                    # Text processing
+                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+                        file_content = f.read()
+                    
+                    file_info = f"\n\n【引入文件内容: {os.path.basename(file_path)}】\n{file_content}\n"
+                    last_user_msg = last_user_msg.replace(full_match, f"{full_match} {file_info}")
+                    
+                    for msg in reversed(cleaned_messages):
+                        if msg["role"] == "user":
+                            if isinstance(msg["content"], str):
+                                msg["content"] = msg["content"].replace(full_match, f"{full_match} {file_info}")
+                            else:
+                                for item in msg["content"]:
+                                    if item.get("type") == "text":
+                                        item["text"] = item["text"].replace(full_match, f"{full_match} {file_info}")
+                            break
+        except Exception as e:
+            logger.error(f"Failed to read mentioned file {file_path}: {e}")
 
     # 2. 从数据库加载好感度，用于拼接 System Prompt
     affection_value = 100

@@ -64,7 +64,19 @@ function activate(context) {
     if (editor && provider.view) {
       provider.view.webview.postMessage({
         type: "activeFileChanged",
-        filePath: editor.document.uri.fsPath
+        filePath: editor.document.uri.fsPath,
+        cursorLine: editor.selection.active.line + 1,
+        cursorCharacter: editor.selection.active.character
+      });
+    }
+  });
+  vscode.window.onDidChangeTextEditorSelection((event) => {
+    if (provider.view) {
+      provider.view.webview.postMessage({
+        type: "cursorMoved",
+        filePath: event.textEditor.document.uri.fsPath,
+        cursorLine: event.selections[0].active.line + 1,
+        cursorCharacter: event.selections[0].active.character
       });
     }
   });
@@ -121,10 +133,59 @@ var SidebarProvider = class {
         case "openExplainer": {
           const filePath = data.filePath;
           try {
-            const doc = await vscode.workspace.openTextDocument(filePath);
-            await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.One });
+            if (filePath.endsWith(".html")) {
+              const panel = vscode.window.createWebviewPanel(
+                "explainerPreview",
+                "Interactive Explainer",
+                vscode.ViewColumn.One,
+                { enableScripts: true }
+              );
+              const htmlContent = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
+              panel.webview.html = htmlContent.toString();
+            } else {
+              const doc = await vscode.workspace.openTextDocument(filePath);
+              await vscode.window.showTextDocument(doc, { preview: false, viewColumn: vscode.ViewColumn.One });
+            }
           } catch (e) {
-            vscode.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u7389\u7B80\u6587\u4EF6: " + filePath);
+            vscode.window.showErrorMessage("\u65E0\u6CD5\u6253\u5F00\u6587\u4EF6: " + filePath);
+          }
+          break;
+        }
+        case "applyWorkspaceEdit": {
+          const { filePath, edits } = data;
+          const uri = vscode.Uri.file(filePath);
+          const workspaceEdit = new vscode.WorkspaceEdit();
+          for (const edit of edits) {
+            const range = new vscode.Range(
+              new vscode.Position(edit.range.startLine - 1, edit.range.startChar),
+              new vscode.Position(edit.range.endLine - 1, edit.range.endChar)
+            );
+            workspaceEdit.replace(uri, range, edit.newText);
+          }
+          await vscode.workspace.applyEdit(workspaceEdit);
+          vscode.window.showInformationMessage("\u5A9A\u543B\u950B\u5DF2\u901A\u8FC7\u6CD5\u672F\u4FEE\u6539\u4E86\u60A8\u7684\u4EE3\u7801 (\u53EF Ctrl+Z \u64A4\u9500)");
+          break;
+        }
+        case "runTerminalCommand": {
+          const { command } = data;
+          let terminal = vscode.window.terminals.find((t) => t.name === "MeiWenfeng Bash");
+          if (!terminal) {
+            terminal = vscode.window.createTerminal("MeiWenfeng Bash");
+          }
+          terminal.show();
+          terminal.sendText(command);
+          vscode.window.showInformationMessage("\u5A9A\u543B\u950B\u5DF2\u5E2E\u60A8\u6267\u884C\u5E95\u5C42\u7EC8\u7AEF\u547D\u4EE4");
+          break;
+        }
+        case "webviewReady": {
+          const activeEditor = vscode.window.activeTextEditor;
+          if (activeEditor && this.view) {
+            this.view.webview.postMessage({
+              type: "activeFileChanged",
+              filePath: activeEditor.document.uri.fsPath,
+              cursorLine: activeEditor.selection.active.line + 1,
+              cursorCharacter: activeEditor.selection.active.character
+            });
           }
           break;
         }
