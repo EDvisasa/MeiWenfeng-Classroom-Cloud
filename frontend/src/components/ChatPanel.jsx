@@ -52,7 +52,10 @@ export default function ChatPanel({
   // 格式化解析 AI 的动作文本为斜体灰色
   const renderMessageContent = (text) => {
     if (!text) return null;
-    text = text.replace(/【此刻内心】[：:][\s\S]*$/, '').trim();
+    // 移除内心的内容，避免在文本气泡中显示
+    text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
+    // 移除原始的 <execute_bash> 标签内容（因为下面有专用的 block 渲染）
+    text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
     const parts = text.split(/(\*[^*]+\*)/g);
     return parts.map((part, idx) => {
       if (part.startsWith('*') && part.endsWith('*')) {

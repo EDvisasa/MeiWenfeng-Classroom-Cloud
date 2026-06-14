@@ -168,9 +168,13 @@ export default function App() {
         } else if (lastAsst.content) {
           textToParse = lastAsst.content;
         }
-        const thoughtMatch = textToParse.match(/【此刻内心】[：:]([\s\S]*)$/);
-        if (thoughtMatch) {
-          setCurrentThought(thoughtMatch[1].trim());
+        const thoughtMatch = textToParse.match(/【此刻内心】[：:]\s*[（(]([\s\S]*?)[)）]/g);
+        if (thoughtMatch && thoughtMatch.length > 0) {
+          const lastThought = thoughtMatch[thoughtMatch.length - 1];
+          const innerMatch = lastThought.match(/[（(]([\s\S]*?)[)）]/);
+          if (innerMatch) {
+            setCurrentThought(innerMatch[1].trim());
+          }
         }
       }
     }
@@ -825,10 +829,14 @@ export default function App() {
                     lastMsg.blocks = [...currentBlocks];
                     // Keep plain text content for compatibility with older rendering (like the prompt match logic below)
                     let displayContent = currentBlocks.filter(b => b.type === 'text').map(b => b.text).join('');
-                    const thoughtMatch = displayContent.match(/【此刻内心】[：:]([\s\S]*)$/);
-                    if (thoughtMatch) {
-                      displayContent = displayContent.replace(/【此刻内心】[：:][\s\S]*$/, '').trim();
-                      setCurrentThought(thoughtMatch[1].trim());
+                    const thoughtMatchArray = displayContent.match(/【此刻内心】[：:]\s*[（(]([\s\S]*?)[)）]/g);
+                    if (thoughtMatchArray && thoughtMatchArray.length > 0) {
+                      const lastThought = thoughtMatchArray[thoughtMatchArray.length - 1];
+                      const innerMatch = lastThought.match(/[（(]([\s\S]*?)[)）]/);
+                      if (innerMatch) {
+                        setCurrentThought(innerMatch[1].trim());
+                      }
+                      displayContent = displayContent.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
                     }
                     lastMsg.content = displayContent;
                   }
