@@ -339,7 +339,7 @@ export default function ChatPanel({
           <textarea
             ref={inputRef}
             className="chat-input"
-            placeholder="Chat with Mei Wenfeng..."
+            placeholder="Communicate with Meiwenfeng..."
             value={inputText}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}

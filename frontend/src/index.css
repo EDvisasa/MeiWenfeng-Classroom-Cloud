@@ -744,6 +744,10 @@ body {
   padding: 10px 14px 6px;
 }
 
+.chat-input::placeholder {
+  font-size: calc(1em - 2px);
+}
+
 .input-toolbar {
   display: flex;
   align-items: center;
