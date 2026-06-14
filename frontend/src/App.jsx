@@ -343,12 +343,15 @@ export default function App() {
     fetchRagConfig();
   }, []);
 
+  const [cursorLine, setCursorLine] = useState(1);
+
   // 监听来自 VS Code 插件的消息
   useEffect(() => {
     const handleMessage = (event) => {
       const message = event.data;
-      if (message.type === 'activeFileChanged') {
-        setSelectedFilePath(message.filePath);
+      if (message.type === 'activeFileChanged' || message.type === 'cursorMoved') {
+        if (message.filePath) setSelectedFilePath(message.filePath);
+        if (message.cursorLine) setCursorLine(message.cursorLine);
       }
     };
     window.addEventListener('message', handleMessage);
@@ -628,6 +631,17 @@ export default function App() {
       setFilteredCommands(matched);
       setShowCommandList(matched.length > 0);
       setActiveCommandIndex(0);
+    } else if (value.includes('@')) {
+      // Very basic @ detection
+      const parts = value.split('@');
+      const query = parts[parts.length - 1].toLowerCase();
+      const matched = [
+        { cmd: '@当前文件', desc: '引用当前激活的文件' },
+        { cmd: '@workspace', desc: '扫描整个工作区' }
+      ].filter(c => c.cmd.toLowerCase().includes(query) || c.desc.includes(query));
+      setFilteredCommands(matched);
+      setShowCommandList(matched.length > 0);
+      setActiveCommandIndex(0);
     } else {
       setShowCommandList(false);
     }
@@ -657,7 +671,13 @@ export default function App() {
   };
 
   const selectCommand = (command) => {
-    setInputText(command.cmd + ' ');
+    if (command.cmd.startsWith('@')) {
+      const parts = inputText.split('@');
+      parts.pop();
+      setInputText(parts.join('@') + command.cmd + ' ');
+    } else {
+      setInputText(command.cmd + ' ');
+    }
     setShowCommandList(false);
     inputRef.current?.focus();
   };
@@ -695,7 +715,8 @@ export default function App() {
         body: JSON.stringify({ 
           messages: apiPayload,
           persona_type: personaType,
-          current_file_path: selectedFilePath
+          current_file_path: selectedFilePath,
+          cursor_line: cursorLine
         })
       });
 

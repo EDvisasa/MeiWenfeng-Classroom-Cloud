@@ -64,24 +64,30 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
 
     # 以下指令均需要由大模型接管输出，因此使用“系统提示词注入”并拉起常规对话流
     system_injection = ""
-    topic_name = "默认修仙"
+    from backend.services.course_manager import get_active_course, get_formatted_syllabus
+    
+    active_course = get_active_course()
+    topic_name = active_course["topic"] if active_course else "自由探索（当前无待办课题，请用 /计划 生成）"
+    
+    file_context = ""
     if current_file_path:
-        topic_name = os.path.basename(current_file_path).replace(".md", "")
+        file_context = f"（用户当前正在查阅讲义：{os.path.basename(current_file_path)}）"
 
     if clean_cmd == "/上课":
-        system_injection = f"[系统指令] 用户刚刚触发了 /上课 指令。用户的终极宏大目标(Mission)是：【{user_mission}】。请你立刻进入导师状态，结合当前课题《{topic_name}》的讲义内容，主动开启今天的授课。请注意，授课的举例和教导方向必须紧紧围绕用户的宏大目标！如果概念复杂，请在回复中暗藏 `<explainer title=\"文件名称.md\"># Markdown讲义内容...</explainer>` 来自动生成实体玉简。"
+        system_injection = f"[系统指令] 用户刚刚触发了 /上课 指令。用户的终极宏大目标(Mission)是：【{user_mission}】。{file_context} 请你立刻进入导师状态，围绕当前课题《{topic_name}》主动开启今天的授课！如果概念复杂，请在回复中暗藏 `<explainer title=\"文件名称.md\"># Markdown讲义内容...</explainer>` 来自动生成实体玉简。"
     elif clean_cmd == "/交作业":
         system_injection = f"""[系统指令-苏格拉底严师模式] 
-用户触发了 /交作业 指令，代表准备接受考核。当前正在学习的课题是《{topic_name}》，用户的终极宏大目标是：【{user_mission}】。
+用户触发了 /交作业 指令，代表准备接受考核。当前考核课题是《{topic_name}》。{file_context} 用户的终极宏大目标是：【{user_mission}】。
 请遵循以下最高准则：
 1. **绝对不要直接给出答案**。
 2. 提出刚好超出玩家当前认知一点点的问题 (Zone of Proximal Development)。
 3. 根据上下文找出玩家逻辑中的模糊地带进行连环追问。
 4. 结合玩家的宏大目标来施加压力或给予鼓励。
-5. **通关判定**：一旦你通过多轮对答，确信用户已经完美且深入地掌握了《{topic_name}》的核心精髓，请在你那次回复的最末尾输出且仅输出此特殊标识符：`[SYSTEM_PASS]`。
-6. **术语沉淀**：当你确信用户搞懂了某个复杂新名词（如“灵根”），请在回复中暗藏 `<glossary term="名词">简练的定义</glossary>`。"""
+5. **通关判定**：一旦你确信用户已经完美掌握了《{topic_name}》，请在回复最末尾输出且仅输出此特殊标识符：`[SYSTEM_PASS]`。
+6. **术语沉淀**：当你确信用户搞懂了某个复杂新名词，请暗藏 `<glossary term="名词">简练定义</glossary>`。"""
     elif clean_cmd == "/计划":
-        system_injection = f"[系统指令] 用户触发了 /计划 指令。用户的终极宏大目标是：【{user_mission}】。请你以导师身份，结合他的目标点评近期学习态度，并告诉他接下来的修炼规划。"
+        syllabus_text = get_formatted_syllabus()
+        system_injection = f"[系统指令] 用户触发了 /计划 指令。用户的终极宏大目标是：【{user_mission}】。\n当前大纲进度如下：\n{syllabus_text}\n\n请你以导师身份点评近期进度，并告诉他接下来的修炼规划。如果需要向大纲中追加新的课题，请在回复中暗藏标签 `<new_course phase=\"阶段名称\" topic=\"课题名称\" />`，系统会自动将其加入待办进度中。"
     else:
         # 未知指令，正常传递
         pass
@@ -141,18 +147,8 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
                 # 1. 拦截 [SYSTEM_PASS] 推进课程进度
                 if "[SYSTEM_PASS]" in accumulated_assistant_content:
                     try:
-                        cursor.execute("SELECT id FROM course_progress WHERE status = 'active' ORDER BY id ASC LIMIT 1")
-                        active_row = cursor.fetchone()
-                        if active_row:
-                            active_id = active_row["id"]
-                            cursor.execute("UPDATE course_progress SET status = 'completed' WHERE id = ?", (active_id,))
-                            
-                            # 激活下一节课
-                            cursor.execute("SELECT id FROM course_progress WHERE status = 'pending' ORDER BY id ASC LIMIT 1")
-                            next_row = cursor.fetchone()
-                            if next_row:
-                                next_id = next_row["id"]
-                                cursor.execute("UPDATE course_progress SET status = 'active' WHERE id = ?", (next_id,))
+                        from backend.services.course_manager import advance_course_progress
+                        advance_course_progress()
                         logger.info("课程进度已通过 [SYSTEM_PASS] 自动推进！")
                     except Exception as e:
                         logger.error(f"处理 [SYSTEM_PASS] 失败: {e}")
@@ -167,6 +163,18 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
                         logger.info(f"术语已收录: {term}")
                     except Exception as e:
                         logger.error(f"处理 glossary 失败: {e}")
+                        
+                # 2.5 拦截 <new_course> 追加新大纲
+                new_course_matches = re.finditer(r'<new_course\s+phase="([^"]+)"\s+topic="([^"]+)"[^>]*>', accumulated_assistant_content)
+                for match in new_course_matches:
+                    phase = match.group(1).strip()
+                    topic = match.group(2).strip()
+                    try:
+                        from backend.services.course_manager import append_to_syllabus
+                        append_to_syllabus(phase, topic)
+                        logger.info(f"大纲已成功追加新课题: {phase} - {topic}")
+                    except Exception as e:
+                        logger.error(f"处理 new_course 失败: {e}")
 
                 # 3. 拦截 <explainer> 生成本地讲义
                 explainer_matches = re.finditer(r'<explainer\s+title="([^"]+)">([\s\S]*?)</explainer>', accumulated_assistant_content)
@@ -192,6 +200,7 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
                     clean_memory_content = re.sub(r'\[SYSTEM_PASS\]', '', accumulated_assistant_content)
                     clean_memory_content = re.sub(r'<glossary[\s\S]*?</glossary>', '', clean_memory_content)
                     clean_memory_content = re.sub(r'<explainer[\s\S]*?</explainer>', '', clean_memory_content)
+                    clean_memory_content = re.sub(r'<new_course[^>]*>', '', clean_memory_content)
                     
                     memory_content = f"【对话记录】\n用户：{last_user_msg}\n媚吻锋：{clean_memory_content.strip()}"
                     cursor.execute(
