@@ -380,12 +380,12 @@ export default function ChatPanel({
                   }}
                 >
                   {[
-                    { cmd: '/lesson', label: '⚡ 开始上课' },
-                    { cmd: '/submit', label: '📝 交作业' },
-                    { cmd: '/reward', label: '🌸 讨要奖励' },
-                    { cmd: '/summarize', label: '💾 总结记忆' },
-                    { cmd: '/prepare', label: '📂 备课同步' },
-                    { cmd: '/update_persona', label: '🔄 更新人设' },
+                    { cmd: '/lesson', label: '/lesson' },
+                    { cmd: '/submit', label: '/submit' },
+                    { cmd: '/reward', label: '/reward' },
+                    { cmd: '/summarize', label: '/summarize' },
+                    { cmd: '/prepare', label: '/prepare' },
+                    { cmd: '/update_persona', label: '/update_persona' },
                   ].map(item => (
                     <div
                       key={item.cmd}
