@@ -1425,7 +1425,13 @@ export default function App() {
                 {/* 模型选择配置 (原右侧面板) */}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>⚡ 切换大语言模型</label>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="1" y="1" width="14" height="14" rx="3" fill="none"/>
+                      <path d="M5 11V5M3 7l2-2 2 2M11 5v6M9 9l2 2 2-2"/>
+                    </svg>
+                    切换大语言模型
+                  </label>
                   <select 
                     style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--accent-pink)', outline: 'none', background: 'rgba(244, 114, 182, 0.05)', color: 'var(--accent-pink)', fontWeight: 'bold' }}
                     value={models.find(m => m.name === activeModel)?.id || ''}
