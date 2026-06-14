@@ -1415,8 +1415,8 @@ export default function App() {
             <section className="ide-panel right-panel">
               <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '6px' }}>
-                    <path d="M10.5 1L3 8.5h4.5L6 15l7.5-7.5H9L10.5 1z"/>
+                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                    <path d="M6 2v4M10 2v4M3 6h10M4 6a4 4 0 0 0 8 0M8 10v4"/>
                   </svg>
                   <span>API 配置</span>
                 </div>
