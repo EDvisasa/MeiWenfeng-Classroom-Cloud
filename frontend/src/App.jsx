@@ -280,8 +280,7 @@ export default function App() {
   const [personaType, setPersonaType] = useState(localStorage.getItem('persona_type') || 'simplified');
 
   // 酒馆式 API 设置和字体弹窗状态
-  const [showFontMenu, setShowFontMenu] = useState(false);
-  const [showApiMenu, setShowApiMenu] = useState(false);
+  const [activeRightTab, setActiveRightTab] = useState('status');
   const [selectedConfigId, setSelectedConfigId] = useState(1);
   const [tempBaseUrl, setTempBaseUrl] = useState('');
   const [tempApiKey, setTempApiKey] = useState('');
@@ -407,7 +406,7 @@ export default function App() {
 
   // 当 API 设置菜单打开、切换配置源或代理地址变化时，自动拉取可用模型
   useEffect(() => {
-    if (showApiMenu && tempBaseUrl) {
+    if (activeRightTab === 'api' && tempBaseUrl) {
       const fetchModelsAuto = async () => {
         setLoadingModels(true);
         try {
@@ -430,7 +429,7 @@ export default function App() {
       
       fetchModelsAuto();
     }
-  }, [showApiMenu, selectedConfigId, tempBaseUrl]);
+  }, [activeRightTab, selectedConfigId, tempBaseUrl]);
 
 
   const fetchStatus = async () => {
@@ -583,7 +582,7 @@ export default function App() {
         setActiveModel(data.active_model);
         fetchModels();
         fetchStatus();
-        setShowApiMenu(false); // 关闭弹窗
+        // 关闭弹窗行为取消，已变为右侧边栏常驻
         setMessages(prev => [
           ...prev,
           { role: 'system_info', content: `[系统设置] 已成功应用模型并激活：${data.active_model} (${tempSelectedSubModel || '默认'})` }
@@ -941,57 +940,104 @@ export default function App() {
             )}
           </button>
 
-          {/* 大纲与状态面板切换按钮（移动端/窄边栏专属） */}
+          {/* 切换右侧边栏选项卡的按钮组 */}
           <button 
-            className="header-btn mobile-only-btn" 
-            onClick={() => setShowMobileStatus(!showMobileStatus)}
+            className="header-btn" 
+            onClick={() => { setActiveRightTab('status'); setShowMobileStatus(true); }}
             title="大纲与状态"
-            style={{ background: showMobileStatus ? 'var(--accent-pink)' : '', color: showMobileStatus ? 'white' : '', display: 'flex', alignItems: 'center' }}
+            style={{ background: activeRightTab === 'status' ? 'var(--accent-pink)' : '', color: activeRightTab === 'status' ? 'white' : '', display: 'flex', alignItems: 'center' }}
           >
             <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M2 3h12v1H2V3zm0 4h12v1H2V7zm0 4h12v1H2v-1z"/></svg>
             <span>大纲/属性</span>
           </button>
 
-          {/* 字体大小设置下拉菜单 */}
-          <div className="settings-dropdown-container">
-            <button 
-              className="header-btn" 
-              onClick={() => {
-                setShowFontMenu(!showFontMenu);
-                setShowApiMenu(false);
-              }}
-              title="UI 设置"
-              style={{ display: 'flex', alignItems: 'center' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M9.1 1.1L8.8 2.5C8.3 2.7 7.8 3 7.3 3.3L6.0 2.5L4.4 4.1L5.3 5.4C5.0 5.9 4.7 6.4 4.5 6.9L3.1 7.2V9.4L4.5 9.7C4.7 10.2 5.0 10.7 5.3 11.2L4.4 12.5L6.0 14.1L7.3 13.3C7.8 13.6 8.3 13.9 8.8 14.1L9.1 15.5H11.3L11.6 14.1C12.1 13.9 12.6 13.6 13.1 13.3L14.4 14.1L16.0 12.5L15.1 11.2C15.4 10.7 15.7 10.2 15.9 9.7L17.3 9.4V7.2L15.9 6.9C15.7 6.4 15.4 5.9 15.1 5.4L16.0 4.1L14.4 2.5L13.1 3.3C12.6 3.0 12.1 2.7 11.6 2.5L11.3 1.1H9.1zm1.1 4.5C11.9 5.6 13.0 6.7 13.0 8.0s-1.1 2.4-2.4 2.4S8.2 9.3 8.2 8.0s1.1-2.4 2.4-2.4z" transform="scale(0.85) translate(1, 1)"/></svg>
-              <span>UI设置</span>
-            </button>
-            {showFontMenu && (
-              <div 
-                className="settings-popover" 
-                style={{
-                  position: 'absolute',
-                  top: '36px',
-                  right: 0,
-                  width: '320px',
-                  background: 'var(--bg-panel)',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 1000,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  maxHeight: 'calc(100vh - 80px)',
-                  overflowY: 'auto'
-                }}
-              >
-                <h4 style={{ margin: 0, fontSize: '13px', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
-                  ⚙️ UI 设置
-                </h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+          <button 
+            className="header-btn" 
+            onClick={() => { setActiveRightTab('ui'); setShowMobileStatus(true); }}
+            title="UI 设置"
+            style={{ background: activeRightTab === 'ui' ? 'var(--accent-pink)' : '', color: activeRightTab === 'ui' ? 'white' : '', display: 'flex', alignItems: 'center' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M9.1 1.1L8.8 2.5C8.3 2.7 7.8 3 7.3 3.3L6.0 2.5L4.4 4.1L5.3 5.4C5.0 5.9 4.7 6.4 4.5 6.9L3.1 7.2V9.4L4.5 9.7C4.7 10.2 5.0 10.7 5.3 11.2L4.4 12.5L6.0 14.1L7.3 13.3C7.8 13.6 8.3 13.9 8.8 14.1L9.1 15.5H11.3L11.6 14.1C12.1 13.9 12.6 13.6 13.1 13.3L14.4 14.1L16.0 12.5L15.1 11.2C15.4 10.7 15.7 10.2 15.9 9.7L17.3 9.4V7.2L15.9 6.9C15.7 6.4 15.4 5.9 15.1 5.4L16.0 4.1L14.4 2.5L13.1 3.3C12.6 3.0 12.1 2.7 11.6 2.5L11.3 1.1H9.1zm1.1 4.5C11.9 5.6 13.0 6.7 13.0 8.0s-1.1 2.4-2.4 2.4S8.2 9.3 8.2 8.0s1.1-2.4 2.4-2.4z" transform="scale(0.85) translate(1, 1)"/></svg>
+            <span>UI设置</span>
+          </button>
+
+          <button 
+            className="header-btn" 
+            onClick={() => { setActiveRightTab('api'); setShowMobileStatus(true); }}
+            title="API 配置"
+            style={{ background: activeRightTab === 'api' ? 'var(--accent-pink)' : '', color: activeRightTab === 'api' ? 'white' : '', display: 'flex', alignItems: 'center' }}
+          >
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M10.5 1L3 8.5h4.5L6 15l7.5-7.5H9L10.5 1z"/></svg>
+            <span>API 配置</span>
+          </button>
+
+          
+
+          <div className="connection-status">
+            <div className={`status-indicator ${isStreaming ? 'pulse' : ''}`} />
+            <span>{isStreaming ? '媚吻锋思考中...' : '课堂连通正常'}</span>
+          </div>
+        </div>
+      </header>
+
+      {/* 主工作区 */}
+      <main className="main-layout">
+        {/* 左侧面板：原本是文件树，现已被抛弃，将直接潜入 VS Code 原生生态 */}
+        {/* 中间面板：核心对话区 */}
+        <ChatPanel
+          isVsCode={isVsCode}
+          messages={messages}
+          activeModel={activeModel}
+          userAvatar={userAvatar}
+          assistantAvatar={assistantAvatar}
+          setCropTarget={setCropTarget}
+          fileInputRef={fileInputRef}
+          showCommandList={showCommandList}
+          filteredCommands={filteredCommands}
+          activeCommandIndex={activeCommandIndex}
+          selectCommand={selectCommand}
+          inputRef={inputRef}
+          inputText={inputText}
+          handleInputChange={handleInputChange}
+          handleKeyDown={handleKeyDown}
+          sendMessage={sendMessage}
+          isStreaming={isStreaming}
+          executeSlashCommand={executeSlashCommand}
+          chatEndRef={chatEndRef}
+          onEditAndResend={handleEditAndResend}
+          sessions={sessions}
+          activeSessionId={activeSessionId}
+          onNewSession={handleNewSession}
+          onSwitchSession={handleSwitchSession}
+          onDeleteSession={handleDeleteSession}
+          showSessionList={showSessionList}
+          setShowSessionList={setShowSessionList}
+          selectedFilePath={selectedFilePath}
+        />
+
+        {/* 右侧面板：导师人设与课程大纲 */}
+        <div className={`right-panel-container ${showMobileStatus ? 'show-mobile' : ''}`}>
+          {activeRightTab === 'status' && (
+            <StatusPanel
+              currentThought={currentThought}
+              affection={affection}
+              personaType={personaType}
+              handlePersonaTypeChange={handlePersonaTypeChange}
+              models={models}
+              activeModel={activeModel}
+              handleModelChange={handleModelChange}
+              activeSubModel={activeSubModel}
+              courseProgress={courseProgress}
+            />
+          )}
+
+          {activeRightTab === 'ui' && (
+            <section className="ide-panel right-panel" style={{ padding: '16px', overflowY: 'auto' }}>
+              <div className="panel-header" style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ fontWeight: 'bold' }}>⚙️ UI 设置</span>
+              </div>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+
                   
                   {/* 头像大小设置 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -1084,53 +1130,17 @@ export default function App() {
                       毛玻璃背景特效：{enableBlur ? '已开启' : '已关闭'}
                     </button>
                   </div>
-
-                </div>
               </div>
-            )}
-          </div>
+            </section>
+          )}
 
-          {/* API 设置面板 */}
-          <div className="api-dropdown-container">
-            <button 
-              className="header-btn" 
-              onClick={() => {
-                setShowApiMenu(!showApiMenu);
-                setShowFontMenu(false);
-              }}
-              title="API 配置"
-              style={{ display: 'flex', alignItems: 'center' }}
-            >
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M10.5 1L3 8.5h4.5L6 15l7.5-7.5H9L10.5 1z"/></svg>
-              <span>API 配置</span>
-            </button>
-            {showApiMenu && (
-              <div 
-                className="settings-popover" 
-                style={{
-                  position: 'absolute',
-                  top: '36px',
-                  right: 0,
-                  width: '320px',
-                  background: 'var(--bg-panel)',
-                  backdropFilter: 'blur(10px)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '12px',
-                  padding: '16px',
-                  boxShadow: 'var(--shadow-lg)',
-                  zIndex: 1000,
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '12px',
-                  maxHeight: 'calc(100vh - 80px)',
-                  overflowY: 'auto'
-                }}
-              >
-                <h4 style={{ margin: 0, fontSize: '13px', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
-                  🔑 API 设置
-                </h4>
+          {activeRightTab === 'api' && (
+            <section className="ide-panel right-panel" style={{ padding: '16px', overflowY: 'auto' }}>
+              <div className="panel-header" style={{ marginBottom: '16px', borderBottom: '1px solid var(--border-color)', paddingBottom: '8px' }}>
+                <span style={{ fontWeight: 'bold' }}>🔑 API 设置</span>
+              </div>
+              {/* 模型选择配置 (原右侧面板) */}
 
-                {/* 模型选择配置 (原右侧面板) */}
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>⚡ 切换大语言模型</label>
                   <select 
@@ -1348,66 +1358,8 @@ export default function App() {
                     {savingRag ? '保存中...' : '💾 保存知识库配置'}
                   </button>
                 </div>
-              </div>
-
-            )}
-          </div>
-
-          <div className="connection-status">
-            <div className={`status-indicator ${isStreaming ? 'pulse' : ''}`} />
-            <span>{isStreaming ? '媚吻锋思考中...' : '课堂连通正常'}</span>
-          </div>
-        </div>
-      </header>
-
-      {/* 主工作区 */}
-      <main className="main-layout">
-        {/* 左侧面板：原本是文件树，现已被抛弃，将直接潜入 VS Code 原生生态 */}
-        {/* 中间面板：核心对话区 */}
-        <ChatPanel
-          isVsCode={isVsCode}
-          messages={messages}
-          activeModel={activeModel}
-          userAvatar={userAvatar}
-          assistantAvatar={assistantAvatar}
-          setCropTarget={setCropTarget}
-          fileInputRef={fileInputRef}
-          showCommandList={showCommandList}
-          filteredCommands={filteredCommands}
-          activeCommandIndex={activeCommandIndex}
-          selectCommand={selectCommand}
-          inputRef={inputRef}
-          inputText={inputText}
-          handleInputChange={handleInputChange}
-          handleKeyDown={handleKeyDown}
-          sendMessage={sendMessage}
-          isStreaming={isStreaming}
-          executeSlashCommand={executeSlashCommand}
-          chatEndRef={chatEndRef}
-          onEditAndResend={handleEditAndResend}
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onNewSession={handleNewSession}
-          onSwitchSession={handleSwitchSession}
-          onDeleteSession={handleDeleteSession}
-          showSessionList={showSessionList}
-          setShowSessionList={setShowSessionList}
-          selectedFilePath={selectedFilePath}
-        />
-
-        {/* 右侧面板：导师人设与课程大纲 */}
-        <div className={`right-panel-container ${showMobileStatus ? 'show-mobile' : ''}`}>
-          <StatusPanel
-            currentThought={currentThought}
-            affection={affection}
-            personaType={personaType}
-            handlePersonaTypeChange={handlePersonaTypeChange}
-            models={models}
-            activeModel={activeModel}
-            handleModelChange={handleModelChange}
-            activeSubModel={activeSubModel}
-            courseProgress={courseProgress}
-          />
+            </section>
+          )}
           {showMobileStatus && (
             <button className="mobile-close-btn" onClick={() => setShowMobileStatus(false)}>
               ✖ 返回聊天
