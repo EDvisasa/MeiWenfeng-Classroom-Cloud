@@ -367,16 +367,23 @@ body {
 }
 
 .mobile-close-btn {
-  margin-top: 16px;
-  padding: 12px;
-  background: var(--danger);
-  color: white;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: bold;
-  cursor: pointer;
-  text-align: center;
+  display: none !important;
+}
+
+@media (max-width: 800px) {
+  .mobile-close-btn {
+    display: block !important;
+    margin-top: 16px;
+    padding: 12px;
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+  }
 }
 
 /* 面板通用样式 */
