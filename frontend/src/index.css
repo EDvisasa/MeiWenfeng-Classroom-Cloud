@@ -61,10 +61,12 @@
   --text-primary: rgba(245, 245, 250, 1);
   --text-secondary: rgba(160, 160, 175, 1);
   --text-dialog: rgba(160, 190, 240, 1);
-  
+
   /* 专为暗色模式调优的文字和强调色 */
-  --text-action: #a78bfa; /* 优雅的淡紫色，适合动作旁白 */
-  --accent-pink: #f472b6; /* 明亮的粉色，适合对话和强调文字 */
+  --text-action: #a78bfa;
+  /* 优雅的淡紫色，适合动作旁白 */
+  --accent-pink: #f472b6;
+  /* 明亮的粉色，适合对话和强调文字 */
   --accent-pink-hover: #db2777;
   --accent-glow: rgba(244, 114, 182, 0.35);
 }
@@ -309,21 +311,25 @@ body {
     padding: 0;
     gap: 0;
   }
+
   .header-bar {
     padding: 8px;
     height: auto;
     flex-wrap: wrap;
     gap: 8px;
   }
+
   .center-panel {
     border-radius: 0;
     border: none;
     flex: 1 0 auto;
     min-height: 80vh;
   }
+
   .right-panel-container {
     display: none;
   }
+
   .right-panel-container.show-mobile {
     display: flex;
     flex-direction: column;
@@ -337,6 +343,7 @@ body {
     padding: 16px;
     overflow-y: auto;
   }
+
   .right-panel-container.show-mobile .right-panel {
     width: 100%;
     height: auto;
@@ -579,7 +586,8 @@ body {
   border: 1px solid var(--border-color);
   color: var(--text-primary);
   position: relative;
-  padding-bottom: 28px; /* space for absolute positioned edit button */
+  padding-bottom: 28px;
+  /* space for absolute positioned edit button */
 }
 
 .user-msg .edit-msg-btn {
@@ -643,7 +651,8 @@ body {
   margin-top: 10px;
 }
 
-.edit-confirm-btn, .edit-cancel-btn {
+.edit-confirm-btn,
+.edit-cancel-btn {
   padding: 6px 14px;
   border-radius: 6px;
   font-size: 13px;
@@ -1148,32 +1157,40 @@ body {
   --border-color: #d0d7de;
   --text-primary: #000000;
   --text-secondary: #57606a;
-  
+
   /* 多彩字定义 */
-  --text-dialog: #8250df; /* 紫色动作旁白 */
-  --success: #1a7f37; /* 绿色 */
-  --danger: #cf222e; /* 红色 */
+  --text-dialog: #8250df;
+  /* 紫色动作旁白 */
+  --success: #1a7f37;
+  /* 绿色 */
+  --danger: #cf222e;
+  /* 红色 */
   --warning: #9a6700;
-  
-  --accent-pink: #0969da; /* 主色调蓝色 */
+
+  --accent-pink: #0969da;
+  /* 主色调蓝色 */
   --accent-pink-hover: #0c59ba;
 }
 
 .vscode-env.theme-light .message-row.user .sender-name {
-  color: #0969da !important; /* 学生姓名: 蓝色 */
+  color: #0969da !important;
+  /* 学生姓名: 蓝色 */
 }
 
 .vscode-env.theme-light .message-row.assistant .sender-name {
-  color: #cf222e !important; /* 导师姓名: 红色 */
+  color: #cf222e !important;
+  /* 导师姓名: 红色 */
 }
 
 .vscode-env.theme-light .action-text {
-  color: #8250df !important; /* 动作/旁白: 紫色 */
+  color: #8250df !important;
+  /* 动作/旁白: 紫色 */
   font-weight: 500 !important;
 }
 
 .vscode-env.theme-light .system-info-msg {
-  color: #0969da !important; /* 系统提示: 蓝色 */
+  color: #0969da !important;
+  /* 系统提示: 蓝色 */
   background-color: rgba(9, 105, 218, 0.1) !important;
   border: 1px solid rgba(9, 105, 218, 0.2) !important;
 }
@@ -1241,32 +1258,40 @@ body {
   --border-color: #30363d;
   --text-primary: #ffffff;
   --text-secondary: #8b949e;
-  
+
   /* 多彩字定义 */
-  --text-dialog: #d2a8ff; /* 亮紫色动作旁白 */
-  --success: #39d353; /* 亮绿色 */
-  --danger: #ff7b72; /* 亮红色 */
+  --text-dialog: #d2a8ff;
+  /* 亮紫色动作旁白 */
+  --success: #39d353;
+  /* 亮绿色 */
+  --danger: #ff7b72;
+  /* 亮红色 */
   --warning: #d29922;
-  
-  --accent-pink: #58a6ff; /* 主色调天蓝色 */
+
+  --accent-pink: #58a6ff;
+  /* 主色调天蓝色 */
   --accent-pink-hover: #1f6feb;
 }
 
 .vscode-env.theme-dark .message-row.user .sender-name {
-  color: #58a6ff !important; /* 学生姓名: 亮蓝色 */
+  color: #58a6ff !important;
+  /* 学生姓名: 亮蓝色 */
 }
 
 .vscode-env.theme-dark .message-row.assistant .sender-name {
-  color: #ff7b72 !important; /* 导师姓名: 亮红色 */
+  color: #ff7b72 !important;
+  /* 导师姓名: 亮红色 */
 }
 
 .vscode-env.theme-dark .action-text {
-  color: #d2a8ff !important; /* 动作/旁白: 亮紫色 */
+  color: #d2a8ff !important;
+  /* 动作/旁白: 亮紫色 */
   font-weight: 500 !important;
 }
 
 .vscode-env.theme-dark .system-info-msg {
-  color: #58a6ff !important; /* 系统提示: 蓝色 */
+  color: #58a6ff !important;
+  /* 系统提示: 蓝色 */
   background-color: rgba(88, 166, 255, 0.1) !important;
   border: 1px solid rgba(88, 166, 255, 0.2) !important;
 }
@@ -1545,7 +1570,7 @@ body {
   color: var(--text-secondary) !important;
 }
 
-.vscode-env .progress-widget, 
+.vscode-env .progress-widget,
 .vscode-env .model-widget {
   background: var(--bg-secondary) !important;
   border: 1px solid var(--border-color) !important;
@@ -1555,7 +1580,7 @@ body {
   padding: 12px !important;
 }
 
-.vscode-env .widget-title, 
+.vscode-env .widget-title,
 .vscode-env .topic-title {
   color: var(--text-primary) !important;
   border-bottom-color: var(--border-color) !important;
