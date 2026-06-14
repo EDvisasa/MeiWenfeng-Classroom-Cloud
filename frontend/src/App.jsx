@@ -1220,30 +1220,27 @@ export default function App() {
             className="header-btn" 
             onClick={() => { setActiveRightTab('status'); setShowMobileStatus(true); }}
             title="大纲与状态"
-            style={{ background: activeRightTab === 'status' ? 'var(--accent-pink)' : '', color: activeRightTab === 'status' ? 'white' : '', display: 'flex', alignItems: 'center' }}
+            style={{ background: activeRightTab === 'status' ? 'var(--accent-pink)' : '', color: activeRightTab === 'status' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M2 3h12v1H2V3zm0 4h12v1H2V7zm0 4h12v1H2v-1z"/></svg>
-            <span>大纲/属性</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v1H2V3zm0 4h12v1H2V7zm0 4h12v1H2v-1z"/></svg>
           </button>
 
           <button 
             className="header-btn" 
             onClick={() => { setActiveRightTab('ui'); setShowMobileStatus(true); }}
             title="UI 设置"
-            style={{ background: activeRightTab === 'ui' ? 'var(--accent-pink)' : '', color: activeRightTab === 'ui' ? 'white' : '', display: 'flex', alignItems: 'center' }}
+            style={{ background: activeRightTab === 'ui' ? 'var(--accent-pink)' : '', color: activeRightTab === 'ui' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M9.1 1.1L8.8 2.5C8.3 2.7 7.8 3 7.3 3.3L6.0 2.5L4.4 4.1L5.3 5.4C5.0 5.9 4.7 6.4 4.5 6.9L3.1 7.2V9.4L4.5 9.7C4.7 10.2 5.0 10.7 5.3 11.2L4.4 12.5L6.0 14.1L7.3 13.3C7.8 13.6 8.3 13.9 8.8 14.1L9.1 15.5H11.3L11.6 14.1C12.1 13.9 12.6 13.6 13.1 13.3L14.4 14.1L16.0 12.5L15.1 11.2C15.4 10.7 15.7 10.2 15.9 9.7L17.3 9.4V7.2L15.9 6.9C15.7 6.4 15.4 5.9 15.1 5.4L16.0 4.1L14.4 2.5L13.1 3.3C12.6 3.0 12.1 2.7 11.6 2.5L11.3 1.1H9.1zm1.1 4.5C11.9 5.6 13.0 6.7 13.0 8.0s-1.1 2.4-2.4 2.4S8.2 9.3 8.2 8.0s1.1-2.4 2.4-2.4z" transform="scale(0.85) translate(1, 1)"/></svg>
-            <span>UI设置</span>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M9.1 1.1L8.8 2.5C8.3 2.7 7.8 3 7.3 3.3L6.0 2.5L4.4 4.1L5.3 5.4C5.0 5.9 4.7 6.4 4.5 6.9L3.1 7.2V9.4L4.5 9.7C4.7 10.2 5.0 10.7 5.3 11.2L4.4 12.5L6.0 14.1L7.3 13.3C7.8 13.6 8.3 13.9 8.8 14.1L9.1 15.5H11.3L11.6 14.1C12.1 13.9 12.6 13.6 13.1 13.3L14.4 14.1L16.0 12.5L15.1 11.2C15.4 10.7 15.7 10.2 15.9 9.7L17.3 9.4V7.2L15.9 6.9C15.7 6.4 15.4 5.9 15.1 5.4L16.0 4.1L14.4 2.5L13.1 3.3C12.6 3.0 12.1 2.7 11.6 2.5L11.3 1.1H9.1zm1.1 4.5C11.9 5.6 13.0 6.7 13.0 8.0s-1.1 2.4-2.4 2.4S8.2 9.3 8.2 8.0s1.1-2.4 2.4-2.4z" transform="scale(0.85) translate(1, 1)"/></svg>
           </button>
 
           <button 
             className="header-btn" 
             onClick={() => { setActiveRightTab('api'); setShowMobileStatus(true); }}
             title="API 配置"
-            style={{ background: activeRightTab === 'api' ? 'var(--accent-pink)' : '', color: activeRightTab === 'api' ? 'white' : '', display: 'flex', alignItems: 'center' }}
+            style={{ background: activeRightTab === 'api' ? 'var(--accent-pink)' : '', color: activeRightTab === 'api' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '2px' }}><path d="M10.5 1L3 8.5h4.5L6 15l7.5-7.5H9L10.5 1z"/></svg>
-            <span>API 配置</span>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
           </button>
 
           
