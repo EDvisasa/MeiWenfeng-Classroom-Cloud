@@ -284,7 +284,7 @@ export default function ChatPanel({
                 fontWeight: 'bold'
               }}
             >
-              ⚡ 快捷课室命令
+              ⚡ Quick Commands
             </div>
             <ul style={{ listStyle: 'none' }}>
               {filteredCommands.map((item, idx) => (
@@ -329,7 +329,7 @@ export default function ChatPanel({
             textOverflow: 'ellipsis'
           }}>
             <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M13.85 4.44l-3.28-3.3a.5.5 0 0 0-.35-.14H2.5a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5V4.8a.5.5 0 0 0-.15-.36zM10.5 2.21L12.79 4.5H10.5V2.21zM13 14H3V2h6.5v3a.5.5 0 0 0 .5.5h3v8.5z"/></svg>
-            当前追踪 (@current_file): {selectedFilePath.split('\\').pop().split('/').pop()}
+            Tracking (@current_file): {selectedFilePath.split('\\').pop().split('/').pop()}
           </div>
         )}
 
@@ -339,7 +339,7 @@ export default function ChatPanel({
           <textarea
             ref={inputRef}
             className="chat-input"
-            placeholder="与媚吻锋交流…"
+            placeholder="Chat with Mei Wenfeng..."
             value={inputText}
             onChange={handleInputChange}
             onKeyDown={handleKeyDown}
