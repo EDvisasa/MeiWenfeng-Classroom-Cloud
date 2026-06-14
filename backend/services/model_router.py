@@ -40,7 +40,8 @@ def update_model_key_if_empty(model_id: int, new_key: str):
 
 def stream_chat(
     messages: List[Dict[str, str]], 
-    system_prompt: str
+    system_prompt: str,
+    max_tokens: int = 8192
 ) -> Generator[str, None, None]:
     """
     流式对话接口路由器。
@@ -149,13 +150,17 @@ Remember: ALWAYS start with <thought>. NEVER mix conversational text with tool c
             
             while iteration < max_iterations:
                 iteration += 1
-                response = client.chat.completions.create(
-                    model=model_id_api,
-                    messages=current_messages,
-                    stream=True,
-                    temperature=1.0,
-                    max_tokens=2000
-                )
+                
+                kwargs = {
+                    "model": model_id_api,
+                    "messages": current_messages,
+                    "stream": True,
+                    "temperature": 1.0,
+                }
+                if max_tokens > 0:
+                    kwargs["max_tokens"] = max_tokens
+                    
+                response = client.chat.completions.create(**kwargs)
                 
                 full_content = ""
                 

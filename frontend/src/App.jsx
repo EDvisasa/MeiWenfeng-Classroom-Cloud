@@ -263,6 +263,13 @@ export default function App() {
     setNameFontSize(newSize);
     localStorage.setItem('name_font_size', newSize.toString());
   };
+
+  const [maxTokens, setMaxTokens] = useState(parseInt(localStorage.getItem('max_tokens')) || 8192);
+  const handleMaxTokensChange = (e) => {
+    const val = parseInt(e.target.value) || 0;
+    setMaxTokens(val);
+    localStorage.setItem('max_tokens', val.toString());
+  };
   
   // 状态与配置
   const [activeModel, setActiveModel] = useState('DeepSeek (在线)');
@@ -741,7 +748,8 @@ export default function App() {
           messages: apiPayload,
           persona_type: personaType,
           current_file_path: selectedFilePath,
-          cursor_line: cursorLine
+          cursor_line: cursorLine,
+          custom_max_tokens: maxTokens
         })
       });
 
@@ -975,7 +983,9 @@ export default function App() {
                   zIndex: 1000,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px'
+                  gap: '12px',
+                  maxHeight: 'calc(100vh - 80px)',
+                  overflowY: 'auto'
                 }}
               >
                 <h4 style={{ margin: 0, fontSize: '13px', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
@@ -1111,7 +1121,9 @@ export default function App() {
                   zIndex: 1000,
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '12px'
+                  gap: '12px',
+                  maxHeight: 'calc(100vh - 80px)',
+                  overflowY: 'auto'
                 }}
               >
                 <h4 style={{ margin: 0, fontSize: '13px', borderBottom: '1px solid var(--border-color)', paddingBottom: '6px' }}>
@@ -1173,6 +1185,17 @@ export default function App() {
                     type="password" 
                     value={tempApiKey}
                     onChange={(e) => setTempApiKey(e.target.value)}
+                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                  />
+                </div>
+
+                {/* Max Tokens */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>最大返回 Tokens (推荐8192, 0表示无限制)</label>
+                  <input 
+                    type="number" 
+                    value={maxTokens}
+                    onChange={handleMaxTokensChange}
                     style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
                   />
                 </div>

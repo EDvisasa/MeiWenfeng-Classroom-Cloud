@@ -23,6 +23,7 @@ class ChatRequest(BaseModel):
     persona_type: str = "simplified"
     current_file_path: str = ""
     cursor_line: int = 0
+    custom_max_tokens: int = 8192
 
 def json_escape(text: str) -> str:
     """包装为 JSON 字符串，便于前端原样解析"""
@@ -217,7 +218,7 @@ def send_message(payload: ChatRequest):
                 hint_text = f"🔍 成功检索并加载：{' 和 '.join(parts)}"
                 yield f"data: {json.dumps({'type': 'system_hint', 'text': hint_text}, ensure_ascii=False)}\n\n"
                 
-            content_stream = stream_chat(cleaned_messages, system_prompt)
+            content_stream = stream_chat(cleaned_messages, system_prompt, max_tokens=payload.custom_max_tokens)
             for chunk in content_stream:
                 if isinstance(chunk, dict):
                     if chunk.get("type") == "text" or "text" in chunk and not chunk.get("type"):

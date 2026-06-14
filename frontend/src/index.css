@@ -328,10 +328,6 @@ body {
 
   .right-panel-container {
     display: none;
-  }
-
-  .right-panel-container.show-mobile {
-    display: flex;
     flex-direction: column;
     position: absolute;
     top: 0;
@@ -342,6 +338,16 @@ body {
     background: var(--bg-panel);
     padding: 16px;
     overflow-y: auto;
+  }
+
+  .right-panel-container.show-mobile {
+    display: flex;
+  }
+
+  /* Disable backdrop-filter on mobile panels to fix animation lag */
+  .right-panel-container .ide-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
   }
 
   .right-panel-container.show-mobile .right-panel {
