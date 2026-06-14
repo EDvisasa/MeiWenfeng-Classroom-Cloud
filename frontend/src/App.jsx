@@ -1240,7 +1240,7 @@ export default function App() {
             title="API 配置"
             style={{ background: activeRightTab === 'api' ? 'var(--accent-pink)' : '', color: activeRightTab === 'api' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c3 3 9 3 12 0v-5"/></svg>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M9 2v6M15 2v6M5 8h14M6 8a6 6 0 0 0 12 0M12 14v5"/></svg>
           </button>
 
           
