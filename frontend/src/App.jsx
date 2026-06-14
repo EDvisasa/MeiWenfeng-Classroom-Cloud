@@ -14,8 +14,29 @@ const COMMANDS = [
   { cmd: '/plan', desc: '根据当前进度，重新调整课程大纲' }
 ];
 
+
+const TIPS_LIST = [
+  "可以在对话框输入 / 开头的指令来触发特殊事件哦~",
+  "媚吻锋不仅是你的修行导师，还是个爱吃醋的小狐狸。",
+  "右侧边栏可以随时切换大纲状态、UI设置和API配置。",
+  "如果不喜欢当前的回答风格，可以随时切换导师的人设（精简/原版）。",
+  "知识库后端支持本地 ChromaDB 或外部的 RAGFlow。",
+  "您可以上传自定义的背景图片，或者调整毛玻璃特效的开关。",
+  "点击左上角的数据库图标，可以实时查看当前的记忆体状态。",
+  "不同的代理站点可能不支持获取可用模型列表，可以尝试手动输入模型名称。",
+  "开发这个插件是为了让你在学习编程的路上不再孤单~",
+  "API 配置源可以随时切换，并记得填写你自己的 API Key！"
+];
+
 export default function App() {
   const [sessions, setSessions] = useState([]);
+  
+  // 后端加载与超时状态
+  const [isBackendReady, setIsBackendReady] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting', 'restarting', 'timeout', 'failed'
+  const [pollingCount, setPollingCount] = useState(0);
+  const [currentTip, setCurrentTip] = useState(TIPS_LIST[0]);
+
   const [activeSessionId, setActiveSessionId] = useState('');
   const [messages, setMessages] = useState([]);
 
@@ -330,6 +351,8 @@ export default function App() {
 
   // 初始化拉取状态与历史会话
   useEffect(() => {
+    if (!isBackendReady) return;
+
     const loadSessions = async () => {
       try {
         const res = await fetch('http://localhost:12701/api/chat/sessions');
@@ -370,9 +393,55 @@ export default function App() {
     fetchModels();
     fetchAvatars();
     fetchRagConfig();
-  }, []);
+  }, [isBackendReady]);
 
   const [cursorLine, setCursorLine] = useState(1);
+
+
+  // Tips 轮播
+  useEffect(() => {
+    if (isBackendReady) return;
+    const interval = setInterval(() => {
+      setCurrentTip(TIPS_LIST[Math.floor(Math.random() * TIPS_LIST.length)]);
+    }, 8000);
+    return () => clearInterval(interval);
+  }, [isBackendReady]);
+
+  // 后端状态探测轮询
+  useEffect(() => {
+    if (isBackendReady) return;
+    
+    const checkBackend = async () => {
+      try {
+        const res = await fetch('http://localhost:12701/api/chat/status', {
+          method: 'GET',
+        });
+        if (res.ok) {
+          setIsBackendReady(true);
+        } else {
+          throw new Error("Not OK");
+        }
+      } catch (err) {
+        setPollingCount(prev => prev + 1);
+      }
+    };
+    
+    const timer = setTimeout(checkBackend, 2000);
+    return () => clearTimeout(timer);
+  }, [isBackendReady, pollingCount, connectionStatus]);
+
+  // 处理超时与重试状态流转
+  useEffect(() => {
+    if (isBackendReady) return;
+    // 30秒大约是 15 次轮询
+    if (pollingCount > 15) {
+      if (connectionStatus === 'connecting') {
+        setConnectionStatus('timeout');
+      } else if (connectionStatus === 'restarting') {
+        setConnectionStatus('failed');
+      }
+    }
+  }, [pollingCount, isBackendReady, connectionStatus]);
 
   // 监听来自 VS Code 插件的消息
   useEffect(() => {
@@ -900,6 +969,55 @@ export default function App() {
   };
 
   return (
+    <>
+      {/* 全屏加载遮罩层 */}
+      {!isBackendReady && (
+        <div className="startup-loading-overlay">
+          <div className="loading-content-box">
+            {connectionStatus === 'connecting' ? (
+              <>
+                <div className="bouncing-dots">
+                  <div></div><div></div><div></div>
+                </div>
+                <h3 style={{ marginTop: '20px', color: 'var(--text-primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}>
+                  {connectionStatus === 'restarting' ? '正在重启并重新连接中...' : (
+                    <>
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
+                        <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                      </svg>
+                      导师正在赶来的路上...
+                    </>
+                  )}
+                </h3>
+              </>
+            ) : (
+              <>
+                <div className="crying-fox" style={{ marginBottom: '10px', color: 'var(--text-secondary)' }}>
+                  <svg width="56" height="56" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" strokeWidth="2"></circle>
+                    <path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path>
+                    <circle cx="12" cy="17" r="1.5" fill="currentColor" stroke="none"></circle>
+                  </svg>
+                </div>
+                <h3 style={{ color: 'var(--danger)', marginBottom: '16px' }}>
+                  后端服务连接超时
+                </h3>
+                <div style={{ color: 'var(--text-secondary)', fontSize: '14px', lineHeight: '1.6', textAlign: 'left', background: 'var(--bg-hover)', padding: '15px', borderRadius: '8px' }}>
+                  <p style={{ margin: '0 0 8px 0', fontWeight: 'bold' }}>请按照以下步骤恢复连接：</p>
+                  <p style={{ margin: '4px 0' }}>1. 检查背后的黑色终端窗口是否有报错，或者是否已被关闭。</p>
+                  <p style={{ margin: '4px 0' }}>2. 请手动关闭黑色终端，然后重新双击运行 <b>start.bat</b>。</p>
+                  <p style={{ margin: '4px 0' }}>3. 等待终端内所有服务启动完毕后，按 <b>F5</b> 刷新本页面。</p>
+                </div>
+              </>
+            )}
+            <div className="loading-tip">
+              <span className="tips-badge">TIPS</span>
+              <span className="tips-text">{currentTip}</span>
+            </div>
+          </div>
+        </div>
+      )}
     <div 
       className={`app-container ${isVsCode ? 'vscode-env' : 'web-env'} theme-${theme} ${!enableBlur ? 'disable-blur' : ''}`} 
       style={{ 
@@ -1410,5 +1528,6 @@ export default function App() {
         <DatabaseViewer onClose={() => setShowDbViewer(false)} />
       )}
     </div>
+    </>
   );
 }
