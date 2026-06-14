@@ -1,0 +1,12 @@
+CRASH CAUGHT: UnboundLocalError: cannot access local variable 'json' where it is not associated with a value
+Traceback (most recent call last):
+  File "D:\MeiWenfeng-Classroom\backend\routers\chat.py", line 187, in event_generator
+    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                   ^^^^
+UnboundLocalError: cannot access local variable 'json' where it is not associated with a value
+CRASH CAUGHT: UnboundLocalError: cannot access local variable 'json' where it is not associated with a value
+Traceback (most recent call last):
+  File "D:\MeiWenfeng-Classroom\backend\routers\chat.py", line 187, in event_generator
+    else:
+    
+UnboundLocalError: cannot access local variable 'json' where it is not associated with a value

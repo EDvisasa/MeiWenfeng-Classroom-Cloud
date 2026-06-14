@@ -62,7 +62,7 @@ def health_check():
     }
 
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 8000))
-    # 默认绑定 localhost 供本地访问
+    port = int(os.getenv("PORT", 12701))
+    # 默认绑定 localhost 供本地访问，这样能同时兼容 IPv4 (127.0.0.1) 和 IPv6 (::1)
     print(f"Starting backend server on port {port}...")
-    uvicorn.run("backend.main:app", host="127.0.0.1", port=port, reload=True)
+    uvicorn.run("backend.main:app", host="localhost", port=port, reload=True)

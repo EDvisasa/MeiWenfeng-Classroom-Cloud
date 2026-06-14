@@ -26,9 +26,9 @@ exit /b
 rem 3. Start all services using concurrently
 echo ==========================================
 echo Starting all services concurrently in a single window...
-echo Frontend will run at http://localhost:5173/
-echo Backend will run at http://127.0.0.1:8000
-echo Node Bridge will run at http://127.0.0.1:3001
+echo Frontend will run at http://localhost:12703/
+echo Backend will run at http://127.0.0.1:12701
+echo Node Bridge will run at http://127.0.0.1:12702
 echo MCP Server will be active.
 echo.
 echo * Press Ctrl+C to stop all services safely. *

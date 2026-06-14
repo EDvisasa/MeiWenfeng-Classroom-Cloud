@@ -86,7 +86,7 @@ def stream_chat(
     # 1. OpenAI 协议 (DeepSeek & 本地模型)
     if protocol == "openai":
         if not api_key and "localhost" not in base_url and "127.0.0.1" not in base_url:
-            yield f"[系统提示] 错误：检测到模型 {model_name} 需要 API Key，但当前数据库和环境变量中皆未配置。请检查您的 `.env` 或在设置中配置密钥。"
+            yield {"type": "text", "text": f"[系统提示] 错误：检测到模型 {model_name} 需要 API Key，但当前数据库和环境变量中皆未配置。请检查您的 `.env` 或在设置中配置密钥。"}
             return
 
         try:
@@ -97,23 +97,89 @@ def stream_chat(
                 base_url=safe_base_url
             )
             
-            response = client.chat.completions.create(
-                model=model_id_api,
-                messages=formatted_messages,
-                stream=True,
-                temperature=1.0,  # 稍微高一点让角色扮演更生动
-                max_tokens=2000
-            )
+            system_injection = """
+【重要系统指令：工具调用】
+你现在拥有执行本地终端命令的能力。如果需要读取文件、列出目录、搜索内容等，请在回答的**末尾**输出以下格式：
+<execute_bash>
+你要执行的完整命令
+</execute_bash>
+系统会自动拦截并执行，然后将结果返回给你。每次只能执行一个命令，收到结果前请不要继续回答。如果不需要执行命令，则正常回答即可。
+"""
+            # Insert the system instruction into the first message
+            if len(formatted_messages) > 0 and formatted_messages[0]["role"] == "system":
+                formatted_messages[0]["content"] = str(formatted_messages[0]["content"]) + "\n\n" + system_injection
+            else:
+                formatted_messages.insert(0, {"role": "system", "content": system_injection})
             
-            for chunk in response:
-                if chunk.choices and len(chunk.choices) > 0:
-                    delta_content = chunk.choices[0].delta.content
-                    if delta_content:
-                        yield delta_content
+            max_iterations = 5
+            iteration = 0
+            current_messages = formatted_messages.copy()
+            
+            while iteration < max_iterations:
+                iteration += 1
+                response = client.chat.completions.create(
+                    model=model_id_api,
+                    messages=current_messages,
+                    stream=True,
+                    temperature=1.0,
+                    max_tokens=2000
+                )
+                
+                full_content = ""
+                
+                for chunk in response:
+                    if chunk.choices and len(chunk.choices) > 0:
+                        delta = chunk.choices[0].delta
+                        
+                        # 1. 拦截 Reasoning Content
+                        if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                            yield {"type": "thinking", "text": delta.reasoning_content}
+                            
+                        # 2. 普通文本内容 (Text)
+                        if delta.content:
+                            full_content += delta.content
+                            yield {"type": "text", "text": delta.content}
+                            
+                # 检查是否包含工具调用
+                import re
+                match = re.search(r'<execute_bash>(.*?)</execute_bash>', full_content, re.DOTALL)
+                
+                if not match:
+                    break # 结束对话
+                    
+                command = match.group(1).strip()
+                
+                current_messages.append({
+                    "role": "assistant",
+                    "content": full_content
+                })
+                
+                yield {"type": "tool_start", "tool_name": "execute_bash", "command": command}
+                
+                import subprocess
+                try:
+                    result = subprocess.run(command, shell=True, capture_output=True, text=True, timeout=10)
+                    output = result.stdout + result.stderr
+                    if not output.strip():
+                        output = "[Command executed successfully with no output]"
+                except subprocess.TimeoutExpired:
+                    output = "[Error] Command timed out after 10 seconds."
+                except Exception as e:
+                    output = f"[Error] {e}"
+                
+                yield {"type": "tool_output", "text": output}
+                
+                # 将工具执行结果喂给模型
+                current_messages.append({
+                    "role": "user",
+                    "content": f"[系统返回的执行结果]:\n{output}\n\n请根据上述结果继续回答或执行下一步。"
+                })
+                
+                yield {"type": "tool_end"}
                         
         except Exception as e:
             logger.error(f"Error during OpenAI stream chat: {e}", exc_info=True)
-            yield f"[后端错误] 无法连接到 {model_name} API。错误详情: {str(e)}"
+            yield {"type": "text", "text": f"[后端错误] 无法连接到 {model_name} API。错误详情: {str(e)}"}
 
     # 2. Gemini 协议 (开发备用)
     elif protocol == "gemini":

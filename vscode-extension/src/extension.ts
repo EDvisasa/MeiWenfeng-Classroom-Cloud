@@ -116,7 +116,7 @@ class SidebarProvider implements vscode.WebviewViewProvider {
                 </style>
             </head>
             <body>
-                <iframe id="react-frame" src="http://localhost:5173?env=vscode" allow="clipboard-read; clipboard-write"></iframe>
+                <iframe id="react-frame" src="http://localhost:12703?env=vscode" allow="clipboard-read; clipboard-write"></iframe>
                 <script>
                     const vscode = acquireVsCodeApi();
                     const iframe = document.getElementById('react-frame');

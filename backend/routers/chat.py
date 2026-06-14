@@ -169,7 +169,6 @@ def send_message(payload: ChatRequest):
         accumulated_assistant_content = ""
         try:
             if kb_count > 0 or mem_count > 0:
-                import json
                 parts = []
                 if kb_count > 0: parts.append(f"{kb_count} 个讲义片段")
                 if mem_count > 0: parts.append(f"{mem_count} 个长期记忆")
@@ -178,11 +177,21 @@ def send_message(payload: ChatRequest):
                 
             content_stream = stream_chat(cleaned_messages, system_prompt)
             for chunk in content_stream:
-                accumulated_assistant_content += chunk
-                yield f"data: {json_escape(chunk)}\n\n"
-        except Exception as e:
+                if isinstance(chunk, dict):
+                    if chunk.get("type") == "text" or "text" in chunk and not chunk.get("type"):
+                        accumulated_assistant_content += chunk.get("text", "")
+                    elif chunk.get("type") == "tool_output":
+                        # Also accumulate tool output so it gets saved? No, usually tool outputs are separate messages.
+                        pass
+                    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+                else:
+                    accumulated_assistant_content += chunk
+                    yield f"data: {json_escape(chunk)}\n\n"
+        except BaseException as e:
             import traceback
-            traceback.print_exc()
+            with open("debug_error.log", "a", encoding="utf-8") as f:
+                f.write(f"CRASH CAUGHT: {type(e).__name__}: {str(e)}\n")
+                traceback.print_exc(file=f)
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
         finally:
             # 流式结束时，将用户最后一条消息和助手的回复写入短期记忆 (Level 0)

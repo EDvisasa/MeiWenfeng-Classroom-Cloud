@@ -31,7 +31,7 @@ export default function App() {
 
   const syncSessionToBackend = async (session) => {
     try {
-      await fetch('http://localhost:8000/api/chat/sessions/save', {
+      await fetch('http://localhost:12701/api/chat/sessions/save', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -109,7 +109,7 @@ export default function App() {
     let nextSessions = filtered;
     
     try {
-      await fetch(`http://localhost:8000/api/chat/sessions/${sessionId}`, {
+      await fetch(`http://localhost:12701/api/chat/sessions/${sessionId}`, {
         method: 'DELETE'
       });
     } catch (err) {
@@ -156,6 +156,25 @@ export default function App() {
 
   // 内心独白
   const [currentThought, setCurrentThought] = useState('暂时没有想法...');
+
+  // 当消息列表更新或切换会话时，自动解析最近一次的内心独白
+  useEffect(() => {
+    if (messages && messages.length > 0) {
+      const lastAsst = [...messages].reverse().find(m => m.role === 'assistant');
+      if (lastAsst) {
+        let textToParse = '';
+        if (lastAsst.blocks) {
+          textToParse = lastAsst.blocks.filter(b => b.type === 'text').map(b => b.text).join('');
+        } else if (lastAsst.content) {
+          textToParse = lastAsst.content;
+        }
+        const thoughtMatch = textToParse.match(/【此刻内心】[：:]([\s\S]*)$/);
+        if (thoughtMatch) {
+          setCurrentThought(thoughtMatch[1].trim());
+        }
+      }
+    }
+  }, [messages, activeSessionId]);
 
   // 头像裁剪相关
   const [userAvatar, setUserAvatar] = useState(localStorage.getItem('user_avatar') || '🎓');
@@ -303,7 +322,7 @@ export default function App() {
   useEffect(() => {
     const loadSessions = async () => {
       try {
-        const res = await fetch('http://localhost:8000/api/chat/sessions');
+        const res = await fetch('http://localhost:12701/api/chat/sessions');
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -383,7 +402,7 @@ export default function App() {
         try {
           const selected = models.find(m => m.id === selectedConfigId);
           const protocol = selected ? selected.protocol : 'openai';
-          const url = `http://localhost:8000/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
+          const url = `http://localhost:12701/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
           const res = await fetch(url);
           if (res.ok) {
             const data = await res.json();
@@ -405,7 +424,7 @@ export default function App() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/chat/status');
+      const res = await fetch('http://localhost:12701/api/chat/status');
       if (res.ok) {
         const data = await res.json();
         setAffection(data.affection);
@@ -420,7 +439,7 @@ export default function App() {
 
   const fetchModels = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/chat/models');
+      const res = await fetch('http://localhost:12701/api/chat/models');
       if (res.ok) {
         const data = await res.json();
         setModels(data);
@@ -432,7 +451,7 @@ export default function App() {
 
   const fetchAvatars = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/chat/images');
+      const res = await fetch('http://localhost:12701/api/chat/images');
       if (res.ok) {
         const data = await res.json();
         setAvatarList(data);
@@ -444,7 +463,7 @@ export default function App() {
 
   const fetchRagConfig = async () => {
     try {
-      const res = await fetch('http://localhost:8000/api/chat/rag/config');
+      const res = await fetch('http://localhost:12701/api/chat/rag/config');
       if (res.ok) {
         const data = await res.json();
         setRagConfig(data);
@@ -457,7 +476,7 @@ export default function App() {
   const saveRagConfig = async () => {
     setSavingRag(true);
     try {
-      const res = await fetch('http://localhost:8000/api/chat/rag/update', {
+      const res = await fetch('http://localhost:12701/api/chat/rag/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ragConfig)
@@ -498,7 +517,7 @@ export default function App() {
     if (!selected) return;
 
     try {
-      const res = await fetch('http://localhost:8000/api/chat/models/update', {
+      const res = await fetch('http://localhost:12701/api/chat/models/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -529,7 +548,7 @@ export default function App() {
 
     try {
       // 1. 先同步保存修改
-      await fetch('http://localhost:8000/api/chat/models/update', {
+      await fetch('http://localhost:12701/api/chat/models/update', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -542,7 +561,7 @@ export default function App() {
       });
       
       // 2. 切换当前模型为激活状态
-      const res = await fetch('http://localhost:8000/api/chat/switch_model', {
+      const res = await fetch('http://localhost:12701/api/chat/switch_model', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selectedConfigId })
@@ -571,7 +590,7 @@ export default function App() {
     try {
       const selected = models.find(m => m.id === selectedConfigId);
       const protocol = selected ? selected.protocol : 'openai';
-      const url = `http://localhost:8000/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
+      const url = `http://localhost:12701/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -597,7 +616,7 @@ export default function App() {
   // 处理右侧面板的基础模型切换
   const handleModelChange = async (modelId) => {
     try {
-      const res = await fetch('http://localhost:8000/api/chat/switch_model', {
+      const res = await fetch('http://localhost:12701/api/chat/switch_model', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: modelId })
@@ -661,10 +680,6 @@ export default function App() {
         setActiveCommandIndex(prev => (prev + 1) % filteredCommands.length);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        setActiveCommandIndex(prev => (prev - 1 + filteredCommands.length) % filteredCommands.length);
-      } else if (e.key === 'Enter') {
-        e.preventDefault();
-        selectCommand(filteredCommands[activeCommandIndex]);
       } else if (e.key === 'Escape') {
         setShowCommandList(false);
       }
@@ -715,7 +730,7 @@ export default function App() {
     const apiPayload = history.filter(m => m.role === 'user' || m.role === 'assistant');
 
     try {
-      const response = await fetch('http://localhost:8000/api/chat/send', {
+      const response = await fetch('http://localhost:12701/api/chat/send', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
@@ -738,9 +753,9 @@ export default function App() {
       const decoder = new TextDecoder('utf-8');
       let done = false;
 
-      setMessages(prev => [...prev, { role: 'assistant', content: '', streaming: true }]);
+      setMessages(prev => [...prev, { role: 'assistant', blocks: [], streaming: true }]);
 
-      let accumulatedContent = '';
+      let currentBlocks = [];
 
       while (!done) {
         const { value, done: readerDone } = await reader.read();
@@ -753,9 +768,10 @@ export default function App() {
             if (line.startsWith('data: ')) {
               try {
                 const jsonStr = line.slice(6).trim();
+                if (jsonStr === '[DONE]' || !jsonStr) continue;
                 const parsed = JSON.parse(jsonStr);
                 
-                if (parsed && parsed.type === 'system_hint') {
+                if (parsed.type === 'system_hint') {
                   setMessages(prev => {
                     const updated = [...prev];
                     const last = updated.pop();
@@ -766,32 +782,58 @@ export default function App() {
                   continue;
                 }
 
-                if (parsed && parsed.type === 'open_explainer') {
-                  // 通过 postMessage 发送给父级(VS Code Extension) 以打开文件
+                if (parsed.type === 'open_explainer') {
                   window.parent.postMessage({ type: 'openExplainer', filePath: parsed.filePath }, '*');
                   continue;
                 }
 
-                if (parsed && parsed.text) {
-                  accumulatedContent += parsed.text;
-                  
-                  let displayContent = accumulatedContent;
-                  const thoughtMatch = accumulatedContent.match(/【此刻内心】[：:]([\s\S]*)$/);
-                  if (thoughtMatch) {
-                    displayContent = accumulatedContent.replace(/【此刻内心】[：:][\s\S]*$/, '').trim();
-                    setCurrentThought(thoughtMatch[1].trim());
+                if (parsed.type === 'thinking') {
+                  let lastBlock = currentBlocks[currentBlocks.length - 1];
+                  if (!lastBlock || lastBlock.type !== 'thinking') {
+                    currentBlocks.forEach(b => { if (b.type === 'thinking') b.status = 'done'; });
+                    currentBlocks.push({ type: 'thinking', text: parsed.text || '', status: 'running' });
+                  } else {
+                    lastBlock.text += (parsed.text || '');
                   }
-
-                  setMessages(prev => {
-                    const updated = [...prev];
-                    updated[updated.length - 1] = {
-                      role: 'assistant',
-                      content: displayContent,
-                      streaming: true
-                    };
-                    return updated;
-                  });
+                } else if (parsed.type === 'tool_start') {
+                  currentBlocks.forEach(b => { if (b.type === 'thinking') b.status = 'done'; });
+                  currentBlocks.push({ type: 'tool', tool_name: parsed.tool_name, command: parsed.command, output: '', status: 'running' });
+                } else if (parsed.type === 'tool_output') {
+                  let lastBlock = currentBlocks[currentBlocks.length - 1];
+                  if (lastBlock && lastBlock.type === 'tool') {
+                    lastBlock.output += (parsed.text || '');
+                  }
+                } else if (parsed.type === 'tool_end') {
+                  let lastBlock = currentBlocks[currentBlocks.length - 1];
+                  if (lastBlock && lastBlock.type === 'tool') {
+                    lastBlock.status = 'done';
+                  }
+                } else if (parsed.type === 'text' || parsed.text) {
+                  currentBlocks.forEach(b => { if (b.type === 'thinking') b.status = 'done'; });
+                  let lastBlock = currentBlocks[currentBlocks.length - 1];
+                  if (!lastBlock || lastBlock.type !== 'text') {
+                    currentBlocks.push({ type: 'text', text: parsed.text || '' });
+                  } else {
+                    lastBlock.text += (parsed.text || '');
+                  }
                 }
+
+                setMessages(prev => {
+                  const updated = [...prev];
+                  const lastMsg = updated[updated.length - 1];
+                  if (lastMsg.role === 'assistant') {
+                    lastMsg.blocks = [...currentBlocks];
+                    // Keep plain text content for compatibility with older rendering (like the prompt match logic below)
+                    let displayContent = currentBlocks.filter(b => b.type === 'text').map(b => b.text).join('');
+                    const thoughtMatch = displayContent.match(/【此刻内心】[：:]([\s\S]*)$/);
+                    if (thoughtMatch) {
+                      displayContent = displayContent.replace(/【此刻内心】[：:][\s\S]*$/, '').trim();
+                      setCurrentThought(thoughtMatch[1].trim());
+                    }
+                    lastMsg.content = displayContent;
+                  }
+                  return updated;
+                });
               } catch (e) {
                 // Ignore parse error
               }
@@ -803,7 +845,11 @@ export default function App() {
       setMessages(prev => {
         const updated = [...prev];
         if (updated.length > 0) {
-          updated[updated.length - 1].streaming = false;
+          const lastMsg = updated[updated.length - 1];
+          lastMsg.streaming = false;
+          if (lastMsg.blocks) {
+             lastMsg.blocks.forEach(b => b.status = 'done');
+          }
         }
         return updated;
       });
@@ -812,10 +858,21 @@ export default function App() {
 
     } catch (e) {
       console.error(e);
-      setMessages(prev => [
-        ...prev,
-        { role: 'assistant', content: `*脸色微变，捂着额头，有些懊恼地蹙眉道：*“哎呀夫君...奴家好像开小差了（无法连接到后端，请确保 FastAPI 处于运行中）。要不咱们稍后再试？”` }
-      ]);
+      setMessages(prev => {
+        const updated = [...prev];
+        const errorMsg = `*脸色微变，捂着额头，有些懊恼地蹙眉道：*“哎呀夫君...奴家好像开小差了（后端连接中断，可能是代理超时或 FastAPI 崩溃）。要不咱们重试一下？”\n\n**前端报错详情:** \`${e.message}\``;
+        
+        if (updated.length > 0 && updated[updated.length - 1].streaming) {
+          // Deep clone the last message to avoid React StrictMode double-mutation bug
+          const lastMsg = { ...updated[updated.length - 1] };
+          lastMsg.content = (lastMsg.content || '') + `\n\n[系统错误] ` + errorMsg;
+          lastMsg.streaming = false;
+          updated[updated.length - 1] = lastMsg;
+        } else {
+          updated.push({ role: 'assistant', content: `[系统错误] ` + errorMsg });
+        }
+        return updated;
+      });
     } finally {
       setIsStreaming(false);
     }

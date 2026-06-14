@@ -52,6 +52,7 @@ export default function ChatPanel({
   // 格式化解析 AI 的动作文本为斜体灰色
   const renderMessageContent = (text) => {
     if (!text) return null;
+    text = text.replace(/【此刻内心】[：:][\s\S]*$/, '').trim();
     const parts = text.split(/(\*[^*]+\*)/g);
     return parts.map((part, idx) => {
       if (part.startsWith('*') && part.endsWith('*')) {
@@ -62,6 +63,40 @@ export default function ChatPanel({
         );
       }
       return part;
+    });
+  };
+
+  const renderBlocks = (blocks) => {
+    return blocks.map((block, idx) => {
+      if (block.type === 'thinking') {
+        const isRunning = block.status === 'running';
+        return (
+          <details key={idx} open={isRunning} className="block-details thinking-block">
+            <summary className={`block-summary ${isRunning ? 'glow' : 'dim'}`}>
+              {isRunning ? '🤔 正在思考...' : '💭 思考完毕'}
+            </summary>
+            <div className="block-content thinking-content">
+              {block.text}
+            </div>
+          </details>
+        );
+      } else if (block.type === 'tool') {
+        const isRunning = block.status === 'running';
+        return (
+          <details key={idx} open={isRunning} className="block-details tool-block">
+            <summary className={`block-summary ${isRunning ? 'glow-green' : ''}`}>
+              🔧 正在执行工具: {block.tool_name}
+            </summary>
+            <div className="block-content terminal-content">
+              <div className="cmd-line">$ {block.command}</div>
+              <pre>{block.output}</pre>
+            </div>
+          </details>
+        );
+      } else if (block.type === 'text') {
+        return <div key={idx} className="text-block">{renderMessageContent(block.text)}</div>;
+      }
+      return null;
     });
   };
 
@@ -191,7 +226,7 @@ export default function ChatPanel({
                     </div>
                     <div
                       className="avatar"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => { setCropTarget('user'); fileInputRef.current?.click(); }}
                       title="点击更换头像"
                       style={{ cursor: 'pointer' }}
                     >
@@ -206,7 +241,7 @@ export default function ChatPanel({
                   <>
                     <div
                       className="avatar"
-                      onClick={() => setCropTarget('assistant')}
+                      onClick={() => { setCropTarget('assistant'); fileInputRef.current?.click(); }}
                       title="点击更换导师头像"
                       style={{ cursor: 'pointer' }}
                     >
@@ -238,7 +273,11 @@ export default function ChatPanel({
                 </div>
               ) : (
                 <div className="message-bubble">
-                  {renderMessageContent(msg.content)}
+                  {msg.blocks && msg.blocks.length > 0 ? (
+                    renderBlocks(msg.blocks)
+                  ) : (
+                    renderMessageContent(msg.content)
+                  )}
                   {msg.streaming && <span className="typing-cursor" />}
                   {isUser && (
                     <button className="edit-msg-btn" onClick={handleStartEdit} title="编辑并重发">
