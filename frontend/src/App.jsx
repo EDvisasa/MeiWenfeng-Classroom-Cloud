@@ -1,3 +1,4 @@
+import { API_BASE } from './config';
 import React, { useState, useEffect, useRef } from 'react';
 import FileTree from './components/FileTree';
 import ChatPanel from './components/ChatPanel';
@@ -52,7 +53,7 @@ export default function App() {
 
   const syncSessionToBackend = async (session) => {
     try {
-      await fetch('http://localhost:12701/api/chat/sessions/save', {
+      await fetch(`${API_BASE}/api/chat/sessions/save`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -130,7 +131,7 @@ export default function App() {
     let nextSessions = filtered;
     
     try {
-      await fetch(`http://localhost:12701/api/chat/sessions/${sessionId}`, {
+      await fetch(`${API_BASE}/api/chat/sessions/${sessionId}`, {
         method: 'DELETE'
       });
     } catch (err) {
@@ -364,7 +365,7 @@ export default function App() {
 
     const loadSessions = async () => {
       try {
-        const res = await fetch('http://localhost:12701/api/chat/sessions');
+        const res = await fetch(`${API_BASE}/api/chat/sessions`);
         if (res.ok) {
           const data = await res.json();
           if (Array.isArray(data) && data.length > 0) {
@@ -422,7 +423,7 @@ export default function App() {
     
     const checkBackend = async () => {
       try {
-        const res = await fetch('http://localhost:12701/api/chat/status', {
+        const res = await fetch(`${API_BASE}/api/chat/status`, {
           method: 'GET',
         });
         if (res.ok) {
@@ -490,7 +491,7 @@ export default function App() {
         try {
           const selected = models.find(m => m.id === selectedConfigId);
           const protocol = selected ? selected.protocol : 'openai';
-          const url = `http://localhost:12701/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
+          const url = `${API_BASE}/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
           const res = await fetch(url);
           if (res.ok) {
             const data = await res.json();
@@ -512,7 +513,7 @@ export default function App() {
 
   const fetchStatus = async () => {
     try {
-      const res = await fetch('http://localhost:12701/api/chat/status');
+      const res = await fetch(`${API_BASE}/api/chat/status`);
       if (res.ok) {
         const data = await res.json();
         setAffection(data.affection);
@@ -527,7 +528,7 @@ export default function App() {
 
   const fetchModels = async () => {
     try {
-      const res = await fetch('http://localhost:12701/api/chat/models');
+      const res = await fetch(`${API_BASE}/api/chat/models`);
       if (res.ok) {
         const data = await res.json();
         setModels(data);
@@ -539,7 +540,7 @@ export default function App() {
 
   const fetchAvatars = async () => {
     try {
-      const res = await fetch('http://localhost:12701/api/chat/images');
+      const res = await fetch(`${API_BASE}/api/chat/images`);
       if (res.ok) {
         const data = await res.json();
         setAvatarList(data);
@@ -551,7 +552,7 @@ export default function App() {
 
   const fetchRagConfig = async () => {
     try {
-      const res = await fetch('http://localhost:12701/api/chat/rag/config');
+      const res = await fetch(`${API_BASE}/api/chat/rag/config`);
       if (res.ok) {
         const data = await res.json();
         setRagConfig(data);
@@ -564,7 +565,7 @@ export default function App() {
   const saveRagConfig = async () => {
     setSavingRag(true);
     try {
-      const res = await fetch('http://localhost:12701/api/chat/rag/update', {
+      const res = await fetch(`${API_BASE}/api/chat/rag/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(ragConfig)
@@ -605,7 +606,7 @@ export default function App() {
     if (!selected) return;
 
     try {
-      const res = await fetch('http://localhost:12701/api/chat/models/update', {
+      const res = await fetch(`${API_BASE}/api/chat/models/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -637,7 +638,7 @@ export default function App() {
 
     try {
       // 1. 先同步保存修改
-      await fetch('http://localhost:12701/api/chat/models/update', {
+      await fetch(`${API_BASE}/api/chat/models/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -651,7 +652,7 @@ export default function App() {
       });
       
       // 2. 切换当前模型为激活状态
-      const res = await fetch('http://localhost:12701/api/chat/switch_model', {
+      const res = await fetch(`${API_BASE}/api/chat/switch_model`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selectedConfigId })
@@ -681,7 +682,7 @@ export default function App() {
       return;
     }
     try {
-      const res = await fetch('http://localhost:12701/api/chat/models/create', {
+      const res = await fetch(`${API_BASE}/api/chat/models/create`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -733,7 +734,7 @@ export default function App() {
       return;
     }
     try {
-      const res = await fetch('http://localhost:12701/api/chat/models/update', {
+      const res = await fetch(`${API_BASE}/api/chat/models/update`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -779,7 +780,7 @@ export default function App() {
       return;
     }
     try {
-      const res = await fetch(`http://localhost:12701/api/chat/models/${selectedConfigId}`, {
+      const res = await fetch(`${API_BASE}/api/chat/models/${selectedConfigId}`, {
         method: 'DELETE'
       });
       const data = await res.json();
@@ -817,7 +818,7 @@ export default function App() {
     try {
       const selected = models.find(m => m.id === selectedConfigId);
       const protocol = selected ? selected.protocol : 'openai';
-      const url = `http://localhost:12701/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
+      const url = `${API_BASE}/api/chat/models/available?base_url=${encodeURIComponent(tempBaseUrl)}&api_key=${encodeURIComponent(tempApiKey)}&protocol=${protocol}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -843,7 +844,7 @@ export default function App() {
   // 处理右侧面板的基础模型切换
   const handleModelChange = async (modelId) => {
     try {
-      const res = await fetch('http://localhost:12701/api/chat/switch_model', {
+      const res = await fetch(`${API_BASE}/api/chat/switch_model`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: modelId })
@@ -957,7 +958,7 @@ export default function App() {
     const apiPayload = history.filter(m => m.role === 'user' || m.role === 'assistant');
 
     try {
-      const response = await fetch('http://localhost:12701/api/chat/send', {
+      const response = await fetch(`${API_BASE}/api/chat/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 

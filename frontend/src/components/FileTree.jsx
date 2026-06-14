@@ -31,7 +31,7 @@ export default function FileTree({
   const fetchFileTree = async (path) => {
     setLoading(true);
     try {
-      const url = `http://localhost:12701/api/chat/files/list?root_dir=${encodeURIComponent(path || '')}`;
+      const url = `${API_BASE}/api/chat/files/list?root_dir=${encodeURIComponent(path || '')}`;
       const res = await fetch(url);
       if (res.ok) {
         const data = await res.json();
@@ -50,7 +50,7 @@ export default function FileTree({
 
   const fetchSyncStatus = async () => {
     try {
-      const res = await fetch('http://localhost:12701/api/chat/files/sync_status');
+      const res = await fetch(`${API_BASE}/api/chat/files/sync_status`);
       if (res.ok) {
         const data = await res.json();
         if (data.status === 'success') {
@@ -80,7 +80,7 @@ export default function FileTree({
 
   const handleFileClick = async (node) => {
     try {
-      const res = await fetch(`http://localhost:12701/api/chat/files/content?file_path=${encodeURIComponent(node.path)}`);
+      const res = await fetch(`${API_BASE}/api/chat/files/content?file_path=${encodeURIComponent(node.path)}`);
       if (res.ok) {
         const data = await res.json();
         onFileSelect(node.path, data.content);
@@ -97,7 +97,7 @@ export default function FileTree({
         [node.name]: { status: 'parsing' }
       }));
       
-      const res = await fetch('http://localhost:12701/api/chat/files/sync', {
+      const res = await fetch(`${API_BASE}/api/chat/files/sync`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ file_path: node.path })

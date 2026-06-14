@@ -23,7 +23,7 @@ export default function DatabaseViewer({ onClose }) {
 
   const fetchTables = async () => {
     try {
-      const res = await fetch('http://localhost:12701/api/chat/db/tables');
+      const res = await fetch(`${API_BASE}/api/chat/db/tables`);
       if (res.ok) {
         const data = await res.json();
         setTables(data.tables || []);
@@ -42,7 +42,7 @@ export default function DatabaseViewer({ onClose }) {
     setLoading(true);
     setError('');
     try {
-      const res = await fetch(`http://localhost:12701/api/chat/db/tables/${tableName}`);
+      const res = await fetch(`${API_BASE}/api/chat/db/tables/${tableName}`);
       if (res.ok) {
         const data = await res.json();
         setTableData({ columns: data.columns || [], data: data.data || [] });

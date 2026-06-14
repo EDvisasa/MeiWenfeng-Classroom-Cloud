@@ -1,8 +1,10 @@
 import os
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, status
+from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
+import ipaddress
 
 import sys
 # 1. 查找并加载项目根目录的 .env 文件
@@ -46,6 +48,32 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# 4.5. 局域网 IP 白名单中间件
+ALLOWED_NETWORKS = [
+    ipaddress.ip_network("127.0.0.0/8"),
+    ipaddress.ip_network("::1/128"),
+    ipaddress.ip_network("192.168.0.0/16"),
+    ipaddress.ip_network("10.0.0.0/8"),
+    ipaddress.ip_network("172.16.0.0/12"),
+]
+
+@app.middleware("http")
+async def ip_whitelist_middleware(request: Request, call_next):
+    client_ip = request.client.host
+    try:
+        ip_obj = ipaddress.ip_address(client_ip)
+        # 检查是否属于允许的网段
+        is_allowed = any(ip_obj in net for net in ALLOWED_NETWORKS)
+    except ValueError:
+        is_allowed = False
+
+    if not is_allowed:
+        return JSONResponse(
+            status_code=status.HTTP_403_FORBIDDEN,
+            content={"detail": "Forbidden: IP address not allowed"},
+        )
+    return await call_next(request)
+
 # 5. 挂载路由
 from backend.routers.chat import router as chat_router
 from backend.routers.memory import router as memory_router
@@ -74,6 +102,6 @@ def health_check():
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 12701))
-    # 默认绑定 localhost 供本地访问，这样能同时兼容 IPv4 (127.0.0.1) 和 IPv6 (::1)
+    # 绑定 0.0.0.0 供局域网访问，并依靠上方的白名单中间件保障安全
     print(f"Starting backend server on port {port}...")
-    uvicorn.run("backend.main:app", host="localhost", port=port, reload=True)
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=port, reload=True)
