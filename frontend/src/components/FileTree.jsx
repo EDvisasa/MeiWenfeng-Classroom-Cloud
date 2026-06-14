@@ -453,6 +453,23 @@ export default function FileTree({
           </div>
         </div>
       )}
+
+      {/* 底部保留：因为是全盘同步，保留全局状态栏位置 */}
+      <div style={{ padding: '10px', background: 'var(--surface-color)', borderTop: '1px solid var(--border-color)' }}>
+        <h4 style={{ fontSize: '13px', margin: '0 0 10px 0', color: 'var(--text-secondary)' }}>知识库同步状态 (ChromaDB)</h4>
+        {Object.keys(syncStatus).length > 0 ? (
+          Object.entries(syncStatus).map(([filename, fileStatus]) => (
+            <div key={filename} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', marginBottom: '4px' }}>
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '150px' }}>📄 {filename}</span>
+              <span>{fileStatus.status === 'completed' || fileStatus.status === 'success' ? '🟢' : '🔄'}</span>
+            </div>
+          ))
+        ) : (
+          <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+            🟢 已连接 (暂无手动挂载的文档)
+          </div>
+        )}
+      </div>
     </section>
   );
 }

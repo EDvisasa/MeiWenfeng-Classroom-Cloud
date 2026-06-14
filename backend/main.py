@@ -15,6 +15,15 @@ load_dotenv(os.path.join(ROOT_DIR, ".env"))
 from backend.database import init_db
 init_db()
 
+# 2.5 预加载 ChromaDB (避免初次检索时卡顿和防止“加载”)
+try:
+    from backend.services.chroma_client import chroma_rag_client
+    print("Preloading ChromaDB...")
+    chroma_rag_client._ensure_client()
+    print("ChromaDB preloaded successfully.")
+except Exception as e:
+    print(f"Failed to preload ChromaDB: {e}")
+
 # 3. 创建 FastAPI 应用
 app = FastAPI(
     title="媚吻锋随身课堂 Backend",

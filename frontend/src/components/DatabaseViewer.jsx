@@ -168,9 +168,11 @@ export default function DatabaseViewer({ onClose }) {
                           if (typeof cellValue === 'object' && cellValue !== null) {
                             cellValue = JSON.stringify(cellValue);
                           }
-                          // Truncate long text
-                          const textStr = String(cellValue !== null ? cellValue : 'NULL');
-                          const isLong = textStr.length > 100;
+                          // Truncate long text to prevent DOM freezing
+                          let textStr = String(cellValue !== null ? cellValue : 'NULL');
+                          if (textStr.length > 200) {
+                            textStr = textStr.substring(0, 200) + '... (truncated, ' + textStr.length + ' chars)';
+                          }
                           return (
                             <td key={col} style={{ padding: '8px 12px', maxWidth: '300px' }}>
                               <div style={{

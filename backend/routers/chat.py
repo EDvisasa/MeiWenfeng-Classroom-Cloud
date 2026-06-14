@@ -33,6 +33,7 @@ def send_message(payload: ChatRequest):
     """发送对话消息，返回流式 EventSource"""
     # 提取最后一条用户消息
     last_user_msg = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+    original_last_user_msg = last_user_msg
     
     # 1. 转换消息格式
     formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content} for msg in payload.messages]
@@ -67,14 +68,28 @@ def send_message(payload: ChatRequest):
     import re
     import os
     import base64
-    # 匹配以 @ 开头的绝对路径（支持 Windows 和 Unix 风格，遇到空格结束）
-    path_matches = list(re.finditer(r'@([a-zA-Z]:\\[^\s<>"]+|/[^\s<>"]+)', last_user_msg))
+    # 匹配以 @ 开头的任何路径（绝对或相对，遇到空格结束）
+    path_matches = list(re.finditer(r'@([^\s<>"]+)', last_user_msg))
     for match in path_matches:
         full_match = match.group(0)
         file_path = match.group(1)
         
-        try:
-            if os.path.exists(file_path) and os.path.isfile(file_path):
+        resolved_path = None
+        if os.path.exists(file_path) and os.path.isfile(file_path):
+            resolved_path = file_path
+        elif payload.current_file_path and not os.path.isabs(file_path):
+            # Try to resolve relative path by searching upwards from current_file_path
+            curr_dir = os.path.dirname(payload.current_file_path)
+            while curr_dir and curr_dir != os.path.dirname(curr_dir):
+                candidate = os.path.join(curr_dir, file_path)
+                if os.path.exists(candidate) and os.path.isfile(candidate):
+                    resolved_path = candidate
+                    break
+                curr_dir = os.path.dirname(curr_dir)
+                
+        if resolved_path:
+            file_path = resolved_path
+            try:
                 ext = file_path.lower().split('.')[-1]
                 if ext in ['png', 'jpg', 'jpeg', 'webp', 'gif']:
                     # Image processing: vision multimodal format
@@ -118,8 +133,8 @@ def send_message(payload: ChatRequest):
                                     if item.get("type") == "text":
                                         item["text"] = item["text"].replace(full_match, f"{full_match} {file_info}")
                             break
-        except Exception as e:
-            logger.error(f"Failed to read mentioned file {file_path}: {e}")
+            except Exception as e:
+                logger.error(f"Failed to read mentioned file {file_path}: {e}")
 
     # 2. 从数据库加载好感度，用于拼接 System Prompt
     affection_value = 100
@@ -136,14 +151,28 @@ def send_message(payload: ChatRequest):
 
     # 提取最后一条用户消息用于 RAG 检索
     rag_context = ""
+    recent_memory_text = ""
     kb_count = 0
     mem_count = 0
-    if last_user_msg:
+    
+    # 提取最近几天的明确摘要（弥补向量数据库按时间检索的劣势）
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT timestamp, summary FROM memory_logs WHERE level IN (1, 2) ORDER BY timestamp DESC LIMIT 3")
+        recent_logs = cursor.fetchall()
+        conn.close()
+        if recent_logs:
+            recent_memory_text = "【近期日记摘要（优先级最高，包含最近2-3天的确切记忆）】\n" + "\n---\n".join([f"[{r['timestamp'].split()[0]}] {r['summary']}" for r in reversed(recent_logs)])
+    except Exception as e:
+        logger.error(f"Failed to fetch recent memory logs: {e}")
+
+    if original_last_user_msg:
         try:
             rag_client = get_rag_client()
-            kb_chunks = rag_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge"])
-            mem_chunks_from_kb = rag_client.retrieve(last_user_msg, dataset_names=["Memory_Knowledge"])
-            mem_chunks_raw = retrieve_memory(last_user_msg, n_results=3)
+            kb_chunks = rag_client.retrieve(original_last_user_msg, dataset_names=["Classroom_Knowledge"])
+            mem_chunks_from_kb = rag_client.retrieve(original_last_user_msg, dataset_names=["Memory_Knowledge"])
+            mem_chunks_raw = retrieve_memory(original_last_user_msg, n_results=3)
             
             # 兼容旧版返回字符串的情况
             if isinstance(kb_chunks, str): kb_chunks = [kb_chunks] if kb_chunks else []
@@ -170,8 +199,13 @@ def send_message(payload: ChatRequest):
         line_str = f"Line {payload.cursor_line}" if payload.cursor_line > 0 else "Unknown"
         system_prompt += f"\n\n<ide_context>\nThe user is currently viewing the following file in their VS Code editor:\n- File Name: {filename}\n- Absolute Path: {payload.current_file_path}\n- Cursor Position: {line_str}\nYou should use this context implicitly if the user asks about 'this file' or 'here'.\n</ide_context>"
 
-    if rag_context:
-        system_prompt += f"\n\n【附加背景知识库检索结果（作为世界观或讲义参考）】\n{rag_context}\n\n（请结合以上背景知识进行回答，若相关则自然地融入你的话语中，若无关则忽略）"
+    if recent_memory_text or rag_context:
+        system_prompt += "\n\n"
+        if recent_memory_text:
+            system_prompt += f"{recent_memory_text}\n\n"
+        if rag_context:
+            system_prompt += f"【附加背景知识库检索结果（作为世界观或长程记忆参考）】\n{rag_context}\n\n"
+        system_prompt += "（请结合以上近期日记和背景知识进行回答，保证时间线和记忆的连贯性）"
 
     def event_generator():
         accumulated_assistant_content = ""
@@ -203,9 +237,9 @@ def send_message(payload: ChatRequest):
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
         finally:
             # 流式结束时，将用户最后一条消息和助手的回复写入短期记忆 (Level 0)
-            if last_user_msg and accumulated_assistant_content:
+            if original_last_user_msg and accumulated_assistant_content:
                 try:
-                    memory_content = f"【对话记录】\n用户：{last_user_msg}\n媚吻锋：{accumulated_assistant_content}"
+                    memory_content = f"【对话记录】\n用户：{original_last_user_msg}\n媚吻锋：{accumulated_assistant_content}"
                     conn = get_db_connection()
                     cursor = conn.cursor()
                     cursor.execute(
@@ -213,6 +247,15 @@ def send_message(payload: ChatRequest):
                         (memory_content,)
                     )
                     conn.commit()
+                    
+                    # 自动压缩检查：如果未压缩的 Level 0 对话达到 10 条，触发后台归档压缩
+                    cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
+                    active_level0_count = cursor.fetchone()[0]
+                    if active_level0_count >= 10:
+                        import threading
+                        from backend.services.memory_decay import process_memory_decay
+                        threading.Thread(target=process_memory_decay, daemon=True).start()
+                        
                     conn.close()
                     save_memory_to_rag(last_user_msg, accumulated_assistant_content, level=0)
                 except Exception as e:
