@@ -16,6 +16,13 @@ class BashTool(AgentTool):
         command = params.get("command", "")
         if not command:
             return "[Error] No command provided."
+            
+        # Physical Guardrails to enforce tool usage
+        cmd_lower = command.strip().lower()
+        if "type " in cmd_lower or "cat " in cmd_lower or cmd_lower.startswith("type") or cmd_lower.startswith("cat"):
+            return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using 'type' or 'cat' to read files in bash. You MUST use the <call_tool name=\"read_file\"> tool instead."
+        if "findstr" in cmd_lower or "grep" in cmd_lower:
+            return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using 'findstr' or 'grep' in bash. You MUST use the <call_tool name=\"grep_search\"> tool instead."
         
         try:
             result = subprocess.run(command, shell=True, capture_output=True, timeout=10)
@@ -100,8 +107,49 @@ class ReadFileTool(AgentTool):
         content = "".join(sliced_lines)
         return content
 
+class GrepSearchTool(AgentTool):
+    name = "grep_search"
+    description = "Search for a query string in all text files within a directory."
+
+    def execute(self, params: dict) -> str:
+        dir_path = params.get("dir_path", "")
+        query = params.get("query", "")
+        if not dir_path or not query:
+            return "[Error] dir_path and query are required."
+        
+        if not os.path.isdir(dir_path):
+            return f"[Error] Directory not found: {dir_path}"
+            
+        results = []
+        max_results = 50
+        valid_exts = {'.txt', '.md', '.json', '.py', '.js', '.jsx', '.ts', '.tsx', '.html', '.css', '.csv', '.env'}
+        
+        for root, _, files in os.walk(dir_path):
+            for file in files:
+                ext = os.path.splitext(file)[1].lower()
+                if ext not in valid_exts:
+                    continue
+                    
+                file_path = os.path.join(root, file)
+                try:
+                    with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
+                        for i, line in enumerate(f, 1):
+                            if query.lower() in line.lower():
+                                results.append(f"{file_path}:{i}:{line.strip()}")
+                                if len(results) >= max_results:
+                                    results.append(f"\n[Warning: Output truncated at {max_results} results]")
+                                    return "\n".join(results)
+                except Exception:
+                    pass
+                    
+        if not results:
+            return f"No results found for '{query}' in {dir_path}."
+            
+        return "\n".join(results)
+
 # Register tools
 TOOL_REGISTRY = {
     BashTool.name: BashTool(),
-    ReadFileTool.name: ReadFileTool()
+    ReadFileTool.name: ReadFileTool(),
+    GrepSearchTool.name: GrepSearchTool()
 }

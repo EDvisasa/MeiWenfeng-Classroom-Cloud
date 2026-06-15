@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import ipaddress
 import threading
+from contextlib import asynccontextmanager
 
 import sys
 # 1. 查找并加载项目根目录的 .env 文件
@@ -14,24 +15,37 @@ ROOT_DIR = os.path.dirname(BACKEND_DIR)
 sys.path.insert(0, ROOT_DIR)
 load_dotenv(os.path.join(ROOT_DIR, ".env"))
 
-# 2. 初始化数据库
-from backend.database import init_db
-init_db()
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Startup (currently handled globally, can be moved here later)
+    # 2. 初始化数据库
+    from backend.database import init_db
+    init_db()
 
-# 2.5 预加载 ChromaDB (避免初次检索时卡顿和防止“加载”)
-try:
-    from backend.services.chroma_client import chroma_rag_client
-    print("Preloading ChromaDB...")
-    chroma_rag_client._ensure_client()
-    print("ChromaDB preloaded successfully.")
-except Exception as e:
-    print(f"Failed to preload ChromaDB: {e}")
+    # 2.5 预加载 ChromaDB (避免初次检索时卡顿和防止“加载”)
+    try:
+        from backend.services.chroma_client import chroma_rag_client
+        print("Preloading ChromaDB...")
+        chroma_rag_client._ensure_client()
+        print("ChromaDB preloaded successfully.")
+    except Exception as e:
+        print(f"Failed to preload ChromaDB: {e}")
+        
+    yield
+    # Shutdown: Windows 热重载僵尸进程终极杀手。
+    # 拦截到关闭信号时，延迟 1 秒后直接执行操作系统级别的进程抹杀，不给底层后台线程阻塞退出的机会。
+    if os.name == 'nt':
+        def kill_self():
+            os._exit(0)
+        # 给正常清理留出 1 秒的窗口期，然后强制拔电源
+        threading.Timer(1.0, kill_self).start()
 
 # 3. 创建 FastAPI 应用
 app = FastAPI(
     title="媚吻锋随身课堂 Backend",
     description="Python FastAPI backend serving character simulation and classroom data",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 # 3.5. 静态挂载用户本地图片资源
@@ -101,17 +115,7 @@ def health_check():
         "database": "classroom.db connected"
     }
 
-@app.on_event("shutdown")
-def force_shutdown():
-    """
-    Windows 热重载僵尸进程终极杀手。
-    拦截到关闭信号时，延迟 1 秒后直接执行操作系统级别的进程抹杀，不给底层后台线程阻塞退出的机会。
-    """
-    if os.name == 'nt':
-        def kill_self():
-            os._exit(0)
-        # 给正常清理留出 1 秒的窗口期，然后强制拔电源
-        threading.Timer(1.0, kill_self).start()
+
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 12701))

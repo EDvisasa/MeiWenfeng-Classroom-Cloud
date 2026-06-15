@@ -114,11 +114,12 @@ You have access to a local command-line terminal and file system tools.
 
 CRITICAL RULES:
 1. THINK BEFORE YOU ACT: You MUST ALWAYS start your response with a <thought> block to explain your plan and reasoning.
-2. ONE TOOL AT A TIME: You may only execute one tool call per turn. 
-3. STOP AND WAIT: After closing the </call_tool> tag, you MUST STOP generating immediately. The system will automatically reply with "[System Tool Result]".
+2. MULTIPLE TOOLS: You may execute multiple tool calls in a single turn by outputting multiple `<call_tool>` blocks back-to-back.
+3. STOP AND WAIT: After outputting your tool call(s), you MUST STOP generating immediately. DO NOT hallucinate the system's response. The system will automatically reply with "[System Tool Result]".
 4. ERROR RECOVERY: If the system execution result contains an error, analyze it in your next <thought> block and try a different command. Do NOT bother the user with technical errors.
-5. USE SPECIFIC TOOLS: You MUST use `read_file` to read file contents. NEVER use `cat` or `type` via `execute_bash`. If you don't know the exact file name, use `execute_bash` with `dir` or `ls` first to find the exact filename, then use `read_file`.
-6. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your roleplay persona (狐妖导师) to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
+5. USE SPECIFIC TOOLS: You MUST use `read_file` to read files. NEVER use `cat` or `type` via `execute_bash`. 
+6. ENFORCE SEARCH TOOL: To search for a specific string or keywords across files in a directory, you MUST use the `grep_search` tool. You are ABSOLUTELY FORBIDDEN from using `execute_bash` (like findstr, grep, or custom python scripts) to search files.
+7. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
 
 TOOL EXECUTION FORMAT:
 <thought>
@@ -136,6 +137,15 @@ I need to read lines 10 to 50 of config.json.
 <path>config.json</path>
 <start_line>10</start_line>
 <end_line>50</end_line>
+</call_tool>
+
+OR to search for a query across files in a directory:
+<thought>
+I need to find where 'login' is mentioned in the src folder.
+</thought>
+<call_tool name="grep_search">
+<dir_path>C:/path/to/src</dir_path>
+<query>login</query>
 </call_tool>
 
 Remember: ALWAYS start with <thought>. NEVER mix conversational text with tool calls. Be strictly silent (except for <thought>) until the work is done.
@@ -159,7 +169,7 @@ Remember: ALWAYS start with <thought>. NEVER mix conversational text with tool c
                     "messages": current_messages,
                     "stream": True,
                     "temperature": 1.0,
-                    "stop": ["</call_tool>", "</execute_bash>"]
+                    "stop": ["[System"]
                 }
                 if max_tokens > 0:
                     kwargs["max_tokens"] = max_tokens
@@ -185,70 +195,75 @@ Remember: ALWAYS start with <thought>. NEVER mix conversational text with tool c
                 import re
                 import xml.etree.ElementTree as ET
                 
-                tool_name = None
-                tool_param = {}
-                command_str = ""
+                matches = re.finditer(r'<call_tool[^>]*>.*?(?:</call_tool>|$)', full_content, re.DOTALL)
+                tools_to_run = []
                 
-                # 新版 XML 解析
-                match_new = re.search(r'<call_tool[^>]*>.*?(?:</call_tool>|$)', full_content, re.DOTALL)
-                if match_new:
-                    tool_xml = match_new.group(0)
+                for match in matches:
+                    tool_xml = match.group(0)
                     if not tool_xml.endswith("</call_tool>"):
                         tool_xml += "</call_tool>"
                     try:
                         root = ET.fromstring(tool_xml)
-                        tool_name = root.attrib.get("name")
+                        t_name = root.attrib.get("name")
+                        t_param = {}
                         for child in root:
-                            tool_param[child.tag] = child.text if child.text else ""
+                            t_param[child.tag] = child.text if child.text else ""
                             
-                        # 给前端展示用的友好字符串
-                        if tool_name == "read_file":
-                            path = tool_param.get("path", "")
-                            start_line = tool_param.get("start_line", "")
-                            end_line = tool_param.get("end_line", "")
+                        c_str = ""
+                        if t_name == "read_file":
+                            path = t_param.get("path", "")
+                            start_line = t_param.get("start_line", "")
+                            end_line = t_param.get("end_line", "")
                             if start_line and end_line:
-                                command_str = f"{path} (Lines {start_line}-{end_line})"
+                                c_str = f"{path} (Lines {start_line}-{end_line})"
                             elif start_line:
-                                command_str = f"{path} (From line {start_line})"
+                                c_str = f"{path} (From line {start_line})"
                             else:
-                                command_str = path
+                                c_str = path
+                        elif t_name == "grep_search":
+                            c_str = f"Search '{t_param.get('query', '')}' in {t_param.get('dir_path', '')}"
                         else:
-                            command_str = tool_param.get("command", str(tool_param))
-                    except Exception as e:
+                            c_str = t_param.get("command", str(t_param))
+                            
+                        if t_name:
+                            tools_to_run.append({"name": t_name, "param": t_param, "command_str": c_str})
+                    except Exception:
                         pass
                 
-                # 兼容旧版 <execute_bash> 标签 (以防模型没按新规矩来)
-                if not tool_name:
+                # 兼容旧版 <execute_bash> 标签
+                if not tools_to_run:
                     match_old = re.search(r'<execute_bash>(.*?)(?:</execute_bash>|$)', full_content, re.DOTALL)
                     if match_old:
-                        tool_name = "execute_bash"
-                        command_str = match_old.group(1).strip()
-                        tool_param = {"command": command_str}
+                        c_str = match_old.group(1).strip()
+                        tools_to_run.append({"name": "execute_bash", "param": {"command": c_str}, "command_str": c_str})
                 
-                if not tool_name:
+                if not tools_to_run:
                     break # 结束对话
                 
                 current_messages.append({
                     "role": "assistant",
-                    "content": full_content + ("</call_tool>" if match_new and "</call_tool>" not in full_content else "")
+                    "content": full_content
                 })
                 
-                yield {"type": "tool_start", "tool_name": tool_name, "command": command_str}
+                system_result_text = ""
+                for idx, t in enumerate(tools_to_run):
+                    yield {"type": "tool_start", "tool_name": t["name"], "command": t["command_str"]}
+                    
+                    if t["name"] in TOOL_REGISTRY:
+                        output = TOOL_REGISTRY[t["name"]].execute(t["param"])
+                    else:
+                        output = f"[Error] Unknown tool: {t['name']}"
+                        
+                    yield {"type": "tool_output", "text": output}
+                    yield {"type": "tool_end"}
+                    
+                    system_result_text += f"[System Tool Result {idx+1}]:\n{output}\n\n"
                 
-                if tool_name in TOOL_REGISTRY:
-                    output = TOOL_REGISTRY[tool_name].execute(tool_param)
-                else:
-                    output = f"[Error] Unknown tool: {tool_name}"
-                
-                yield {"type": "tool_output", "text": output}
-                
-                # 将工具执行结果喂给模型
+                # 将所有并发执行结果合并喂给模型
                 current_messages.append({
                     "role": "user",
-                    "content": f"[System Tool Result]:\n{output}\n\n请根据上述结果继续分析，或者如果信息足够，请立刻使用狐妖人格进行最终回复（最终回复绝不能包含任何XML标签）。"
+                    "content": f"{system_result_text}请根据上述结果继续分析，或者如果信息足够，请立刻使用你当前的人设进行最终回复（最终回复绝不能包含任何XML标签）。"
                 })
-                
-                yield {"type": "tool_end"}
                         
         except Exception as e:
             logger.error(f"Error during OpenAI stream chat: {e}", exc_info=True)

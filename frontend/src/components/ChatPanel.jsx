@@ -3,7 +3,8 @@ import React from 'react';
 const ToolBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
   const friendlyName = block.tool_name === 'execute_bash' ? 'Bash'
-    : block.tool_name === 'read_file' ? 'FileRead'
+    : block.tool_name === 'read_file' ? 'Read'
+    : block.tool_name === 'grep_search' ? 'Grep'
     : block.tool_name === 'default_api:run_command' ? 'Bash'
       : block.tool_name;
 
