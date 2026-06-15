@@ -112,10 +112,10 @@ export default function ChatPanel({
   activeSessionId,
   onNewSession,
   onSwitchSession,
-  onDeleteSession,
   showSessionList,
   setShowSessionList,
-  selectedFilePath
+  selectedFilePath,
+  stopGeneration
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -574,17 +574,29 @@ export default function ChatPanel({
               )}
             </div>
 
-            {/* 右侧：发送按钮 */}
-            <button
-              className="send-button"
-              onClick={sendMessage}
-              disabled={!inputText.trim() || isStreaming}
-              title="发送消息"
-            >
-              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                <path d="M8 1l6 6h-5v8H7V7H2l6-6z" />
-              </svg>
-            </button>
+            {/* 右侧：发送/停止按钮 */}
+            {isStreaming ? (
+              <button
+                className="stop-button pulse-stop"
+                onClick={stopGeneration}
+                title="停止生成"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <rect x="3" y="3" width="10" height="10" rx="2" />
+                </svg>
+              </button>
+            ) : (
+              <button
+                className="send-button"
+                onClick={sendMessage}
+                disabled={!inputText.trim()}
+                title="发送消息"
+              >
+                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                  <path d="M8 1l6 6h-5v8H7V7H2l6-6z" />
+                </svg>
+              </button>
+            )}
           </div>
         </div>
       </div>

@@ -210,6 +210,7 @@ def send_message(payload: ChatRequest):
 
     def event_generator():
         accumulated_assistant_content = ""
+        was_aborted = False
         try:
             if kb_count > 0 or mem_count > 0:
                 parts = []
@@ -230,7 +231,11 @@ def send_message(payload: ChatRequest):
                 else:
                     accumulated_assistant_content += chunk
                     yield f"data: {json_escape(chunk)}\n\n"
-        except BaseException as e:
+        except GeneratorExit:
+            was_aborted = True
+            logger.info("Client disconnected/aborted. Skipping database save.")
+            raise
+        except Exception as e:
             import traceback
             with open("debug_error.log", "a", encoding="utf-8") as f:
                 f.write(f"CRASH CAUGHT: {type(e).__name__}: {str(e)}\n")
@@ -238,7 +243,7 @@ def send_message(payload: ChatRequest):
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
         finally:
             # 流式结束时，将用户最后一条消息和助手的回复写入短期记忆 (Level 0)
-            if original_last_user_msg and accumulated_assistant_content:
+            if not was_aborted and original_last_user_msg and accumulated_assistant_content:
                 try:
                     memory_content = f"【对话记录】\n用户：{original_last_user_msg}\n媚吻锋：{accumulated_assistant_content}"
                     conn = get_db_connection()

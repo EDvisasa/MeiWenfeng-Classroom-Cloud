@@ -43,6 +43,7 @@ export default function App() {
 
   const [inputText, setInputText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const abortControllerRef = useRef(null);
   const [showDbViewer, setShowDbViewer] = useState(false);
   const [showMobileStatus, setShowMobileStatus] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('mei_theme') || 'light');
@@ -957,15 +958,25 @@ export default function App() {
     await triggerAIResponse(nextMessages);
   };
 
+  // 停止对话生成
+  const stopGeneration = () => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
+  };
+
   // 请求 API 获取流式回复
   const triggerAIResponse = async (history) => {
     setIsStreaming(true);
+    abortControllerRef.current = new AbortController();
     const apiPayload = history.filter(m => m.role === 'user' || m.role === 'assistant');
 
     try {
       const response = await fetch(`${API_BASE}/api/chat/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
+        signal: abortControllerRef.current.signal,
         body: JSON.stringify({
           messages: apiPayload,
           persona_type: personaType,
@@ -1081,38 +1092,56 @@ export default function App() {
       }
 
       setMessages(prev => {
-        const updated = [...prev];
-        if (updated.length > 0) {
-          const lastMsg = updated[updated.length - 1];
-          lastMsg.streaming = false;
-          if (lastMsg.blocks) {
-            lastMsg.blocks.forEach(b => b.status = 'done');
+        return prev.map(msg => {
+          if (msg.streaming) {
+            const newMsg = { ...msg, streaming: false };
+            if (newMsg.blocks) {
+              newMsg.blocks.forEach(b => b.status = 'done');
+            }
+            return newMsg;
           }
-        }
-        return updated;
+          return msg;
+        });
       });
 
       fetchStatus();
 
     } catch (e) {
-      console.error(e);
-      setMessages(prev => {
-        const updated = [...prev];
+      if (e.name === 'AbortError') {
+        console.log('Generation aborted by user.');
+        setMessages(prev => {
+          return prev.map(msg => {
+            if (msg.streaming) {
+              return { ...msg, streaming: false };
+            }
+            return msg;
+          });
+        });
+      } else {
+        console.error(e);
         const errorMsg = `*脸色微变，捂着额头，有些懊恼地蹙眉道：*“哎呀夫君...奴家好像开小差了（后端连接中断，可能是代理超时或 FastAPI 崩溃）。要不咱们重试一下？”\n\n**前端报错详情:** \`${e.message}\``;
-
-        if (updated.length > 0 && updated[updated.length - 1].streaming) {
-          // Deep clone the last message to avoid React StrictMode double-mutation bug
-          const lastMsg = { ...updated[updated.length - 1] };
-          lastMsg.content = (lastMsg.content || '') + `\n\n[系统错误] ` + errorMsg;
-          lastMsg.streaming = false;
-          updated[updated.length - 1] = lastMsg;
-        } else {
-          updated.push({ role: 'assistant', content: `[系统错误] ` + errorMsg });
-        }
-        return updated;
-      });
+        setMessages(prev => {
+          const updated = prev.map(msg => {
+            if (msg.streaming) {
+              return { 
+                ...msg, 
+                streaming: false,
+                content: (msg.content || '') + `\n\n[系统错误] ` + errorMsg 
+              };
+            }
+            return msg;
+          });
+          
+          // 如果没有任何消息在 streaming 状态，就在末尾追加报错
+          if (!prev.some(msg => msg.streaming)) {
+            updated.push({ role: 'assistant', content: `[系统错误] ` + errorMsg });
+          }
+          return updated;
+        });
+      }
     } finally {
       setIsStreaming(false);
+      abortControllerRef.current = null;
     }
   };
 
@@ -1273,6 +1302,7 @@ export default function App() {
             handleInputChange={handleInputChange}
             handleKeyDown={handleKeyDown}
             sendMessage={sendMessage}
+            stopGeneration={stopGeneration}
             isStreaming={isStreaming}
             executeSlashCommand={executeSlashCommand}
             chatEndRef={chatEndRef}
