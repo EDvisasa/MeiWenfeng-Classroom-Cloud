@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-
+import { API_BASE } from '../config';
 export default function DatabaseViewer({ onClose }) {
   const [tables, setTables] = useState([]);
   const [selectedTable, setSelectedTable] = useState('');
