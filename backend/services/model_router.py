@@ -4,6 +4,7 @@ import logging
 from typing import Generator, List, Dict
 from openai import OpenAI
 from backend.database import get_db_connection
+from backend.services.agent_tools import TOOL_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -108,32 +109,34 @@ def stream_chat(
 
             system_injection = f"""
 <tool_use_guidelines>
-You have access to a local command-line terminal. 
+You have access to a local command-line terminal and file system tools. 
 {os_instruction}
 
-When you need to gather information, explore directories, read files, or execute scripts, you MUST use the terminal tool BEFORE providing your final response.
-
 CRITICAL RULES:
-1. THINK BEFORE YOU ACT: You MUST ALWAYS start your response with a <thought> block to explain your plan and reasoning. NEVER use a tool without thinking first.
-2. ONE TOOL AT A TIME: You may only execute one terminal command per turn. 
-3. STOP AND WAIT: After closing the </execute_bash> tag, you MUST STOP generating immediately. Do not add any text after it. The system will automatically reply with "[系统返回的执行结果]".
-4. ERROR RECOVERY: If the system execution result contains an error (e.g., file not found, syntax error), analyze the error in your next <thought> block and try a different command. Do NOT bother the user with technical terminal errors.
-5. NO CHITCHAT DURING WORK: If you need to use the tool, do NOT output any conversational text, pleasantries, or roleplay. ONLY output your <thought> and the <execute_bash> call.
-6. FINAL RESPONSE: Only when you have gathered all necessary information, you may output your final conversational and roleplay response.
+1. THINK BEFORE YOU ACT: You MUST ALWAYS start your response with a <thought> block to explain your plan and reasoning.
+2. ONE TOOL AT A TIME: You may only execute one tool call per turn. 
+3. STOP AND WAIT: After closing the </call_tool> tag, you MUST STOP generating immediately. The system will automatically reply with "[System Tool Result]".
+4. ERROR RECOVERY: If the system execution result contains an error, analyze it in your next <thought> block and try a different command. Do NOT bother the user with technical errors.
+5. USE SPECIFIC TOOLS: You MUST use `read_file` to read file contents. NEVER use `cat` or `type` via `execute_bash`. If you don't know the exact file name, use `execute_bash` with `dir` or `ls` first to find the exact filename, then use `read_file`.
+6. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your roleplay persona (狐妖导师) to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
 
 TOOL EXECUTION FORMAT:
 <thought>
-I need to check the current directory contents to find the user's file.
+I need to check the current directory contents.
 </thought>
-<execute_bash>
-{"dir" if current_os == "Windows" else "ls -la"}
-</execute_bash>
+<call_tool name="execute_bash">
+<command>{"dir" if current_os == "Windows" else "ls -la"}</command>
+</call_tool>
 
-FINAL RESPONSE FORMAT:
+OR to read a file (optionally specifying lines to read):
 <thought>
-I have gathered all the necessary information from the file. I will now reply to the user.
+I need to read lines 10 to 50 of config.json.
 </thought>
-[Your final roleplay response goes here]
+<call_tool name="read_file">
+<path>config.json</path>
+<start_line>10</start_line>
+<end_line>50</end_line>
+</call_tool>
 
 Remember: ALWAYS start with <thought>. NEVER mix conversational text with tool calls. Be strictly silent (except for <thought>) until the work is done.
 </tool_use_guidelines>
@@ -156,6 +159,7 @@ Remember: ALWAYS start with <thought>. NEVER mix conversational text with tool c
                     "messages": current_messages,
                     "stream": True,
                     "temperature": 1.0,
+                    "stop": ["</call_tool>", "</execute_bash>"]
                 }
                 if max_tokens > 0:
                     kwargs["max_tokens"] = max_tokens
@@ -179,48 +183,69 @@ Remember: ALWAYS start with <thought>. NEVER mix conversational text with tool c
                             
                 # 检查是否包含工具调用
                 import re
-                match = re.search(r'<execute_bash>(.*?)</execute_bash>', full_content, re.DOTALL)
+                import xml.etree.ElementTree as ET
                 
-                if not match:
+                tool_name = None
+                tool_param = {}
+                command_str = ""
+                
+                # 新版 XML 解析
+                match_new = re.search(r'<call_tool[^>]*>.*?(?:</call_tool>|$)', full_content, re.DOTALL)
+                if match_new:
+                    tool_xml = match_new.group(0)
+                    if not tool_xml.endswith("</call_tool>"):
+                        tool_xml += "</call_tool>"
+                    try:
+                        root = ET.fromstring(tool_xml)
+                        tool_name = root.attrib.get("name")
+                        for child in root:
+                            tool_param[child.tag] = child.text if child.text else ""
+                            
+                        # 给前端展示用的友好字符串
+                        if tool_name == "read_file":
+                            path = tool_param.get("path", "")
+                            start_line = tool_param.get("start_line", "")
+                            end_line = tool_param.get("end_line", "")
+                            if start_line and end_line:
+                                command_str = f"{path} (Lines {start_line}-{end_line})"
+                            elif start_line:
+                                command_str = f"{path} (From line {start_line})"
+                            else:
+                                command_str = path
+                        else:
+                            command_str = tool_param.get("command", str(tool_param))
+                    except Exception as e:
+                        pass
+                
+                # 兼容旧版 <execute_bash> 标签 (以防模型没按新规矩来)
+                if not tool_name:
+                    match_old = re.search(r'<execute_bash>(.*?)(?:</execute_bash>|$)', full_content, re.DOTALL)
+                    if match_old:
+                        tool_name = "execute_bash"
+                        command_str = match_old.group(1).strip()
+                        tool_param = {"command": command_str}
+                
+                if not tool_name:
                     break # 结束对话
-                    
-                command = match.group(1).strip()
                 
                 current_messages.append({
                     "role": "assistant",
-                    "content": full_content
+                    "content": full_content + ("</call_tool>" if match_new and "</call_tool>" not in full_content else "")
                 })
                 
-                yield {"type": "tool_start", "tool_name": "execute_bash", "command": command}
+                yield {"type": "tool_start", "tool_name": tool_name, "command": command_str}
                 
-                import subprocess
-                try:
-                    result = subprocess.run(command, shell=True, capture_output=True, timeout=10)
-                    
-                    try:
-                        stdout_str = result.stdout.decode('utf-8')
-                    except UnicodeDecodeError:
-                        stdout_str = result.stdout.decode('gbk', errors='replace')
-                        
-                    try:
-                        stderr_str = result.stderr.decode('utf-8')
-                    except UnicodeDecodeError:
-                        stderr_str = result.stderr.decode('gbk', errors='replace')
-                        
-                    output = stdout_str + stderr_str
-                    if not output.strip():
-                        output = "[Command executed successfully with no output]"
-                except subprocess.TimeoutExpired:
-                    output = "[Error] Command timed out after 10 seconds."
-                except Exception as e:
-                    output = f"[Error] {e}"
+                if tool_name in TOOL_REGISTRY:
+                    output = TOOL_REGISTRY[tool_name].execute(tool_param)
+                else:
+                    output = f"[Error] Unknown tool: {tool_name}"
                 
                 yield {"type": "tool_output", "text": output}
                 
                 # 将工具执行结果喂给模型
                 current_messages.append({
                     "role": "user",
-                    "content": f"[系统返回的执行结果]:\n{output}\n\n请根据上述结果继续回答或执行下一步。"
+                    "content": f"[System Tool Result]:\n{output}\n\n请根据上述结果继续分析，或者如果信息足够，请立刻使用狐妖人格进行最终回复（最终回复绝不能包含任何XML标签）。"
                 })
                 
                 yield {"type": "tool_end"}

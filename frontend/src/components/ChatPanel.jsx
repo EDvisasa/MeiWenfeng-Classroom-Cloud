@@ -3,6 +3,7 @@ import React from 'react';
 const ToolBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
   const friendlyName = block.tool_name === 'execute_bash' ? 'Bash'
+    : block.tool_name === 'read_file' ? 'FileRead'
     : block.tool_name === 'default_api:run_command' ? 'Bash'
       : block.tool_name;
 
@@ -156,6 +157,7 @@ export default function ChatPanel({
         let text = b.text || '';
         text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
         text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
+        text = text.replace(/<call_tool[\s\S]*?(?:<\/call_tool>|$)/g, '').trim();
 
         const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
         let match;

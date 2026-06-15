@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import ipaddress
+import threading
 
 import sys
 # 1. 查找并加载项目根目录的 .env 文件
@@ -99,6 +100,18 @@ def health_check():
         "app": "媚吻锋随身课堂 Backend",
         "database": "classroom.db connected"
     }
+
+@app.on_event("shutdown")
+def force_shutdown():
+    """
+    Windows 热重载僵尸进程终极杀手。
+    拦截到关闭信号时，延迟 1 秒后直接执行操作系统级别的进程抹杀，不给底层后台线程阻塞退出的机会。
+    """
+    if os.name == 'nt':
+        def kill_self():
+            os._exit(0)
+        # 给正常清理留出 1 秒的窗口期，然后强制拔电源
+        threading.Timer(1.0, kill_self).start()
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 12701))
