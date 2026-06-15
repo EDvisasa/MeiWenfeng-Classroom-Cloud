@@ -9,7 +9,8 @@ from backend.database import get_db_connection
 from backend.services.model_router import stream_chat
 from backend.services.prompts import get_system_prompt
 from backend.services.rag_factory import get_rag_client, save_memory_to_rag, retrieve_memory
-from backend.services.slash_handler import handle_slash_command
+from backend.services.slash_handler import handle_slash_command, _register_pipeline_handlers
+from backend.services.response_pipeline import ResponsePipeline, json_escape
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -25,21 +26,17 @@ class ChatRequest(BaseModel):
     cursor_line: int = 0
     custom_max_tokens: int = 8192
 
-def json_escape(text: str) -> str:
-    """包装为 JSON 字符串，便于前端原样解析"""
-    return json.dumps({"text": text}, ensure_ascii=False)
-
 @router.post("/send")
 def send_message(payload: ChatRequest):
     """发送对话消息，返回流式 EventSource"""
     # 提取最后一条用户消息
     last_user_msg = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
     original_last_user_msg = last_user_msg
-    
+
     # 1. 转换消息格式
     formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content} for msg in payload.messages]
     cleaned_messages = [{"role": m["role"], "content": m["content"]} for m in formatted_messages]
-    
+
     # 拦截斜杠指令
     clean_msg = last_user_msg.strip()
     if clean_msg.startswith('/') or clean_msg in ("/update_persona",):
@@ -52,11 +49,11 @@ def send_message(payload: ChatRequest):
             if os.path.exists(payload.current_file_path) and os.path.isfile(payload.current_file_path):
                 with open(payload.current_file_path, "r", encoding="utf-8", errors="ignore") as f:
                     file_content = f.read()
-                
+
                 # Replace "@current_file" with the file content in the last user message
                 file_info = f"\n\n<file_content filename=\"{os.path.basename(payload.current_file_path)}\">\n{file_content}\n</file_content>\n"
                 last_user_msg = last_user_msg.replace("@current_file", f"@current_file {file_info}")
-                
+
                 # Update the cleaned_messages for the AI
                 for msg in reversed(cleaned_messages):
                     if msg["role"] == "user":
@@ -74,7 +71,7 @@ def send_message(payload: ChatRequest):
     for match in path_matches:
         full_match = match.group(0)
         file_path = match.group(1)
-        
+
         resolved_path = None
         if os.path.exists(file_path) and os.path.isfile(file_path):
             resolved_path = file_path
@@ -87,7 +84,7 @@ def send_message(payload: ChatRequest):
                     resolved_path = candidate
                     break
                 curr_dir = os.path.dirname(curr_dir)
-                
+
         if resolved_path:
             file_path = resolved_path
             try:
@@ -97,10 +94,10 @@ def send_message(payload: ChatRequest):
                     with open(file_path, "rb") as f:
                         img_data = base64.b64encode(f.read()).decode('utf-8')
                     mime_type = "image/jpeg" if ext in ['jpg', 'jpeg'] else f"image/{ext}"
-                    
+
                     replacement_text = f"<image_attached filename=\"{os.path.basename(file_path)}\"/>"
                     last_user_msg = last_user_msg.replace(full_match, replacement_text)
-                    
+
                     for msg in reversed(cleaned_messages):
                         if msg["role"] == "user":
                             if isinstance(msg["content"], str):
@@ -111,7 +108,7 @@ def send_message(payload: ChatRequest):
                                 for item in msg["content"]:
                                     if item.get("type") == "text":
                                         item["text"] = item["text"].replace(full_match, replacement_text)
-                            
+
                             msg["content"].append({
                                 "type": "image_url",
                                 "image_url": {"url": f"data:{mime_type};base64,{img_data}"}
@@ -121,10 +118,10 @@ def send_message(payload: ChatRequest):
                     # Text processing
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         file_content = f.read()
-                    
+
                     file_info = f"\n\n<file_content filename=\"{os.path.basename(file_path)}\">\n{file_content}\n</file_content>\n"
                     last_user_msg = last_user_msg.replace(full_match, f"{full_match} {file_info}")
-                    
+
                     for msg in reversed(cleaned_messages):
                         if msg["role"] == "user":
                             if isinstance(msg["content"], str):
@@ -155,7 +152,7 @@ def send_message(payload: ChatRequest):
     recent_memory_text = ""
     kb_count = 0
     mem_count = 0
-    
+
     # 提取最近几天的明确摘要（弥补向量数据库按时间检索的劣势）
     try:
         conn = get_db_connection()
@@ -174,18 +171,18 @@ def send_message(payload: ChatRequest):
             kb_chunks = rag_client.retrieve(original_last_user_msg, dataset_names=["Classroom_Knowledge"])
             mem_chunks_from_kb = rag_client.retrieve(original_last_user_msg, dataset_names=["Memory_Knowledge"])
             mem_chunks_raw = retrieve_memory(original_last_user_msg, n_results=3)
-            
+
             # 兼容旧版返回字符串的情况
             if isinstance(kb_chunks, str): kb_chunks = [kb_chunks] if kb_chunks else []
             if isinstance(mem_chunks_from_kb, str): mem_chunks_from_kb = [mem_chunks_from_kb] if mem_chunks_from_kb else []
             if isinstance(mem_chunks_raw, str): mem_chunks_raw = [mem_chunks_raw] if mem_chunks_raw else []
-            
+
             kb_chunks = [p for p in kb_chunks if p]
             mem_chunks = [p for p in mem_chunks_from_kb + mem_chunks_raw if p]
-            
+
             kb_count = len(kb_chunks)
             mem_count = len(mem_chunks)
-            
+
             all_chunks = kb_chunks + mem_chunks
             if all_chunks:
                 rag_context = "\n\n".join(all_chunks)
@@ -193,7 +190,7 @@ def send_message(payload: ChatRequest):
             logger.error(f"RAG Retrieval failed: {e}")
 
     system_prompt = get_system_prompt(affection_value, payload.persona_type)
-    
+
     if payload.current_file_path:
         import os
         filename = os.path.basename(payload.current_file_path)
@@ -208,9 +205,10 @@ def send_message(payload: ChatRequest):
             system_prompt += f"【附加背景知识库检索结果（作为世界观或长程记忆参考）】\n{rag_context}\n\n"
         system_prompt += "（请结合以上近期日记和背景知识进行回答，保证时间线和记忆的连贯性）"
 
+    pipeline = ResponsePipeline(original_user_msg=original_last_user_msg)
+    _register_pipeline_handlers(pipeline)
+
     def event_generator():
-        accumulated_assistant_content = ""
-        was_aborted = False
         try:
             if kb_count > 0 or mem_count > 0:
                 parts = []
@@ -218,55 +216,14 @@ def send_message(payload: ChatRequest):
                 if mem_count > 0: parts.append(f"{mem_count} 个长期记忆")
                 hint_text = f"🔍 成功检索并加载：{' 和 '.join(parts)}"
                 yield f"data: {json.dumps({'type': 'system_hint', 'text': hint_text}, ensure_ascii=False)}\n\n"
-                
+
             content_stream = stream_chat(cleaned_messages, system_prompt, max_tokens=payload.custom_max_tokens)
-            for chunk in content_stream:
-                if isinstance(chunk, dict):
-                    if chunk.get("type") == "text" or "text" in chunk and not chunk.get("type"):
-                        accumulated_assistant_content += chunk.get("text", "")
-                    elif chunk.get("type") == "tool_output":
-                        # Also accumulate tool output so it gets saved? No, usually tool outputs are separate messages.
-                        pass
-                    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
-                else:
-                    accumulated_assistant_content += chunk
-                    yield f"data: {json_escape(chunk)}\n\n"
-        except GeneratorExit:
-            was_aborted = True
-            logger.info("Client disconnected/aborted. Skipping database save.")
-            raise
+            yield from pipeline.process_stream(content_stream)
         except Exception as e:
             import traceback
             with open("debug_error.log", "a", encoding="utf-8") as f:
                 f.write(f"CRASH CAUGHT: {type(e).__name__}: {str(e)}\n")
                 traceback.print_exc(file=f)
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
-        finally:
-            # 流式结束时，将用户最后一条消息和助手的回复写入短期记忆 (Level 0)
-            if not was_aborted and original_last_user_msg and accumulated_assistant_content:
-                try:
-                    memory_content = f"【对话记录】\n用户：{original_last_user_msg}\n媚吻锋：{accumulated_assistant_content}"
-                    conn = get_db_connection()
-                    cursor = conn.cursor()
-                    cursor.execute(
-                        "INSERT INTO memory_logs (content, level, status) VALUES (?, 0, 'active')",
-                        (memory_content,)
-                    )
-                    conn.commit()
-                    
-                    # 自动压缩检查：如果未压缩的 Level 0 对话达到 10 条，触发后台归档压缩
-                    cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
-                    active_level0_count = cursor.fetchone()[0]
-                    if active_level0_count >= 10:
-                        import threading
-                        from backend.services.memory_decay import process_memory_decay
-                        threading.Thread(target=process_memory_decay, daemon=True).start()
-                        
-                    conn.close()
-                    save_memory_to_rag(last_user_msg, accumulated_assistant_content, level=0)
-                except Exception as e:
-                    logger.error(f"Failed to save memory: {e}")
-            
+
     return StreamingResponse(event_generator(), media_type="text/event-stream")
-
-
