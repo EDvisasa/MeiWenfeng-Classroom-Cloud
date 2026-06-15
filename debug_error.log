@@ -10,3 +10,23 @@ Traceback (most recent call last):
     else:
     
 UnboundLocalError: cannot access local variable 'json' where it is not associated with a value
+CRASH CAUGHT: GeneratorExit: 
+Traceback (most recent call last):
+  File "D:\MeiWenfeng-Classroom\backend\routers\chat.py", line 229, in event_generator
+    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+GeneratorExit
+CRASH CAUGHT: GeneratorExit: 
+Traceback (most recent call last):
+  File "D:\MeiWenfeng-Classroom\backend\routers\chat.py", line 229, in event_generator
+    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+GeneratorExit
+CRASH CAUGHT: GeneratorExit: 
+Traceback (most recent call last):
+  File "D:\MeiWenfeng-Classroom\backend\routers\chat.py", line 229, in event_generator
+    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+GeneratorExit
+CRASH CAUGHT: GeneratorExit: 
+Traceback (most recent call last):
+  File "D:\MeiWenfeng-Classroom\backend\routers\chat.py", line 229, in event_generator
+    yield f"data: {json.dumps(chunk, ensure_ascii=False)}\n\n"
+GeneratorExit

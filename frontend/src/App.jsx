@@ -31,7 +31,7 @@ const TIPS_LIST = [
 
 export default function App() {
   const [sessions, setSessions] = useState([]);
-  
+
   // 后端加载与超时状态
   const [isBackendReady, setIsBackendReady] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState('connecting'); // 'connecting', 'restarting', 'timeout', 'failed'
@@ -47,7 +47,7 @@ export default function App() {
   const [showMobileStatus, setShowMobileStatus] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('mei_theme') || 'light');
   const [showSessionList, setShowSessionList] = useState(false);
-  
+
   // 检测是否在 VS Code 插件环境中运行
   const isVsCode = new URLSearchParams(window.location.search).get('env') === 'vscode';
 
@@ -115,7 +115,7 @@ export default function App() {
         }
       ]
     };
-    
+
     setSessions(prev => [newSession, ...prev]);
     setActiveSessionId(newId);
     localStorage.setItem('mei_wenfeng_classroom_active_session_id', newId);
@@ -126,10 +126,10 @@ export default function App() {
   const handleDeleteSession = async (sessionId, e) => {
     if (e) e.stopPropagation();
     if (isStreaming) return;
-    
+
     const filtered = sessions.filter(s => s.id !== sessionId);
     let nextSessions = filtered;
-    
+
     try {
       await fetch(`${API_BASE}/api/chat/sessions/${sessionId}`, {
         method: 'DELETE'
@@ -153,7 +153,7 @@ export default function App() {
       nextSessions = [defaultSess];
       await syncSessionToBackend(defaultSess);
     }
-    
+
     setSessions(nextSessions);
 
     if (activeSessionId === sessionId) {
@@ -166,12 +166,12 @@ export default function App() {
 
   const handleEditAndResend = async (index, newContent) => {
     if (isStreaming) return;
-    
+
     // 截断到 index
     const truncated = messages.slice(0, index);
     const editedMessage = { role: 'user', content: newContent };
     const nextMessages = [...truncated, editedMessage];
-    
+
     setMessages(nextMessages);
     await triggerAIResponse(nextMessages);
   };
@@ -271,7 +271,7 @@ export default function App() {
     setShowCropModal(false);
     setImageSrc(null);
   };
-  
+
   // 字体大小设置
   const [fontSize, setFontSize] = useState(parseInt(localStorage.getItem('chat_font_size')) || 16);
   const handleFontSizeChange = (e) => {
@@ -297,7 +297,7 @@ export default function App() {
     setMaxTokens(val);
     localStorage.setItem('max_tokens', val.toString());
   };
-  
+
   // 状态与配置
   const [activeModel, setActiveModel] = useState('DeepSeek (在线)');
   const [activeSubModel, setActiveSubModel] = useState('');
@@ -342,15 +342,15 @@ export default function App() {
       { role: 'system_info', content: `[人设切换] 已切换导师人设为：${type === 'simplified' ? '精简人设' : '原版人设'}` }
     ]);
   };
-  
+
   // 角色本地图片包列表 (兼容状态)
   const [avatarList, setAvatarList] = useState([]);
-  
+
   // 真实本地文件系统挂载路径和选定状态
   const [rootPath, setRootPath] = useState('D:/MeiWenfeng-Classroom');
   const [selectedFilePath, setSelectedFilePath] = useState('');
   const [selectedFileContent, setSelectedFileContent] = useState('');
-  
+
   // 斜杠命令自动补全
   const [showCommandList, setShowCommandList] = useState(false);
   const [filteredCommands, setFilteredCommands] = useState([]);
@@ -425,7 +425,7 @@ export default function App() {
   // 后端状态探测轮询
   useEffect(() => {
     if (isBackendReady) return;
-    
+
     const checkBackend = async () => {
       try {
         const res = await fetch(`${API_BASE}/api/chat/status`, {
@@ -440,7 +440,7 @@ export default function App() {
         setPollingCount(prev => prev + 1);
       }
     };
-    
+
     const timer = setTimeout(checkBackend, 2000);
     return () => clearTimeout(timer);
   }, [isBackendReady, pollingCount, connectionStatus]);
@@ -468,12 +468,12 @@ export default function App() {
       }
     };
     window.addEventListener('message', handleMessage);
-    
+
     // 通知 VS Code 插件 Webview 已经准备好，可以发送当前活动的编辑器信息
     if (isVsCode) {
       window.parent.postMessage({ type: 'webviewReady' }, '*');
     }
-    
+
     return () => window.removeEventListener('message', handleMessage);
   }, [isVsCode]);
 
@@ -510,7 +510,7 @@ export default function App() {
           setLoadingModels(false);
         }
       };
-      
+
       fetchModelsAuto();
     }
   }, [activeRightTab, selectedConfigId, tempBaseUrl]);
@@ -595,7 +595,7 @@ export default function App() {
   const handleConfigSelection = (e) => {
     const configId = parseInt(e.target.value);
     setSelectedConfigId(configId);
-    
+
     const selected = models.find(m => m.id === configId);
     if (selected) {
       setTempBaseUrl(selected.base_url);
@@ -655,14 +655,14 @@ export default function App() {
           selected_model_id: tempSelectedSubModel
         })
       });
-      
+
       // 2. 切换当前模型为激活状态
       const res = await fetch(`${API_BASE}/api/chat/switch_model`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: selectedConfigId })
       });
-      
+
       if (res.ok) {
         const data = await res.json();
         setActiveModel(data.active_model);
@@ -704,7 +704,7 @@ export default function App() {
         setNewConfigBaseUrl('');
         setNewConfigApiKey('');
         setNewConfigProtocol('openai');
-        
+
         // 刷新列表并选中新创建的配置
         await fetchModels();
         setSelectedConfigId(data.id);
@@ -712,7 +712,7 @@ export default function App() {
         setTempApiKey(newConfigApiKey.trim());
         setTempSelectedSubModel('');
         setAvailableModels([]);
-        
+
         setMessages(prev => [
           ...prev,
           { role: 'system_info', content: `[系统设置] 成功创建 API 配置源：《${newConfigName.trim()}》。` }
@@ -793,9 +793,9 @@ export default function App() {
         // 找到另一个配置并选中
         const remaining = models.filter(m => m.id !== selectedConfigId);
         const nextSelected = remaining[0];
-        
+
         await fetchModels();
-        
+
         if (nextSelected) {
           setSelectedConfigId(nextSelected.id);
           setTempBaseUrl(nextSelected.base_url);
@@ -803,7 +803,7 @@ export default function App() {
           setTempSelectedSubModel(nextSelected.selected_model_id || '');
           setAvailableModels([]);
         }
-        
+
         setMessages(prev => [
           ...prev,
           { role: 'system_info', content: `[系统设置] 已成功删除配置源：《${selected.name}》。` }
@@ -859,7 +859,7 @@ export default function App() {
         setActiveModel(data.active_model);
         fetchModels();
         fetchStatus();
-        
+
         const switchedObj = models.find(m => m.id === parseInt(modelId));
         if (switchedObj) {
           setSelectedConfigId(switchedObj.id);
@@ -966,7 +966,7 @@ export default function App() {
       const response = await fetch(`${API_BASE}/api/chat/send`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
+        body: JSON.stringify({
           messages: apiPayload,
           persona_type: personaType,
           current_file_path: selectedFilePath,
@@ -997,14 +997,14 @@ export default function App() {
         if (value) {
           const chunk = decoder.decode(value, { stream: !done });
           const lines = chunk.split('\n');
-          
+
           for (const line of lines) {
             if (line.startsWith('data: ')) {
               try {
                 const jsonStr = line.slice(6).trim();
                 if (jsonStr === '[DONE]' || !jsonStr) continue;
                 const parsed = JSON.parse(jsonStr);
-                
+
                 if (parsed.type === 'system_hint') {
                   setMessages(prev => {
                     const updated = [...prev];
@@ -1086,7 +1086,7 @@ export default function App() {
           const lastMsg = updated[updated.length - 1];
           lastMsg.streaming = false;
           if (lastMsg.blocks) {
-             lastMsg.blocks.forEach(b => b.status = 'done');
+            lastMsg.blocks.forEach(b => b.status = 'done');
           }
         }
         return updated;
@@ -1099,7 +1099,7 @@ export default function App() {
       setMessages(prev => {
         const updated = [...prev];
         const errorMsg = `*脸色微变，捂着额头，有些懊恼地蹙眉道：*“哎呀夫君...奴家好像开小差了（后端连接中断，可能是代理超时或 FastAPI 崩溃）。要不咱们重试一下？”\n\n**前端报错详情:** \`${e.message}\``;
-        
+
         if (updated.length > 0 && updated[updated.length - 1].streaming) {
           // Deep clone the last message to avoid React StrictMode double-mutation bug
           const lastMsg = { ...updated[updated.length - 1] };
@@ -1140,8 +1140,8 @@ export default function App() {
                   {connectionStatus === 'restarting' ? '正在重启并重新连接中...' : (
                     <>
                       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-                        <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                        <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                        <path d="M6 12v5c3 3 9 3 12 0v-5" />
                       </svg>
                       导师正在赶来的路上...
                     </>
@@ -1175,174 +1175,174 @@ export default function App() {
           </div>
         </div>
       )}
-    <div 
-      className={`app-container ${isVsCode ? 'vscode-env' : 'web-env'} theme-${theme} ${!enableBlur ? 'disable-blur' : ''}`} 
-      style={{ 
-        '--chat-font-size': `${fontSize}px`,
-        '--avatar-size': `${avatarSize}px`,
-        '--name-font-size': `${nameFontSize}px`,
-        backgroundImage: bgImage ? `url(${bgImage})` : undefined
-      }}
-    >
-      {/* 顶部工具栏 */}
-      <header className="header-bar">
-        {/* 左上角：数据库图标 */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
-          <button
-            className="cc-icon-btn"
-            onClick={() => setShowDbViewer(true)}
-            title="查看数据库"
-          >
-            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
-              <path d="M14 3c0 1.1-2.7 2-6 2S2 4.1 2 3s2.7-2 6-2 6 .9 6 2zm0 4c0 1.1-2.7 2-6 2S2 8.1 2 7V5c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm0 4c0 1.1-2.7 2-6 2S2 12.1 2 11V9c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm-6 4c-3.3 0-6-.9-6-2v-2c.8.6 2.3 1 4 1s3.2-.4 4-1v2c0 1.1-2.7 2-6 2z"/>
-            </svg>
-          </button>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
-          
-          {/* 主题切换按钮 */}
-          <button 
-            className="header-btn" 
-            onClick={toggleTheme}
-            title="切换明暗主题"
-            style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            {theme === 'light' ? (
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8.5 2.5a6 6 0 1 0 5 9.8c-.5-.4-1.2-.2-1.4.4a4.5 4.5 0 1 1-5.1-6c.6-.2.8-.9.4-1.4a5.9 5.9 0 0 0 1.1-2.8z"/></svg>
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0-2a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1c0-.4.3-.75.75-.75zm0 11a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1c0-.4.3-.75.75-.75zm5.66-8.24a.75.75 0 0 1 0 1.06l-.7.7a.75.75 0 1 1-1.06-1.06l.7-.7a.75.75 0 0 1 1.06 0zm-8.48 8.48a.75.75 0 0 1 0 1.06l-.7.7a.75.75 0 1 1-1.06-1.06l.7-.7a.75.75 0 0 1 1.06 0zM14.5 8a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1 0-1.5h1c.4 0 .75.3.75.75zM3.5 8a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1 0-1.5h1c.4 0 .75.3.75.75zm10.16 4.34a.75.75 0 0 1-1.06 0l-.7-.7a.75.75 0 1 1 1.06-1.06l.7.7a.75.75 0 0 1 0 1.06zm-8.48-8.48a.75.75 0 0 1-1.06 0l-.7-.7a.75.75 0 1 1 1.06-1.06l.7.7a.75.75 0 0 1 0 1.06z"/></svg>
-            )}
-          </button>
-
-          {/* 切换右侧边栏选项卡的按钮组 */}
-          <button 
-            className="header-btn" 
-            onClick={() => { setActiveRightTab('status'); setShowMobileStatus(true); }}
-            title="大纲与状态"
-            style={{ background: activeRightTab === 'status' ? 'var(--accent-pink)' : '', color: activeRightTab === 'status' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v1H2V3zm0 4h12v1H2V7zm0 4h12v1H2v-1z"/></svg>
-          </button>
-
-          <button 
-            className="header-btn" 
-            onClick={() => { setActiveRightTab('ui'); setShowMobileStatus(true); }}
-            title="UI 设置"
-            style={{ background: activeRightTab === 'ui' ? 'var(--accent-pink)' : '', color: activeRightTab === 'ui' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.93 2.93 0 1 1 0-5.86 2.93 2.93 0 0 1 0 5.86z"/></svg>
-          </button>
-
-          <button 
-            className="header-btn" 
-            onClick={() => { setActiveRightTab('api'); setShowMobileStatus(true); }}
-            title="API 配置"
-            style={{ background: activeRightTab === 'api' ? 'var(--accent-pink)' : '', color: activeRightTab === 'api' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-          >
-            <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2v4M10 2v4M3 6h10M4 6a4 4 0 0 0 8 0M8 10v4"/></svg>
-          </button>
-
-          
-
-          <div className="connection-status">
-            <div className={`status-indicator ${isStreaming ? 'pulse' : ''}`} />
-            <span>{isStreaming ? '导师思考中...' : '课堂连通正常'}</span>
+      <div
+        className={`app-container ${isVsCode ? 'vscode-env' : 'web-env'} theme-${theme} ${!enableBlur ? 'disable-blur' : ''}`}
+        style={{
+          '--chat-font-size': `${fontSize}px`,
+          '--avatar-size': `${avatarSize}px`,
+          '--name-font-size': `${nameFontSize}px`,
+          backgroundImage: bgImage ? `url(${bgImage})` : undefined
+        }}
+      >
+        {/* 顶部工具栏 */}
+        <header className="header-bar">
+          {/* 左上角：数据库图标 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+            <button
+              className="cc-icon-btn"
+              onClick={() => setShowDbViewer(true)}
+              title="查看数据库"
+            >
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M14 3c0 1.1-2.7 2-6 2S2 4.1 2 3s2.7-2 6-2 6 .9 6 2zm0 4c0 1.1-2.7 2-6 2S2 8.1 2 7V5c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm0 4c0 1.1-2.7 2-6 2S2 12.1 2 11V9c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm-6 4c-3.3 0-6-.9-6-2v-2c.8.6 2.3 1 4 1s3.2-.4 4-1v2c0 1.1-2.7 2-6 2z" />
+              </svg>
+            </button>
           </div>
-        </div>
-      </header>
 
-      {/* 主工作区 */}
-      <main className="main-layout">
-        {/* 左侧面板：原本是文件树，现已被抛弃，将直接潜入 VS Code 原生生态 */}
-        {/* 中间面板：核心对话区 */}
-        <ChatPanel
-          isVsCode={isVsCode}
-          messages={messages}
-          activeModel={activeModel}
-          userAvatar={userAvatar}
-          assistantAvatar={assistantAvatar}
-          setCropTarget={setCropTarget}
-          fileInputRef={fileInputRef}
-          showCommandList={showCommandList}
-          filteredCommands={filteredCommands}
-          activeCommandIndex={activeCommandIndex}
-          selectCommand={selectCommand}
-          inputRef={inputRef}
-          inputText={inputText}
-          handleInputChange={handleInputChange}
-          handleKeyDown={handleKeyDown}
-          sendMessage={sendMessage}
-          isStreaming={isStreaming}
-          executeSlashCommand={executeSlashCommand}
-          chatEndRef={chatEndRef}
-          onEditAndResend={handleEditAndResend}
-          sessions={sessions}
-          activeSessionId={activeSessionId}
-          onNewSession={handleNewSession}
-          onSwitchSession={handleSwitchSession}
-          onDeleteSession={handleDeleteSession}
-          showSessionList={showSessionList}
-          setShowSessionList={setShowSessionList}
-          selectedFilePath={selectedFilePath}
-        />
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', position: 'relative' }}>
 
-        {/* 右侧面板：导师人设与课程大纲 */}
-        <div className={`right-panel-container ${showMobileStatus ? 'show-mobile' : ''}`}>
-          {activeRightTab === 'status' && (
-            <StatusPanel
-              currentThought={currentThought}
-              affection={affection}
-              personaType={personaType}
-              handlePersonaTypeChange={handlePersonaTypeChange}
-              models={models}
-              activeModel={activeModel}
-              handleModelChange={handleModelChange}
-              activeSubModel={activeSubModel}
-              courseProgress={courseProgress}
-            />
-          )}
+            {/* 主题切换按钮 */}
+            <button
+              className="header-btn"
+              onClick={toggleTheme}
+              title="切换明暗主题"
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              {theme === 'light' ? (
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8.5 2.5a6 6 0 1 0 5 9.8c-.5-.4-1.2-.2-1.4.4a4.5 4.5 0 1 1-5.1-6c.6-.2.8-.9.4-1.4a5.9 5.9 0 0 0 1.1-2.8z" /></svg>
+              ) : (
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M8 3.5a4.5 4.5 0 1 1 0 9 4.5 4.5 0 0 1 0-9zm0-2a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1c0-.4.3-.75.75-.75zm0 11a.75.75 0 0 1 .75.75v1a.75.75 0 0 1-1.5 0v-1c0-.4.3-.75.75-.75zm5.66-8.24a.75.75 0 0 1 0 1.06l-.7.7a.75.75 0 1 1-1.06-1.06l.7-.7a.75.75 0 0 1 1.06 0zm-8.48 8.48a.75.75 0 0 1 0 1.06l-.7.7a.75.75 0 1 1-1.06-1.06l.7-.7a.75.75 0 0 1 1.06 0zM14.5 8a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1 0-1.5h1c.4 0 .75.3.75.75zM3.5 8a.75.75 0 0 1-.75.75h-1a.75.75 0 0 1 0-1.5h1c.4 0 .75.3.75.75zm10.16 4.34a.75.75 0 0 1-1.06 0l-.7-.7a.75.75 0 1 1 1.06-1.06l.7.7a.75.75 0 0 1 0 1.06zm-8.48-8.48a.75.75 0 0 1-1.06 0l-.7-.7a.75.75 0 1 1 1.06-1.06l.7.7a.75.75 0 0 1 0 1.06z" /></svg>
+              )}
+            </button>
 
-          {activeRightTab === 'ui' && (
-            <section className="ide-panel right-panel">
-              <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '6px' }}>
-                    <path d="M9.1 1.1L8.8 2.5C8.3 2.7 7.8 3 7.3 3.3L6.0 2.5L4.4 4.1L5.3 5.4C5.0 5.9 4.7 6.4 4.5 6.9L3.1 7.2V9.4L4.5 9.7C4.7 10.2 5.0 10.7 5.3 11.2L4.4 12.5L6.0 14.1L7.3 13.3C7.8 13.6 8.3 13.9 8.8 14.1L9.1 15.5H11.3L11.6 14.1C12.1 13.9 12.6 13.6 13.1 13.3L14.4 14.1L16.0 12.5L15.1 11.2C15.4 10.7 15.7 10.2 15.9 9.7L17.3 9.4V7.2L15.9 6.9C15.7 6.4 15.4 5.9 15.1 5.4L16.0 4.1L14.4 2.5L13.1 3.3C12.6 3.0 12.1 2.7 11.6 2.5L11.3 1.1H9.1zm1.1 4.5C11.9 5.6 13.0 6.7 13.0 8.0s-1.1 2.4-2.4 2.4S8.2 9.3 8.2 8.0s1.1-2.4 2.4-2.4z" transform="scale(0.85) translate(1, 1)"/>
-                  </svg>
-                  <span>UI 设置</span>
+            {/* 切换右侧边栏选项卡的按钮组 */}
+            <button
+              className="header-btn"
+              onClick={() => { setActiveRightTab('status'); setShowMobileStatus(true); }}
+              title="大纲与状态"
+              style={{ background: activeRightTab === 'status' ? 'var(--accent-pink)' : '', color: activeRightTab === 'status' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M2 3h12v1H2V3zm0 4h12v1H2V7zm0 4h12v1H2v-1z" /></svg>
+            </button>
+
+            <button
+              className="header-btn"
+              onClick={() => { setActiveRightTab('ui'); setShowMobileStatus(true); }}
+              title="UI 设置"
+              style={{ background: activeRightTab === 'ui' ? 'var(--accent-pink)' : '', color: activeRightTab === 'ui' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="currentColor"><path d="M9.405 1.05c-.413-1.4-2.397-1.4-2.81 0l-.1.34a1.464 1.464 0 0 1-2.105.872l-.31-.17c-1.283-.698-2.686.705-1.987 1.987l.169.311c.446.82.023 1.841-.872 2.105l-.34.1c-1.4.413-1.4 2.397 0 2.81l.34.1a1.464 1.464 0 0 1 .872 2.105l-.17.31c-.698 1.283.705 2.686 1.987 1.987l.311-.169a1.464 1.464 0 0 1 2.105.872l.1.34c.413 1.4 2.397 1.4 2.81 0l.1-.34a1.464 1.464 0 0 1 2.105-.872l.31.17c1.283.698 2.686-.705 1.987-1.987l-.169-.311a1.464 1.464 0 0 1 .872-2.105l.34-.1c1.4-.413 1.4-2.397 0-2.81l-.34-.1a1.464 1.464 0 0 1-.872-2.105l.17-.31c.698-1.283-.705-2.686-1.987-1.987l-.311.169a1.464 1.464 0 0 1-2.105-.872l-.1-.34zM8 10.93a2.93 2.93 0 1 1 0-5.86 2.93 2.93 0 0 1 0 5.86z" /></svg>
+            </button>
+
+            <button
+              className="header-btn"
+              onClick={() => { setActiveRightTab('api'); setShowMobileStatus(true); }}
+              title="API 配置"
+              style={{ background: activeRightTab === 'api' ? 'var(--accent-pink)' : '', color: activeRightTab === 'api' ? 'white' : '', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            >
+              <svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 2v4M10 2v4M3 6h10M4 6a4 4 0 0 0 8 0M8 10v4" /></svg>
+            </button>
+
+
+
+            <div className="connection-status">
+              <div className={`status-indicator ${isStreaming ? 'pulse' : ''}`} />
+              <span>{isStreaming ? '导师思考中...' : '课堂连通正常'}</span>
+            </div>
+          </div>
+        </header>
+
+        {/* 主工作区 */}
+        <main className="main-layout">
+          {/* 左侧面板：原本是文件树，现已被抛弃，将直接潜入 VS Code 原生生态 */}
+          {/* 中间面板：核心对话区 */}
+          <ChatPanel
+            isVsCode={isVsCode}
+            messages={messages}
+            activeModel={activeModel}
+            userAvatar={userAvatar}
+            assistantAvatar={assistantAvatar}
+            setCropTarget={setCropTarget}
+            fileInputRef={fileInputRef}
+            showCommandList={showCommandList}
+            filteredCommands={filteredCommands}
+            activeCommandIndex={activeCommandIndex}
+            selectCommand={selectCommand}
+            inputRef={inputRef}
+            inputText={inputText}
+            handleInputChange={handleInputChange}
+            handleKeyDown={handleKeyDown}
+            sendMessage={sendMessage}
+            isStreaming={isStreaming}
+            executeSlashCommand={executeSlashCommand}
+            chatEndRef={chatEndRef}
+            onEditAndResend={handleEditAndResend}
+            sessions={sessions}
+            activeSessionId={activeSessionId}
+            onNewSession={handleNewSession}
+            onSwitchSession={handleSwitchSession}
+            onDeleteSession={handleDeleteSession}
+            showSessionList={showSessionList}
+            setShowSessionList={setShowSessionList}
+            selectedFilePath={selectedFilePath}
+          />
+
+          {/* 右侧面板：导师人设与课程大纲 */}
+          <div className={`right-panel-container ${showMobileStatus ? 'show-mobile' : ''}`}>
+            {activeRightTab === 'status' && (
+              <StatusPanel
+                currentThought={currentThought}
+                affection={affection}
+                personaType={personaType}
+                handlePersonaTypeChange={handlePersonaTypeChange}
+                models={models}
+                activeModel={activeModel}
+                handleModelChange={handleModelChange}
+                activeSubModel={activeSubModel}
+                courseProgress={courseProgress}
+              />
+            )}
+
+            {activeRightTab === 'ui' && (
+              <section className="ide-panel right-panel">
+                <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '6px' }}>
+                      <path d="M9.1 1.1L8.8 2.5C8.3 2.7 7.8 3 7.3 3.3L6.0 2.5L4.4 4.1L5.3 5.4C5.0 5.9 4.7 6.4 4.5 6.9L3.1 7.2V9.4L4.5 9.7C4.7 10.2 5.0 10.7 5.3 11.2L4.4 12.5L6.0 14.1L7.3 13.3C7.8 13.6 8.3 13.9 8.8 14.1L9.1 15.5H11.3L11.6 14.1C12.1 13.9 12.6 13.6 13.1 13.3L14.4 14.1L16.0 12.5L15.1 11.2C15.4 10.7 15.7 10.2 15.9 9.7L17.3 9.4V7.2L15.9 6.9C15.7 6.4 15.4 5.9 15.1 5.4L16.0 4.1L14.4 2.5L13.1 3.3C12.6 3.0 12.1 2.7 11.6 2.5L11.3 1.1H9.1zm1.1 4.5C11.9 5.6 13.0 6.7 13.0 8.0s-1.1 2.4-2.4 2.4S8.2 9.3 8.2 8.0s1.1-2.4 2.4-2.4z" transform="scale(0.85) translate(1, 1)" />
+                    </svg>
+                    <span>UI 设置</span>
+                  </div>
                 </div>
-              </div>
-              <div className="right-content">
+                <div className="right-content">
 
-                  
+
                   {/* 头像大小设置 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 'bold' }}>头像大小: {avatarSize}px</label>
-                    <input 
-                      type="range" 
-                      min="24" 
-                      max="64" 
-                      value={avatarSize} 
+                    <input
+                      type="range"
+                      min="24"
+                      max="64"
+                      value={avatarSize}
                       onChange={(e) => {
                         const size = parseInt(e.target.value);
                         setAvatarSize(size);
                         localStorage.setItem('avatar_size', size.toString());
-                      }} 
-                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
+                      }}
+                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }}
                     />
                   </div>
 
                   {/* 字体设置 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 'bold' }}>字体大小: {fontSize}px</label>
-                    <input 
-                      type="range" 
-                      min="12" 
-                      max="24" 
-                      value={fontSize} 
-                      onChange={handleFontSizeChange} 
-                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
+                    <input
+                      type="range"
+                      min="12"
+                      max="24"
+                      value={fontSize}
+                      onChange={handleFontSizeChange}
+                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }}
                     />
 
                   </div>
@@ -1350,13 +1350,13 @@ export default function App() {
                   {/* 名字大小设置 */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 'bold' }}>名字大小: {nameFontSize}px</label>
-                    <input 
-                      type="range" 
-                      min="10" 
-                      max="24" 
-                      value={nameFontSize} 
-                      onChange={handleNameFontSizeChange} 
-                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }} 
+                    <input
+                      type="range"
+                      min="10"
+                      max="24"
+                      value={nameFontSize}
+                      onChange={handleNameFontSizeChange}
+                      style={{ width: '100%', accentColor: 'var(--accent-pink)' }}
                     />
                   </div>
 
@@ -1364,13 +1364,13 @@ export default function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 'bold' }}>全局头像设置</label>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button 
+                      <button
                         onClick={() => { setCropTarget('user'); fileInputRef.current.click(); }}
                         style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                       >
                         修改我的头像
                       </button>
-                      <button 
+                      <button
                         onClick={() => { setCropTarget('assistant'); fileInputRef.current.click(); }}
                         style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                       >
@@ -1383,501 +1383,501 @@ export default function App() {
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: 'bold' }}>全局背景设置</label>
                     <div style={{ display: 'flex', gap: '6px' }}>
-                      <button 
+                      <button
                         onClick={() => bgFileInputRef.current.click()}
                         style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                       >
                         更换背景图片
                       </button>
-                      <button 
+                      <button
                         onClick={handleResetBg}
                         style={{ flex: 1, padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-secondary)', color: 'var(--text-primary)' }}
                       >
                         恢复默认背景
                       </button>
                     </div>
-                    <button 
+                    <button
                       onClick={toggleBlur}
-                      style={{ 
-                        width: '100%', padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)', 
-                        background: enableBlur ? 'var(--accent-pink)' : 'var(--bg-secondary)', 
-                        color: enableBlur ? 'white' : 'var(--text-primary)' 
+                      style={{
+                        width: '100%', padding: '6px', fontSize: '11px', cursor: 'pointer', borderRadius: '4px', border: '1px solid var(--border-color)',
+                        background: enableBlur ? 'var(--accent-pink)' : 'var(--bg-secondary)',
+                        color: enableBlur ? 'white' : 'var(--text-primary)'
                       }}
                     >
                       毛玻璃背景特效：{enableBlur ? '已开启' : '已关闭'}
                     </button>
                   </div>
-              </div>
-            </section>
-          )}
-
-          {activeRightTab === 'api' && (
-            <section className="ide-panel right-panel">
-              <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <div style={{ display: 'flex', alignItems: 'center' }}>
-                  <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
-                    <path d="M6 2v4M10 2v4M3 6h10M4 6a4 4 0 0 0 8 0M8 10v4"/>
-                  </svg>
-                  <span>API 配置</span>
                 </div>
-              </div>
-              <div className="right-content">
-                {/* 模型选择配置 (原右侧面板) */}
+              </section>
+            )}
 
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="1" y="1" width="14" height="14" rx="3" fill="none"/>
-                      <path d="M5 11V5M3 7l2-2 2 2M11 5v6M9 9l2 2 2-2"/>
+            {activeRightTab === 'api' && (
+              <section className="ide-panel right-panel">
+                <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <div style={{ display: 'flex', alignItems: 'center' }}>
+                    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+                      <path d="M6 2v4M10 2v4M3 6h10M4 6a4 4 0 0 0 8 0M8 10v4" />
                     </svg>
-                    切换大语言模型
-                  </label>
-                  <select 
-                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--accent-pink)', outline: 'none', background: 'rgba(244, 114, 182, 0.05)', color: 'var(--accent-pink)', fontWeight: 'bold' }}
-                    value={models.find(m => m.name === activeModel)?.id || ''}
-                    onChange={(e) => handleModelChange(e.target.value)}
-                  >
-                    {models.map(m => (
-                      <option key={m.id} value={m.id}>
-                        {m.name} ({m.protocol.toUpperCase()})
-                      </option>
-                    ))}
-                  </select>
-                  {activeSubModel && (
-                    <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
-                      活动子模型: <span style={{ color: 'var(--accent-pink)', fontWeight: 'bold' }}>{activeSubModel}</span>
-                    </div>
-                  )}
-                </div>
-
-                <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border-color)' }} />
-                
-                {/* API 源 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 配置源</label>
-                    <div style={{ display: 'flex', gap: '4px' }}>
-                      <button 
-                        onClick={() => setShowCreateModal(true)}
-                        style={{
-                          padding: '2px 6px',
-                          fontSize: '11px',
-                          background: 'var(--bg-tertiary)',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: 'pointer',
-                          color: 'var(--text-primary)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '2px'
-                        }}
-                        title="新增配置"
-                      >
-                        ➕
-                      </button>
-                      <button 
-                        onClick={() => {
-                          if (selectedConfigIsActive) return;
-                          setRenameConfigName(selectedConfig ? selectedConfig.name : '');
-                          setShowRenameModal(true);
-                        }}
-                        style={{
-                          padding: '2px 6px',
-                          fontSize: '11px',
-                          background: 'var(--bg-tertiary)',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: selectedConfigIsActive ? 'not-allowed' : 'pointer',
-                          color: 'var(--text-primary)',
-                          opacity: selectedConfigIsActive ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '2px'
-                        }}
-                        title={selectedConfigIsActive ? "当前激活的配置不能重命名" : "重命名配置"}
-                        disabled={selectedConfigIsActive}
-                      >
-                        ✏️
-                      </button>
-                      <button 
-                        onClick={handleDeleteModel}
-                        style={{
-                          padding: '2px 6px',
-                          fontSize: '11px',
-                          background: 'var(--bg-tertiary)',
-                          border: 'none',
-                          borderRadius: '3px',
-                          cursor: (selectedConfigIsActive || models.length <= 1) ? 'not-allowed' : 'pointer',
-                          color: 'var(--text-primary)',
-                          opacity: (selectedConfigIsActive || models.length <= 1) ? 0.5 : 1,
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '2px'
-                        }}
-                        title={
-                          selectedConfigIsActive 
-                            ? "当前激活的配置不能删除" 
-                            : models.length <= 1 
-                              ? "不能删除最后一个配置" 
-                              : "删除配置"
-                        }
-                        disabled={selectedConfigIsActive || models.length <= 1}
-                      >
-                        🗑️
-                      </button>
-                    </div>
+                    <span>API 配置</span>
                   </div>
-                  <select 
-                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
-                    value={selectedConfigId}
-                    onChange={handleConfigSelection}
-                  >
-                    {models.map(m => (
-                      <option key={m.id} value={m.id}>{m.name}</option>
-                    ))}
-                  </select>
                 </div>
+                <div className="right-content">
+                  {/* 模型选择配置 (原右侧面板) */}
 
-                {/* Base URL */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 代理地址 (Base URL)</label>
-                  <input 
-                    type="text" 
-                    value={tempBaseUrl}
-                    onChange={(e) => setTempBaseUrl(e.target.value)}
-                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                  />
-                </div>
-
-                {/* API Key */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 密钥 (API Key)</label>
-                  <input 
-                    type="password" 
-                    value={tempApiKey}
-                    onChange={(e) => setTempApiKey(e.target.value)}
-                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                  />
-                </div>
-
-                {/* Max Tokens */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>最大返回 Tokens (推荐8192, 0表示无限制)</label>
-                  <input 
-                    type="number" 
-                    value={maxTokens}
-                    onChange={handleMaxTokensChange}
-                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                  />
-                </div>
-
-
-
-                {/* 子模型选择 */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
-                  <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span>可用子模型</span>
-                    <button 
-                      onClick={refreshAvailableModels} 
-                      disabled={loadingModels}
-                      style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '11px', color: 'var(--accent-pink)' }}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                      <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="1" y="1" width="14" height="14" rx="3" fill="none" />
+                        <path d="M5 11V5M3 7l2-2 2 2M11 5v6M9 9l2 2 2-2" />
+                      </svg>
+                      切换大语言模型
+                    </label>
+                    <select
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--accent-pink)', outline: 'none', background: 'rgba(244, 114, 182, 0.05)', color: 'var(--accent-pink)', fontWeight: 'bold' }}
+                      value={models.find(m => m.name === activeModel)?.id || ''}
+                      onChange={(e) => handleModelChange(e.target.value)}
                     >
-                      {loadingModels ? '加载中...' : '🔄 刷新列表'}
-                    </button>
-                  </label>
-                  <input 
-                    list="available-models"
-                    placeholder="请选择或手动输入模型名 (如 gpt-4o)"
-                    value={tempSelectedSubModel}
-                    onChange={(e) => setTempSelectedSubModel(e.target.value)}
-                    style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                  />
-                  <datalist id="available-models">
-                    {availableModels.map(m => (
-                      <option key={m} value={m} />
-                    ))}
-                  </datalist>
-
-                </div>
-
-                <button 
-                  onClick={saveSelectedModel}
-                  style={{
-                    padding: '8px 12px',
-                    fontSize: '12px',
-                    background: 'var(--accent-pink)',
-                    color: 'white',
-                    border: 'none',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontWeight: 'bold',
-                    width: '100%',
-                    marginTop: '8px'
-                  }}
-                >
-                  保存 API 地址并应用
-                </button>
-
-                {/* 知识库后端配置 */}
-                <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <h4 style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>📚 知识库后端</h4>
-                  
-                  {/* 三档单选 */}
-                  <div style={{ display: 'flex', gap: '6px' }}>
-                    {[
-                      { val: 'chromadb', label: '🚀 ChromaDB', tip: '本地向量库，轻量推荐' },
-                      { val: 'ragflow',  label: '☁️ RAGFlow',  tip: '需要Docker运行' },
-                      { val: 'external', label: '🔗 外部API',  tip: 'Dify/FastGPT等' }
-                    ].map(opt => (
-                      <button
-                        key={opt.val}
-                        title={opt.tip}
-                        onClick={() => setRagConfig(prev => ({ ...prev, backend_type: opt.val }))}
-                        style={{
-                          flex: 1,
-                          padding: '4px 2px',
-                          fontSize: '10px',
-                          border: `1px solid ${ragConfig.backend_type === opt.val ? 'var(--accent-pink)' : 'var(--border-color)'}`,
-                          borderRadius: '4px',
-                          background: ragConfig.backend_type === opt.val ? 'var(--accent-pink)' : 'transparent',
-                          color: ragConfig.backend_type === opt.val ? 'white' : 'var(--text-secondary)',
-                          cursor: 'pointer',
-                          fontWeight: ragConfig.backend_type === opt.val ? 'bold' : 'normal',
-                          transition: 'all 0.2s'
-                        }}
-                      >
-                        {opt.label}
-                      </button>
-                    ))}
+                      {models.map(m => (
+                        <option key={m.id} value={m.id}>
+                          {m.name} ({m.protocol.toUpperCase()})
+                        </option>
+                      ))}
+                    </select>
+                    {activeSubModel && (
+                      <div style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>
+                        活动子模型: <span style={{ color: 'var(--accent-pink)', fontWeight: 'bold' }}>{activeSubModel}</span>
+                      </div>
+                    )}
                   </div>
 
-                  {/* RAGFlow 配置项 */}
-                  {ragConfig.backend_type === 'ragflow' && (
-                    <>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>RAGFlow API 地址</label>
-                        <input type="text" value={ragConfig.ragflow_url}
-                          onChange={e => setRagConfig(prev => ({ ...prev, ragflow_url: e.target.value }))}
-                          placeholder="http://localhost/api/v1"
-                          style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                        />
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>RAGFlow API Key</label>
-                        <input type="password" value={ragConfig.ragflow_key}
-                          onChange={e => setRagConfig(prev => ({ ...prev, ragflow_key: e.target.value }))}
-                          placeholder="ragflow-xxxx"
-                          style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                        />
-                      </div>
-                    </>
-                  )}
+                  <hr style={{ margin: '4px 0', border: 'none', borderTop: '1px solid var(--border-color)' }} />
 
-                  {/* 外部 API 配置项 */}
-                  {ragConfig.backend_type === 'external' && (
-                    <>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>外部 RAG 接口地址</label>
-                        <input type="text" value={ragConfig.external_url}
-                          onChange={e => setRagConfig(prev => ({ ...prev, external_url: e.target.value }))}
-                          placeholder="http://your-rag-service/api"
-                          style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                        />
+                  {/* API 源 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 配置源</label>
+                      <div style={{ display: 'flex', gap: '4px' }}>
+                        <button
+                          onClick={() => setShowCreateModal(true)}
+                          style={{
+                            padding: '2px 6px',
+                            fontSize: '11px',
+                            background: 'var(--bg-tertiary)',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: 'pointer',
+                            color: 'var(--text-primary)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                          title="新增配置"
+                        >
+                          ➕
+                        </button>
+                        <button
+                          onClick={() => {
+                            if (selectedConfigIsActive) return;
+                            setRenameConfigName(selectedConfig ? selectedConfig.name : '');
+                            setShowRenameModal(true);
+                          }}
+                          style={{
+                            padding: '2px 6px',
+                            fontSize: '11px',
+                            background: 'var(--bg-tertiary)',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: selectedConfigIsActive ? 'not-allowed' : 'pointer',
+                            color: 'var(--text-primary)',
+                            opacity: selectedConfigIsActive ? 0.5 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                          title={selectedConfigIsActive ? "当前激活的配置不能重命名" : "重命名配置"}
+                          disabled={selectedConfigIsActive}
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={handleDeleteModel}
+                          style={{
+                            padding: '2px 6px',
+                            fontSize: '11px',
+                            background: 'var(--bg-tertiary)',
+                            border: 'none',
+                            borderRadius: '3px',
+                            cursor: (selectedConfigIsActive || models.length <= 1) ? 'not-allowed' : 'pointer',
+                            color: 'var(--text-primary)',
+                            opacity: (selectedConfigIsActive || models.length <= 1) ? 0.5 : 1,
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '2px'
+                          }}
+                          title={
+                            selectedConfigIsActive
+                              ? "当前激活的配置不能删除"
+                              : models.length <= 1
+                                ? "不能删除最后一个配置"
+                                : "删除配置"
+                          }
+                          disabled={selectedConfigIsActive || models.length <= 1}
+                        >
+                          🗑️
+                        </button>
                       </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                        <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>外部 API Key（可选）</label>
-                        <input type="password" value={ragConfig.external_key}
-                          onChange={e => setRagConfig(prev => ({ ...prev, external_key: e.target.value }))}
-                          placeholder="Bearer token 或留空"
-                          style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                        />
-                      </div>
-                    </>
-                  )}
+                    </div>
+                    <select
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none', background: 'var(--bg-primary)', color: 'var(--text-primary)' }}
+                      value={selectedConfigId}
+                      onChange={handleConfigSelection}
+                    >
+                      {models.map(m => (
+                        <option key={m.id} value={m.id}>{m.name}</option>
+                      ))}
+                    </select>
+                  </div>
 
-                  {ragConfig.backend_type === 'chromadb' && (
-                    <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
-                      ✅ ChromaDB 已内置于后端，无需外部服务。记忆和知识库文件均以语义向量形式本地存储于 <code>backend/rag_index/</code>。
-                    </p>
-                  )}
+                  {/* Base URL */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 代理地址 (Base URL)</label>
+                    <input
+                      type="text"
+                      value={tempBaseUrl}
+                      onChange={(e) => setTempBaseUrl(e.target.value)}
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                    />
+                  </div>
+
+                  {/* API Key */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>API 密钥 (API Key)</label>
+                    <input
+                      type="password"
+                      value={tempApiKey}
+                      onChange={(e) => setTempApiKey(e.target.value)}
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                    />
+                  </div>
+
+                  {/* Max Tokens */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>最大返回 Tokens (推荐8192, 0表示无限制)</label>
+                    <input
+                      type="number"
+                      value={maxTokens}
+                      onChange={handleMaxTokensChange}
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                    />
+                  </div>
+
+
+
+                  {/* 子模型选择 */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', marginTop: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span>可用子模型</span>
+                      <button
+                        onClick={refreshAvailableModels}
+                        disabled={loadingModels}
+                        style={{ border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '11px', color: 'var(--accent-pink)' }}
+                      >
+                        {loadingModels ? '加载中...' : '🔄 刷新列表'}
+                      </button>
+                    </label>
+                    <input
+                      list="available-models"
+                      placeholder="请选择或手动输入模型名 (如 gpt-4o)"
+                      value={tempSelectedSubModel}
+                      onChange={(e) => setTempSelectedSubModel(e.target.value)}
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                    />
+                    <datalist id="available-models">
+                      {availableModels.map(m => (
+                        <option key={m} value={m} />
+                      ))}
+                    </datalist>
+
+                  </div>
 
                   <button
-                    onClick={saveRagConfig}
-                    disabled={savingRag}
+                    onClick={saveSelectedModel}
                     style={{
-                      padding: '5px 12px',
-                      fontSize: '11px',
-                      background: savingRag ? 'var(--text-secondary)' : 'var(--accent-pink)',
+                      padding: '8px 12px',
+                      fontSize: '12px',
+                      background: 'var(--accent-pink)',
                       color: 'white',
                       border: 'none',
                       borderRadius: '4px',
-                      cursor: savingRag ? 'not-allowed' : 'pointer',
+                      cursor: 'pointer',
                       fontWeight: 'bold',
-                      width: '100%'
+                      width: '100%',
+                      marginTop: '8px'
                     }}
                   >
-                    {savingRag ? '保存中...' : '💾 保存知识库配置'}
+                    保存 API 地址并应用
                   </button>
+
+                  {/* 知识库后端配置 */}
+                  <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    <h4 style={{ margin: 0, fontSize: '12px', color: 'var(--text-secondary)', fontWeight: 'bold' }}>📚 知识库后端</h4>
+
+                    {/* 三档单选 */}
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {[
+                        { val: 'chromadb', label: '🚀 ChromaDB', tip: '本地向量库，轻量推荐' },
+                        { val: 'ragflow', label: '☁️ RAGFlow', tip: '需要Docker运行' },
+                        { val: 'external', label: '🔗 外部API', tip: 'Dify/FastGPT等' }
+                      ].map(opt => (
+                        <button
+                          key={opt.val}
+                          title={opt.tip}
+                          onClick={() => setRagConfig(prev => ({ ...prev, backend_type: opt.val }))}
+                          style={{
+                            flex: 1,
+                            padding: '4px 2px',
+                            fontSize: '10px',
+                            border: `1px solid ${ragConfig.backend_type === opt.val ? 'var(--accent-pink)' : 'var(--border-color)'}`,
+                            borderRadius: '4px',
+                            background: ragConfig.backend_type === opt.val ? 'var(--accent-pink)' : 'transparent',
+                            color: ragConfig.backend_type === opt.val ? 'white' : 'var(--text-secondary)',
+                            cursor: 'pointer',
+                            fontWeight: ragConfig.backend_type === opt.val ? 'bold' : 'normal',
+                            transition: 'all 0.2s'
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+
+                    {/* RAGFlow 配置项 */}
+                    {ragConfig.backend_type === 'ragflow' && (
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>RAGFlow API 地址</label>
+                          <input type="text" value={ragConfig.ragflow_url}
+                            onChange={e => setRagConfig(prev => ({ ...prev, ragflow_url: e.target.value }))}
+                            placeholder="http://localhost/api/v1"
+                            style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>RAGFlow API Key</label>
+                          <input type="password" value={ragConfig.ragflow_key}
+                            onChange={e => setRagConfig(prev => ({ ...prev, ragflow_key: e.target.value }))}
+                            placeholder="ragflow-xxxx"
+                            style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {/* 外部 API 配置项 */}
+                    {ragConfig.backend_type === 'external' && (
+                      <>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>外部 RAG 接口地址</label>
+                          <input type="text" value={ragConfig.external_url}
+                            onChange={e => setRagConfig(prev => ({ ...prev, external_url: e.target.value }))}
+                            placeholder="http://your-rag-service/api"
+                            style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                          />
+                        </div>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '3px' }}>
+                          <label style={{ fontSize: '10px', color: 'var(--text-secondary)' }}>外部 API Key（可选）</label>
+                          <input type="password" value={ragConfig.external_key}
+                            onChange={e => setRagConfig(prev => ({ ...prev, external_key: e.target.value }))}
+                            placeholder="Bearer token 或留空"
+                            style={{ padding: '5px', fontSize: '11px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    {ragConfig.backend_type === 'chromadb' && (
+                      <p style={{ margin: 0, fontSize: '10px', color: 'var(--text-secondary)', lineHeight: '1.4' }}>
+                        ✅ ChromaDB 已内置于后端，无需外部服务。记忆和知识库文件均以语义向量形式本地存储于 <code>backend/rag_index/</code>。
+                      </p>
+                    )}
+
+                    <button
+                      onClick={saveRagConfig}
+                      disabled={savingRag}
+                      style={{
+                        padding: '5px 12px',
+                        fontSize: '11px',
+                        background: savingRag ? 'var(--text-secondary)' : 'var(--accent-pink)',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: savingRag ? 'not-allowed' : 'pointer',
+                        fontWeight: 'bold',
+                        width: '100%'
+                      }}
+                    >
+                      {savingRag ? '保存中...' : '💾 保存知识库配置'}
+                    </button>
+                  </div>
+                </div>
+              </section>
+            )}
+            {showMobileStatus && (
+              <button className="mobile-close-btn" onClick={() => setShowMobileStatus(false)}>
+                ✖ 返回聊天
+              </button>
+            )}
+          </div>
+        </main>
+
+        {/* 隐藏的文件输入框 */}
+        <input
+          type="file"
+          accept="image/*"
+          ref={fileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleFileChange}
+        />
+        <input
+          type="file"
+          accept="image/*"
+          ref={bgFileInputRef}
+          style={{ display: 'none' }}
+          onChange={handleBgUpload}
+        />
+
+        {/* 头像裁剪弹窗 */}
+        {showCropModal && (
+          <CropModal
+            imageSrc={imageSrc}
+            onClose={() => { setShowCropModal(false); setImageSrc(null); }}
+            onSave={handleSaveCrop}
+          />
+        )}
+
+        {/* 内置数据库查看器 */}
+        {showDbViewer && (
+          <DatabaseViewer onClose={() => setShowDbViewer(false)} />
+        )}
+
+        {/* 新增 API 配置模态弹窗 */}
+        {showCreateModal && (
+          <div className="crop-modal-overlay" style={{ zIndex: 1010 }}>
+            <div className="crop-modal-content" style={{ width: '450px', background: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>➕ 新增 API 配置源</h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>配置名称</label>
+                  <input
+                    type="text"
+                    value={newConfigName}
+                    onChange={(e) => setNewConfigName(e.target.value)}
+                    placeholder="例如：My Custom API"
+                    style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>协议类型</label>
+                  <select
+                    value={newConfigProtocol}
+                    onChange={(e) => setNewConfigProtocol(e.target.value)}
+                    style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                  >
+                    <option value="openai">OpenAI (推荐)</option>
+                    <option value="gemini">Gemini</option>
+                    <option value="claude">Claude</option>
+                  </select>
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>代理地址 (Base URL)</label>
+                  <input
+                    type="text"
+                    value={newConfigBaseUrl}
+                    onChange={(e) => setNewConfigBaseUrl(e.target.value)}
+                    placeholder="https://api.openai.com/v1"
+                    style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>API 密钥 (API Key)</label>
+                  <input
+                    type="password"
+                    value={newConfigApiKey}
+                    onChange={(e) => setNewConfigApiKey(e.target.value)}
+                    placeholder="sk-..."
+                    style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
                 </div>
               </div>
-            </section>
-          )}
-          {showMobileStatus && (
-            <button className="mobile-close-btn" onClick={() => setShowMobileStatus(false)}>
-              ✖ 返回聊天
-            </button>
-          )}
-        </div>
-      </main>
 
-      {/* 隐藏的文件输入框 */}
-      <input 
-        type="file" 
-        accept="image/*" 
-        ref={fileInputRef} 
-        style={{ display: 'none' }} 
-        onChange={handleFileChange} 
-      />
-      <input 
-        type="file" 
-        accept="image/*" 
-        ref={bgFileInputRef} 
-        style={{ display: 'none' }} 
-        onChange={handleBgUpload} 
-      />
-
-      {/* 头像裁剪弹窗 */}
-      {showCropModal && (
-        <CropModal 
-          imageSrc={imageSrc} 
-          onClose={() => { setShowCropModal(false); setImageSrc(null); }} 
-          onSave={handleSaveCrop} 
-        />
-      )}
-
-      {/* 内置数据库查看器 */}
-      {showDbViewer && (
-        <DatabaseViewer onClose={() => setShowDbViewer(false)} />
-      )}
-
-      {/* 新增 API 配置模态弹窗 */}
-      {showCreateModal && (
-        <div className="crop-modal-overlay" style={{ zIndex: 1010 }}>
-          <div className="crop-modal-content" style={{ width: '450px', background: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
-            <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>➕ 新增 API 配置源</h3>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>配置名称</label>
-                <input 
-                  type="text" 
-                  value={newConfigName} 
-                  onChange={(e) => setNewConfigName(e.target.value)} 
-                  placeholder="例如：My Custom API"
-                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>协议类型</label>
-                <select 
-                  value={newConfigProtocol} 
-                  onChange={(e) => setNewConfigProtocol(e.target.value)} 
-                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+                <button
+                  onClick={() => {
+                    setShowCreateModal(false);
+                    setNewConfigName('');
+                    setNewConfigBaseUrl('');
+                    setNewConfigApiKey('');
+                    setNewConfigProtocol('openai');
+                  }}
+                  style={{ padding: '8px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                 >
-                  <option value="openai">OpenAI (推荐)</option>
-                  <option value="gemini">Gemini</option>
-                  <option value="claude">Claude</option>
-                </select>
+                  取消
+                </button>
+                <button
+                  onClick={handleCreateModel}
+                  style={{ padding: '8px 16px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  确认创建
+                </button>
               </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>代理地址 (Base URL)</label>
-                <input 
-                  type="text" 
-                  value={newConfigBaseUrl} 
-                  onChange={(e) => setNewConfigBaseUrl(e.target.value)} 
-                  placeholder="https://api.openai.com/v1"
-                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
-                />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>API 密钥 (API Key)</label>
-                <input 
-                  type="password" 
-                  value={newConfigApiKey} 
-                  onChange={(e) => setNewConfigApiKey(e.target.value)} 
-                  placeholder="sk-..."
-                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
-                />
-              </div>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-              <button 
-                onClick={() => {
-                  setShowCreateModal(false);
-                  setNewConfigName('');
-                  setNewConfigBaseUrl('');
-                  setNewConfigApiKey('');
-                  setNewConfigProtocol('openai');
-                }}
-                style={{ padding: '8px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                取消
-              </button>
-              <button 
-                onClick={handleCreateModel}
-                style={{ padding: '8px 16px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                确认创建
-              </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* 重命名 API 配置模态弹窗 */}
-      {showRenameModal && (
-        <div className="crop-modal-overlay" style={{ zIndex: 1010 }}>
-          <div className="crop-modal-content" style={{ width: '400px', background: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
-            <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>✏️ 重命名 API 配置源</h3>
-            
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>新名称</label>
-                <input 
-                  type="text" 
-                  value={renameConfigName} 
-                  onChange={(e) => setRenameConfigName(e.target.value)} 
-                  placeholder="输入新配置名称"
-                  style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
-                />
+        {/* 重命名 API 配置模态弹窗 */}
+        {showRenameModal && (
+          <div className="crop-modal-overlay" style={{ zIndex: 1010 }}>
+            <div className="crop-modal-content" style={{ width: '400px', background: 'var(--bg-panel)', color: 'var(--text-primary)' }}>
+              <h3 style={{ margin: 0, fontSize: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>✏️ 重命名 API 配置源</h3>
+
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginTop: '8px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>新名称</label>
+                  <input
+                    type="text"
+                    value={renameConfigName}
+                    onChange={(e) => setRenameConfigName(e.target.value)}
+                    placeholder="输入新配置名称"
+                    style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
+                <button
+                  onClick={() => {
+                    setShowRenameModal(false);
+                    setRenameConfigName('');
+                  }}
+                  style={{ padding: '8px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
+                >
+                  取消
+                </button>
+                <button
+                  onClick={handleRenameModel}
+                  style={{ padding: '8px 16px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
+                >
+                  保存修改
+                </button>
               </div>
             </div>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
-              <button 
-                onClick={() => {
-                  setShowRenameModal(false);
-                  setRenameConfigName('');
-                }}
-                style={{ padding: '8px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
-              >
-                取消
-              </button>
-              <button 
-                onClick={handleRenameModel}
-                style={{ padding: '8px 16px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}
-              >
-                保存修改
-              </button>
-            </div>
           </div>
-        </div>
-      )}
-    </div>
+        )}
+      </div>
     </>
   );
 }

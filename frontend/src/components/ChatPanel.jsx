@@ -2,9 +2,9 @@ import React from 'react';
 
 const ToolBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
-  const friendlyName = block.tool_name === 'execute_bash' ? 'Bash' 
-                     : block.tool_name === 'default_api:run_command' ? 'Bash'
-                     : block.tool_name;
+  const friendlyName = block.tool_name === 'execute_bash' ? 'Bash'
+    : block.tool_name === 'default_api:run_command' ? 'Bash'
+      : block.tool_name;
 
   const [isExpanded, setIsExpanded] = React.useState(false);
   const THRESHOLD = 30;
@@ -20,14 +20,14 @@ const ToolBlock = ({ block, idx }) => {
         {hasLongOutput && (
           <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
             {isExpanded ? (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z"/></svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z" /></svg>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z"/></svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z" /></svg>
             )}
           </div>
         )}
       </div>
-      <div 
+      <div
         className={`claude-tool-io ${hasLongOutput && !isExpanded ? 'collapsed' : ''} ${hasLongOutput ? 'clickable' : ''}`}
         onClick={() => hasLongOutput && setIsExpanded(!isExpanded)}
       >
@@ -51,7 +51,7 @@ const ToolBlock = ({ block, idx }) => {
 const ThinkingBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
   const [isExpanded, setIsExpanded] = React.useState(isRunning);
-  
+
   React.useEffect(() => {
     setIsExpanded(isRunning);
   }, [isRunning]);
@@ -68,14 +68,14 @@ const ThinkingBlock = ({ block, idx }) => {
         {hasLongOutput && (
           <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
             {isExpanded ? (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z"/></svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z" /></svg>
             ) : (
-              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z"/></svg>
+              <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z" /></svg>
             )}
           </div>
         )}
       </div>
-      <div 
+      <div
         className={`thinking-content ${hasLongOutput && !isExpanded ? 'collapsed' : ''} ${hasLongOutput ? 'clickable' : ''}`}
         onClick={() => hasLongOutput && setIsExpanded(!isExpanded)}
       >
@@ -148,7 +148,7 @@ export default function ChatPanel({
   // 统一解析和合并块（处理文本和 msg.blocks）
   const parseAndMergeBlocks = (blocksOrText) => {
     let rawBlocks = Array.isArray(blocksOrText) ? blocksOrText : [{ type: 'text', text: blocksOrText || '' }];
-    
+
     // 1. Normalize: split text blocks containing <thought> into separate blocks
     let normalized = [];
     rawBlocks.forEach(b => {
@@ -156,7 +156,7 @@ export default function ChatPanel({
         let text = b.text || '';
         text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
         text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
-        
+
         const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
         let match;
         let lastIndex = 0;
@@ -185,7 +185,7 @@ export default function ChatPanel({
         const last = merged[merged.length - 1];
         if (last && last.type === 'thinking') {
           if (b.text) {
-             last.text = last.text ? (last.text + '\n\n' + b.text) : b.text;
+            last.text = last.text ? (last.text + '\n\n' + b.text) : b.text;
           }
           if (b.status === 'running') last.status = 'running';
         } else {
@@ -365,8 +365,8 @@ export default function ChatPanel({
                         <img src={assistantAvatar} alt="导师头像" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '50%' }} />
                       ) : (
                         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ width: '65%', height: '65%', color: 'var(--accent-pink)' }}>
-                          <path d="M22 10v6M2 10l10-5 10 5-10 5z"/>
-                          <path d="M6 12v5c3 3 9 3 12 0v-5"/>
+                          <path d="M22 10v6M2 10l10-5 10 5-10 5z" />
+                          <path d="M6 12v5c3 3 9 3 12 0v-5" />
                         </svg>
                       )}
                     </div>
