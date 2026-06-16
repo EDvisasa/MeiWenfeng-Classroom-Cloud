@@ -20,7 +20,8 @@ def test_uvicorn_graceful_shutdown_on_windows():
     proc = subprocess.Popen(
         [sys.executable, "-m", "uvicorn", "backend.main:app", "--host", "127.0.0.1", "--port", str(port)],
         stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE
+        stderr=subprocess.PIPE,
+        creationflags=subprocess.CREATE_NEW_PROCESS_GROUP
     )
 
     try:
@@ -38,9 +39,9 @@ def test_uvicorn_graceful_shutdown_on_windows():
 
         assert healthy, "FastAPI server failed to start or become healthy within 15 seconds"
 
-        # Call the dev endpoint to trigger graceful shutdown
+        # Send CTRL_BREAK_EVENT to trigger graceful shutdown
         try:
-            requests.post(f"http://127.0.0.1:{port}/api/dev/shutdown", timeout=2)
+            proc.send_signal(signal.CTRL_BREAK_EVENT)
         except Exception:
             pass
 

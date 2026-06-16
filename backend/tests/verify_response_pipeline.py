@@ -7,13 +7,14 @@ import os
 import signal
 
 def main():
+    PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
     # 1. Start the server
     print("Starting server...")
     server_process = subprocess.Popen(
         ["python", "backend/main.py"],
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
-        cwd=os.path.abspath(".")
+        cwd=PROJECT_ROOT
     )
 
     # Wait for the server to be healthy
@@ -81,7 +82,7 @@ def main():
             print("SUCCESS: <glossary> tag is completely hidden from SSE stream.")
 
         # 5. Verify the glossary term was written to the database
-        db_path = os.path.join("backend", "classroom.db")
+        db_path = os.path.join(PROJECT_ROOT, "backend", "classroom.db")
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 

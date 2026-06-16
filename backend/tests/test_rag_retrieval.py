@@ -33,9 +33,8 @@ def test_long_file_rag_retrieval_uses_original_message(tmp_path):
         "cursor_line": 1
     }
 
-    # Mock the RAG client and retrieve_memory
-    with patch("backend.routers.chat.get_rag_client") as mock_get_rag, \
-         patch("backend.routers.chat.retrieve_memory") as mock_retrieve_raw:
+    # Mock the RAG client
+    with patch("backend.routers.chat.get_rag_client") as mock_get_rag:
         
         mock_rag_instance = MagicMock()
         mock_get_rag.return_value = mock_rag_instance

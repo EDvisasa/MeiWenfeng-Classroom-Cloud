@@ -24,6 +24,7 @@ MeiWenfeng-Classroom/
 │   ├── main.py               # API 入口与中间件 (含防肉鸡白名单)
 │   ├── routers/              # 路由层 (对话/记忆/知识库/课程大纲/监控)
 │   ├── services/             # 核心服务 (模型路由/记忆衰减算法等)
+│   ├── tests/                # 自动化测试用例与集成验证脚本 (使用 pytest)
 │   ├── database.py           # SQLite 初始化与操作
 │   └── classroom.db          # 结构化数据库 (好感度/课程进度/系统配置)
 ├── frontend/                 # React 前端
@@ -129,6 +130,12 @@ pip install -r backend/requirements.txt
 当你后续接手此工程进行二次开发时，请首先查阅 `docs/` 目录：
 - **`docs/任务进展.md`**：了解项目最新版本的开发进度和已修复 Bug 记录。
 - **`docs/项目实施计划.md`**：如果需要做大型系统重构或调整阶段性核心目标，请以此为蓝本。
+
+**🧪 自动化测试体系**
+本项目拥有规范的后端测试用例。所有的测试文件（`test_*.py`）及集成验证脚本（如 `verify_*.py`）都被统一归纳并维护在 **`backend/tests/`** 目录中。
+- 项目根目录下已配置 `pytest.ini`（指定 `pythonpath = .`），这让路径解析变得极致丝滑。
+- **如何运行测试**：只需在项目根目录（`MeiWenfeng-Classroom`）打开终端，执行 `pytest` 即可自动发现并运行所有测试。
+- 新增功能时，请自觉在 `backend/tests/` 目录下编写对应测试。
 
 ---
 
