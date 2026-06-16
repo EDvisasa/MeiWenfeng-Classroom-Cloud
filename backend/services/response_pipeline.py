@@ -4,7 +4,7 @@ import re
 from typing import AsyncGenerator, Callable, Dict, Any, List, Optional, Awaitable, Union, Generator
 
 from backend.database import get_db_connection
-from backend.services.rag_factory import save_memory_to_rag
+from backend.services.rag_factory import get_rag_client
 
 logger = logging.getLogger(__name__)
 
@@ -240,6 +240,7 @@ class ResponsePipeline:
             conn.close()
 
             # 存入 RAG 向量库
-            save_memory_to_rag(self.original_user_msg, clean_text, level=0)
+            rag_client = get_rag_client()
+            rag_client.save_memory(self.original_user_msg, clean_text, level=0)
         except Exception as e:
             logger.error(f"Failed to save memory in pipeline: {e}")

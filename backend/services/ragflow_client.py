@@ -144,31 +144,38 @@ class RAGFlowClient:
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def retrieve(self, query: str, dataset_names: list = None) -> str:
+    def retrieve(self, query: str, dataset_names: list = None, n_results: int = 4) -> list[str]:
         """Retrieve relevant context for a query."""
         if dataset_names is None:
             dataset_names = ["Classroom_Knowledge"]
-            
+
         if not self.api_key or self.api_key == "your_ragflow_api_key_here":
-            return ""
-            
+            return []
+
         try:
             dataset_ids = [self._get_or_create_dataset(name) for name in dataset_names]
-            
+
             with httpx.Client() as client:
                 resp = client.post(
                     f"{self.base_url}/retrieval",
-                    json={"dataset_ids": dataset_ids, "question": query, "top_k": 3},
+                    json={"dataset_ids": dataset_ids, "question": query, "top_k": n_results},
                     headers=self.headers
                 )
                 if resp.status_code == 200:
                     chunks = resp.json().get("data", {}).get("chunks", [])
-                    context = "\n\n".join([c.get("content", "") for c in chunks])
-                    return context
+                    return [c.get("content", "") for c in chunks]
         except Exception as e:
             print(f"RAGFlow retrieval error: {e}")
-            return ""
-        return ""
+            return []
+        return []
+
+    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0) -> bool:
+        """RAGFlow does not support high-frequency memory writes well, fallback to no-op"""
+        return False
+
+    def retrieve_memory(self, query: str, n_results: int = 3) -> list[str]:
+        """RAGFlow memory retrieval not implemented"""
+        return []
 
 ragflow_client = RAGFlowClient()
 

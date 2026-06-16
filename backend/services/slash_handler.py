@@ -9,7 +9,7 @@ from openai import OpenAI
 from backend.database import get_db_connection
 from backend.services.model_router import stream_chat, get_active_model
 from backend.services.prompts import get_system_prompt, SUMMARIZATION_SYSTEM_PROMPT
-from backend.services.rag_factory import get_rag_client, save_memory_to_rag, retrieve_memory
+from backend.services.rag_factory import get_rag_client
 from backend.services.memory_decay import process_memory_decay
 from backend.services.response_pipeline import ResponsePipeline, json_escape
 
@@ -131,7 +131,7 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
         try:
             rag_client = get_rag_client()
             kb_context = rag_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge", "Memory_Knowledge"])
-            mem_context = retrieve_memory(last_user_msg, n_results=3)
+            mem_context = rag_client.retrieve_memory(last_user_msg, n_results=3)
             # 兼容返回字符串或列表
             parts = []
             if kb_context:

@@ -25,10 +25,10 @@ class ExternalRAGClient:
             h["Authorization"] = f"Bearer {self.api_key}"
         return h
 
-    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4) -> str:
+    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4) -> List[str]:
         """向外部 RAG 服务发送检索请求"""
         if not self.base_url:
-            return ""
+            return []
         try:
             safe_url = self.base_url.replace("://localhost:", "://127.0.0.1:")
             with httpx.Client(timeout=10.0) as client:
@@ -42,10 +42,10 @@ class ExternalRAGClient:
                     # 兼容不同响应格式
                     chunks = data.get("chunks") or data.get("data", {}).get("chunks", [])
                     if isinstance(chunks, list):
-                        return "\n\n".join([c if isinstance(c, str) else c.get("content", "") for c in chunks])
+                        return [c if isinstance(c, str) else c.get("content", "") for c in chunks]
         except Exception as e:
             print(f"ExternalRAG retrieve error: {e}")
-        return ""
+        return []
 
     def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
         """向外部 RAG 服务上传文件（如果支持的话）"""
@@ -83,3 +83,7 @@ class ExternalRAGClient:
     def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0) -> bool:
         """外部服务目前不支持高频记忆写入，降级处理"""
         return False
+
+    def retrieve_memory(self, query: str, n_results: int = 3) -> List[str]:
+        """外部服务目前不支持记忆检索，返回空"""
+        return []

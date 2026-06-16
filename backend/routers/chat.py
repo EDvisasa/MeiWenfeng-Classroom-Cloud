@@ -8,7 +8,7 @@ from typing import List, Dict, Any
 from backend.database import get_db_connection
 from backend.services.model_router import stream_chat
 from backend.services.prompts import get_system_prompt
-from backend.services.rag_factory import get_rag_client, save_memory_to_rag, retrieve_memory
+from backend.services.rag_factory import get_rag_client
 from backend.services.slash_handler import handle_slash_command, _register_pipeline_handlers
 from backend.services.response_pipeline import ResponsePipeline, json_escape
 
@@ -170,7 +170,7 @@ def send_message(payload: ChatRequest):
             rag_client = get_rag_client()
             kb_chunks = rag_client.retrieve(original_last_user_msg, dataset_names=["Classroom_Knowledge"])
             mem_chunks_from_kb = rag_client.retrieve(original_last_user_msg, dataset_names=["Memory_Knowledge"])
-            mem_chunks_raw = retrieve_memory(original_last_user_msg, n_results=3)
+            mem_chunks_raw = rag_client.retrieve_memory(original_last_user_msg, n_results=3)
 
             # 兼容旧版返回字符串的情况
             if isinstance(kb_chunks, str): kb_chunks = [kb_chunks] if kb_chunks else []
