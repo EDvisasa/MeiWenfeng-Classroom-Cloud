@@ -205,7 +205,8 @@ def send_message(payload: ChatRequest):
             system_prompt += f"【附加背景知识库检索结果（作为世界观或长程记忆参考）】\n{rag_context}\n\n"
         system_prompt += "（请结合以上近期日记和背景知识进行回答，保证时间线和记忆的连贯性）"
 
-    pipeline = ResponsePipeline(original_user_msg=original_last_user_msg)
+    pipeline = ResponsePipeline()
+    pipeline.original_user_msg = original_last_user_msg
     _register_pipeline_handlers(pipeline)
 
     def event_generator():

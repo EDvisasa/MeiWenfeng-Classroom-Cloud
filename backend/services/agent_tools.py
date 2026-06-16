@@ -4,6 +4,7 @@ import os
 import re
 import xml.etree.ElementTree as ET
 from typing import Generator, List, Dict, Any, Protocol
+from openai import OpenAI
 
 class AgentTool:
     name: str = ""
@@ -254,7 +255,7 @@ I need to find where 'login' is mentioned in the src folder.
 """
         current_messages = messages.copy()
         if len(current_messages) > 0 and current_messages[0]["role"] == "system":
-            current_messages[0]["content"] = str(current_messages[0]["content"]) + "\\n\\n" + system_injection
+            current_messages[0]["content"] = str(current_messages[0]["content"]) + "\n\n" + system_injection
         else:
             current_messages.insert(0, {"role": "system", "content": system_injection})
 

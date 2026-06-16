@@ -155,9 +155,7 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
         if not last_user_msg or not clean_text:
             return
         try:
-            memory_content = f"【对话记录】
-用户：{last_user_msg}
-媚吻锋：{clean_text}"
+            memory_content = f"【对话记录】\n用户：{last_user_msg}\n媚吻锋：{clean_text}"
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
@@ -264,9 +262,7 @@ def _handle_reward() -> StreamingResponse:
                 cursor.execute("UPDATE affection SET value = ?, last_updated = datetime('now') WHERE id = 1", (new_val,))
             conn.commit()
             conn.close()
-            yield f"[系统提示] 媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度：{new_val}
-
-"
+            yield f"[系统提示] 媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度：{new_val}\n\n"
             yield "*眼波流转，娇媚地白了你一眼，但嘴角的笑意却怎么也藏不住：*“夫君这是开窍了？就知道拿这些来哄奴家开心~”"
         except Exception as e:
             yield f"[系统提示] 奖励发送失败: {e}"
@@ -276,9 +272,7 @@ def _handle_reward() -> StreamingResponse:
 
 def _handle_summarize() -> StreamingResponse:
     def raw_generator():
-        yield "[系统记忆压缩] 正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...
-
-"
+        yield "[系统记忆压缩] 正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...\n\n"
         try:
             stats = process_memory_decay()
             yield f"[系统记忆压缩] 压缩完成！新记忆已归档入库。处理统计: {json.dumps(stats, ensure_ascii=False)}"
@@ -294,9 +288,7 @@ def _handle_prepare_lesson(file_path: str) -> StreamingResponse:
             yield "[系统提示] 备课失败：未能在上下文中获取到选中的讲义文件路径。"
             return
         filename = os.path.basename(file_path)
-        yield f"[知识库联动] 正在同步本地文件《{filename}》到当前知识库后端，请稍候...
-
-"
+        yield f"[知识库联动] 正在同步本地文件《{filename}》到当前知识库后端，请稍候...\n\n"
         try:
             if not os.path.exists(file_path) or os.path.isdir(file_path):
                  yield "[知识库联动] 错误：无效的文件路径。"

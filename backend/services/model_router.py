@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from typing import Generator, List, Dict, Any, Protocol
 from openai import OpenAI
 from backend.database import get_db_connection
-from backend.services.agent_tools import LLMClientProtocol, AgentExecutor
+from backend.services.agent_tools import LLMClientProtocol, AgentExecutor, OpenAILLMClient
 
 
 logger = logging.getLogger(__name__)
@@ -96,21 +96,6 @@ def stream_chat(
         try:
             # Avoid IPv6 connection issues on Windows with httpx by mapping localhost to 127.0.0.1
             safe_base_url = base_url.replace("://localhost:", "://127.0.0.1:")
-
-            import platform
-            current_os = platform.system()
-            os_instruction = f"Operating System: {current_os}."
-            if current_os == "Windows":
-                os_instruction += " You are using Windows cmd.exe. CRITICAL: Multiline strings do NOT work well in `python -c` or standard terminal commands here. If you need to run a python script, write it entirely on ONE line using semicolons (e.g. `python -c \"import os; print('hi')\"`), or write it to a temporary .py file and execute that file. Use Windows commands (e.g., `dir` instead of `ls`)."
-            else:
-                os_instruction += " You are using a standard Unix bash shell."
-
-            
-            formatted_messages = messages.copy()
-            if len(formatted_messages) > 0 and formatted_messages[0]["role"] == "system":
-                formatted_messages[0]["content"] = str(formatted_messages[0]["content"]) + "\n\n" + system_injection
-            else:
-                formatted_messages.insert(0, {"role": "system", "content": system_injection})
 
             llm_client = OpenAILLMClient(api_key=api_key, base_url=safe_base_url, model_id=model_id_api)
             executor = AgentExecutor(llm_client=llm_client, max_iterations=5)

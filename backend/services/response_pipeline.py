@@ -147,6 +147,7 @@ class ResponsePipeline:
     """
     def __init__(self, on_stream_end: Callable[[str], None] = None):
         self.on_stream_end = on_stream_end
+        self.original_user_msg = ""
         self.handlers: Dict[str, Callable] = {}
         self.interceptor = TagStreamInterceptor(target_tags=list(self.handlers.keys()))
 
@@ -187,16 +188,16 @@ class ResponsePipeline:
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
         finally:
             if not was_aborted:
-                self._execute_side_effects()
+                clean_text = self.interceptor.clean_text_accumulated.strip()
+                self._execute_side_effects(clean_text)
                 if self.on_stream_end:
-                    clean_text = self.interceptor.clean_text_accumulated.strip()
                     if clean_text:
                         try:
                             self.on_stream_end(clean_text)
                         except Exception as e:
                             logger.error(f"Error in on_stream_end callback: {e}")
 
-    def _execute_side_effects(self):
+    def _execute_side_effects(self, clean_text: str):
         """同步执行所有拦截到的标签副作用"""
         data = self.interceptor.intercepted_data
 
@@ -217,7 +218,8 @@ class ResponsePipeline:
                     except Exception as e:
                         logger.error(f"Error handling tag <{tag_name}>: {e}")
 
-
+        if not self.original_user_msg:
+            return
 
         try:
             memory_content = f"【对话记录】\n用户：{self.original_user_msg}\n媚吻锋：{clean_text}"
