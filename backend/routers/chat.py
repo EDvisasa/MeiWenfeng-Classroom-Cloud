@@ -209,7 +209,7 @@ def send_message(payload: ChatRequest):
                     with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                         file_content = f.read(20000)
                         if f.read(1):
-                            file_content += "\n\n...[文件内容过大，已自动截断。如果您需要分析全部剧情，请主动调用 `grep_search` 或 `read_file` 工具继续探索。]"
+                            file_content += "\n\n...[文件内容过大，已自动截断。如果您需要分析全部文本，请主动调用 `grep_search` 或 `read_file` 工具继续探索。]"
 
                     file_info = f"\n\n<file_content filename=\"{os.path.basename(file_path)}\">\n{file_content}\n</file_content>\n"
                     last_user_msg = last_user_msg.replace(full_match, f"{full_match} {file_info}")

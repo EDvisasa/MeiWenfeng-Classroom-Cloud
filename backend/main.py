@@ -57,7 +57,7 @@ if os.path.exists(IMAGE_DIR):
 # 4. 设置跨域 CORS 规则（前端 React 会从 localhost:5173 或其他端口访问）
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # 本地部署允许所有源以简化跨域配置
+    allow_origins=["http://localhost:12703", "http://127.0.0.1:12703", "http://localhost:5173", "http://127.0.0.1:5173"],  # 限制来源，修复 CORS 漏洞
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -74,9 +74,11 @@ ALLOWED_NETWORKS = [
 
 @app.middleware("http")
 async def ip_whitelist_middleware(request: Request, call_next):
-    client_ip = request.client.host
+    client_ip = request.client.host if request.client else ""
     try:
-        if client_ip == "testclient":
+        if client_ip == "testclient" or client_ip == "":
+            # Allow testclient or cases where client is missing (e.g. certain ASGI setups)
+            # You might want to be stricter here depending on security requirements
             is_allowed = True
         else:
             ip_obj = ipaddress.ip_address(client_ip)

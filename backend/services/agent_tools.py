@@ -1,5 +1,6 @@
 import subprocess
 import os
+import shlex
 
 import re
 import xml.etree.ElementTree as ET
@@ -21,14 +22,35 @@ class BashTool(AgentTool):
         command = params.get("command", "")
         if not command:
             return "[Error] No command provided."
-            
-        # Physical Guardrails to enforce tool usage
+
+        # Physical Guardrails to enforce tool usage using shlex for safer parsing
+        try:
+            # We split the command to safely inspect the base binary being called,
+            # handling shell escapes and quotes properly.
+            parsed_cmd = shlex.split(command, posix=True)
+            if parsed_cmd:
+                base_binary = os.path.basename(parsed_cmd[0]).lower()
+
+                # Check for direct calls to forbidden binaries
+                if base_binary in ["cat", "type"]:
+                    return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using 'type' or 'cat' to read files in bash. You MUST use the <call_tool name=\"read_file\"> tool instead."
+                if base_binary in ["grep", "findstr"]:
+                    return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using 'findstr' or 'grep' in bash. You MUST use the <call_tool name=\"grep_search\"> tool instead."
+
+                # Also block common bypasses like tail or head used for full file reading
+                if base_binary in ["tail", "head", "more", "less"]:
+                     return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using shell utilities to read files. You MUST use the <call_tool name=\"read_file\"> tool instead."
+        except ValueError:
+            # If shlex fails to parse (e.g. unclosed quotes), we fall back to a strict string check
+            pass
+
+        # Fallback string matching for piped commands or complex shell strings
         cmd_lower = command.strip().lower()
-        if "type " in cmd_lower or "cat " in cmd_lower or cmd_lower.startswith("type") or cmd_lower.startswith("cat"):
+        if "cat " in cmd_lower or "type " in cmd_lower or "| cat" in cmd_lower or "| type" in cmd_lower:
             return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using 'type' or 'cat' to read files in bash. You MUST use the <call_tool name=\"read_file\"> tool instead."
-        if "findstr" in cmd_lower or "grep" in cmd_lower:
+        if "grep" in cmd_lower or "findstr" in cmd_lower:
             return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using 'findstr' or 'grep' in bash. You MUST use the <call_tool name=\"grep_search\"> tool instead."
-        
+
         try:
             result = subprocess.run(command, shell=True, capture_output=True, timeout=10)
             try:
