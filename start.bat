@@ -1,5 +1,6 @@
 @echo off
 chcp 65001 > nul
+set PYTHONUTF8=1
 title Mei Wenfeng Classroom - Launcher
 
 echo ==========================================
@@ -50,7 +51,7 @@ echo.
 echo * Press Ctrl+C to stop all services safely. *
 echo ==========================================
 
-call npx --yes concurrently -n "FastAPI,MCP,Node,React" -c "bgBlue.bold,bgMagenta.bold,bgGreen.bold,bgCyan.bold" --kill-others ".venv\Scripts\python.exe -m backend.main" ".venv\Scripts\python.exe -m backend.mcp_server" "cd backend\claude_engine && node server.js" "cd frontend && npm run dev"
+call npx --yes concurrently -n "FastAPI,MCP,Node,React,LiteLLM" -c "bgBlue.bold,bgMagenta.bold,bgGreen.bold,bgCyan.bold,bgYellow.bold" --kill-others ".venv\Scripts\python.exe -m backend.main" ".venv\Scripts\python.exe -m backend.mcp_server" "cd backend\claude_engine && node server.js" "cd frontend && npm run dev" ".venv\Scripts\litellm.exe --config backend/litellm_config.yaml --port 12704"
 
 pause
 

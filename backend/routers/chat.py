@@ -11,6 +11,7 @@ from backend.services.prompts import get_system_prompt
 from backend.services.rag_factory import get_rag_client
 from backend.services.slash_handler import handle_slash_command, _register_pipeline_handlers
 from backend.services.response_pipeline import ResponsePipeline, json_escape
+import tiktoken
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["chat"])
@@ -25,6 +26,95 @@ class ChatRequest(BaseModel):
     current_file_path: str = ""
     cursor_line: int = 0
     custom_max_tokens: int = 8192
+
+def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str):
+    # 2. 从数据库加载好感度，用于拼接 System Prompt
+    affection_value = 100
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM affection WHERE id = 1")
+        row = cursor.fetchone()
+        if row:
+            affection_value = row["value"]
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to fetch affection: {e}")
+
+    # 提取最后一条用户消息用于 RAG 检索
+    rag_context = ""
+    recent_memory_text = ""
+    kb_count = 0
+    mem_count = 0
+
+    # 提取最近几天的明确摘要（弥补向量数据库按时间检索的劣势）
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT timestamp, summary FROM memory_logs WHERE level IN (1, 2) ORDER BY timestamp DESC LIMIT 3")
+        recent_logs = cursor.fetchall()
+        conn.close()
+        if recent_logs:
+            recent_memory_text = "【近期日记摘要（优先级最高，包含最近2-3天的确切记忆）】\n" + "\n---\n".join([f"[{r['timestamp'].split()[0]}] {r['summary']}" for r in reversed(recent_logs)])
+    except Exception as e:
+        logger.error(f"Failed to fetch recent memory logs: {e}")
+
+    if original_last_user_msg:
+        try:
+            rag_client = get_rag_client()
+            kb_chunks = rag_client.retrieve(original_last_user_msg, dataset_names=["Classroom_Knowledge"])
+            mem_chunks_from_kb = rag_client.retrieve(original_last_user_msg, dataset_names=["Memory_Knowledge"])
+            mem_chunks_raw = rag_client.retrieve_memory(original_last_user_msg, n_results=3)
+
+            # 兼容旧版返回字符串的情况
+            if isinstance(kb_chunks, str): kb_chunks = [kb_chunks] if kb_chunks else []
+            if isinstance(mem_chunks_from_kb, str): mem_chunks_from_kb = [mem_chunks_from_kb] if mem_chunks_from_kb else []
+            if isinstance(mem_chunks_raw, str): mem_chunks_raw = [mem_chunks_raw] if mem_chunks_raw else []
+
+            kb_chunks = [p for p in kb_chunks if p]
+            mem_chunks = [p for p in mem_chunks_from_kb + mem_chunks_raw if p]
+
+            kb_count = len(kb_chunks)
+            mem_count = len(mem_chunks)
+
+            all_chunks = kb_chunks + mem_chunks
+            if all_chunks:
+                rag_context = "\n\n".join(all_chunks)
+        except Exception as e:
+            logger.error(f"RAG Retrieval failed: {e}")
+
+    system_prompt = get_system_prompt(affection_value, payload.persona_type)
+
+    if payload.current_file_path:
+        import os
+        filename = os.path.basename(payload.current_file_path)
+        line_str = f"Line {payload.cursor_line}" if payload.cursor_line > 0 else "Unknown"
+        system_prompt += f"\n\n<ide_context>\nThe user is currently viewing the following file in their VS Code editor:\n- File Name: {filename}\n- Absolute Path: {payload.current_file_path}\n- Cursor Position: {line_str}\nYou should use this context implicitly if the user asks about 'this file' or 'here'.\n</ide_context>"
+
+    if recent_memory_text or rag_context:
+        system_prompt += "\n\n"
+        if recent_memory_text:
+            system_prompt += f"{recent_memory_text}\n\n"
+        if rag_context:
+            system_prompt += f"【附加背景知识库检索结果（作为世界观或长程记忆参考）】\n{rag_context}\n\n"
+        system_prompt += "（请结合以上近期日记和背景知识进行回答，保证时间线和记忆的连贯性）"
+
+    return system_prompt, kb_count, mem_count
+
+@router.post("/system_context")
+def get_system_context(payload: ChatRequest):
+    """前端调用以获取当前状态下隐藏上下文（系统设定、RAG、好感度等）所占用的准确 Token 数"""
+    last_user_msg = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+    system_prompt, _, _ = _build_full_system_prompt(payload, last_user_msg)
+    
+    try:
+        encoding = tiktoken.get_encoding("cl100k_base")
+        tokens = len(encoding.encode(system_prompt))
+    except Exception as e:
+        logger.error(f"tiktoken fallback: {e}")
+        tokens = len(system_prompt) // 4
+        
+    return {"status": "success", "baseSystemTokens": tokens}
 
 @router.post("/send")
 def send_message(payload: ChatRequest):
@@ -134,76 +224,7 @@ def send_message(payload: ChatRequest):
             except Exception as e:
                 logger.error(f"Failed to read mentioned file {file_path}: {e}")
 
-    # 2. 从数据库加载好感度，用于拼接 System Prompt
-    affection_value = 100
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM affection WHERE id = 1")
-        row = cursor.fetchone()
-        if row:
-            affection_value = row["value"]
-        conn.close()
-    except Exception as e:
-        logger.error(f"Failed to fetch affection: {e}")
-
-    # 提取最后一条用户消息用于 RAG 检索
-    rag_context = ""
-    recent_memory_text = ""
-    kb_count = 0
-    mem_count = 0
-
-    # 提取最近几天的明确摘要（弥补向量数据库按时间检索的劣势）
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT timestamp, summary FROM memory_logs WHERE level IN (1, 2) ORDER BY timestamp DESC LIMIT 3")
-        recent_logs = cursor.fetchall()
-        conn.close()
-        if recent_logs:
-            recent_memory_text = "【近期日记摘要（优先级最高，包含最近2-3天的确切记忆）】\n" + "\n---\n".join([f"[{r['timestamp'].split()[0]}] {r['summary']}" for r in reversed(recent_logs)])
-    except Exception as e:
-        logger.error(f"Failed to fetch recent memory logs: {e}")
-
-    if original_last_user_msg:
-        try:
-            rag_client = get_rag_client()
-            kb_chunks = rag_client.retrieve(original_last_user_msg, dataset_names=["Classroom_Knowledge"])
-            mem_chunks_from_kb = rag_client.retrieve(original_last_user_msg, dataset_names=["Memory_Knowledge"])
-            mem_chunks_raw = rag_client.retrieve_memory(original_last_user_msg, n_results=3)
-
-            # 兼容旧版返回字符串的情况
-            if isinstance(kb_chunks, str): kb_chunks = [kb_chunks] if kb_chunks else []
-            if isinstance(mem_chunks_from_kb, str): mem_chunks_from_kb = [mem_chunks_from_kb] if mem_chunks_from_kb else []
-            if isinstance(mem_chunks_raw, str): mem_chunks_raw = [mem_chunks_raw] if mem_chunks_raw else []
-
-            kb_chunks = [p for p in kb_chunks if p]
-            mem_chunks = [p for p in mem_chunks_from_kb + mem_chunks_raw if p]
-
-            kb_count = len(kb_chunks)
-            mem_count = len(mem_chunks)
-
-            all_chunks = kb_chunks + mem_chunks
-            if all_chunks:
-                rag_context = "\n\n".join(all_chunks)
-        except Exception as e:
-            logger.error(f"RAG Retrieval failed: {e}")
-
-    system_prompt = get_system_prompt(affection_value, payload.persona_type)
-
-    if payload.current_file_path:
-        import os
-        filename = os.path.basename(payload.current_file_path)
-        line_str = f"Line {payload.cursor_line}" if payload.cursor_line > 0 else "Unknown"
-        system_prompt += f"\n\n<ide_context>\nThe user is currently viewing the following file in their VS Code editor:\n- File Name: {filename}\n- Absolute Path: {payload.current_file_path}\n- Cursor Position: {line_str}\nYou should use this context implicitly if the user asks about 'this file' or 'here'.\n</ide_context>"
-
-    if recent_memory_text or rag_context:
-        system_prompt += "\n\n"
-        if recent_memory_text:
-            system_prompt += f"{recent_memory_text}\n\n"
-        if rag_context:
-            system_prompt += f"【附加背景知识库检索结果（作为世界观或长程记忆参考）】\n{rag_context}\n\n"
-        system_prompt += "（请结合以上近期日记和背景知识进行回答，保证时间线和记忆的连贯性）"
+    system_prompt, kb_count, mem_count = _build_full_system_prompt(payload, original_last_user_msg)
 
     pipeline = ResponsePipeline()
     pipeline.original_user_msg = original_last_user_msg

@@ -1,4 +1,6 @@
 import React from 'react';
+import { encode } from 'gpt-tokenizer';
+import { API_BASE } from '../config';
 
 const ToolBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
@@ -89,6 +91,7 @@ const ThinkingBlock = ({ block, idx }) => {
 
 export default function ChatPanel({
   messages,
+  models,
   activeModel,
   userAvatar,
   assistantAvatar,
@@ -112,6 +115,7 @@ export default function ChatPanel({
   activeSessionId,
   onNewSession,
   onSwitchSession,
+  onDeleteSession,
   showSessionList,
   setShowSessionList,
   selectedFilePath,
@@ -121,6 +125,70 @@ export default function ChatPanel({
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const [editingIndex, setEditingIndex] = React.useState(null);
   const [editContent, setEditContent] = React.useState('');
+
+  const [baseSystemTokens, setBaseSystemTokens] = React.useState(0);
+  const [dynamicTokens, setDynamicTokens] = React.useState(0);
+
+  // 获取当前激活模型的 max_context_tokens
+  const activeModelConfig = models?.find(m => m.name === activeModel);
+  const maxTokens = activeModelConfig?.max_context_tokens || 8192;
+
+  // 请求后端获取 hidden system context tokens
+  React.useEffect(() => {
+    const fetchSystemTokens = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/chat/system_context`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            messages: messages,
+            persona_type: localStorage.getItem('persona_type') || 'simplified',
+            current_file_path: selectedFilePath || '',
+            cursor_line: 0,
+            custom_max_tokens: maxTokens
+          })
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setBaseSystemTokens(data.baseSystemTokens || 0);
+        }
+      } catch (e) {
+        console.error('Failed to fetch system tokens:', e);
+      }
+    };
+    
+    // 我们在会话改变或新消息发出后，以及切换具有不同最大 Token 数的模型时，静默刷新底层 Token 占用
+    fetchSystemTokens();
+  }, [messages.length, activeSessionId, selectedFilePath, activeModel, maxTokens]);
+
+  // 计算前端动态 tokens
+  React.useEffect(() => {
+    try {
+      let count = encode(inputText).length;
+      
+      // 简单近似计算：累加当前会话内的文本长度
+      const recentMsgs = messages.slice(-20);
+      for (const msg of recentMsgs) {
+        if (typeof msg.content === 'string') {
+          count += encode(msg.content).length;
+        } else if (Array.isArray(msg.blocks)) {
+           const txt = msg.blocks.filter(b => b.type === 'text').map(b => b.text).join('\n');
+           count += encode(txt).length;
+        }
+      }
+      setDynamicTokens(count);
+    } catch (e) {
+      console.error('Token count error:', e);
+    }
+  }, [inputText, messages]);
+
+  const totalTokens = baseSystemTokens + dynamicTokens;
+  const tokenRatio = Math.min(totalTokens / maxTokens, 1);
+  // 颜色：安全为次要文本色，>70% 为粉色，>90% 为红色
+  const tokenColor = tokenRatio > 0.9 ? 'var(--text-error, #f87171)' : tokenRatio > 0.7 ? 'var(--accent-pink)' : 'var(--text-secondary)';
+  const radius = 6;
+  const circumference = 2 * Math.PI * radius;
+  const strokeDashoffset = circumference - tokenRatio * circumference;
 
   // 监听输入文本内容，根据行数自适应高度，未满高度时不显示滚动条
   React.useEffect(() => {
@@ -522,6 +590,40 @@ export default function ChatPanel({
                   <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z" />
                 </svg>
               </button>
+
+              {/* 环形 Token 指示器 */}
+              <div 
+                className="token-ring-indicator" 
+                title={`Token 用量: ${totalTokens} / ${maxTokens}\n包含隐藏上下文 (系统设定/RAG/记忆): ${baseSystemTokens}\n当前对话: ${dynamicTokens}`}
+                style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  width: '24px', 
+                  height: '24px',
+                  cursor: 'help'
+                }}
+              >
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <circle 
+                    cx="9" cy="9" r={radius} 
+                    fill="none" 
+                    stroke="var(--border-color)" 
+                    strokeWidth="2.5" 
+                  />
+                  <circle 
+                    cx="9" cy="9" r={radius} 
+                    fill="none" 
+                    stroke={tokenColor} 
+                    strokeWidth="2.5" 
+                    strokeDasharray={circumference} 
+                    strokeDashoffset={strokeDashoffset} 
+                    strokeLinecap="round"
+                    style={{ transition: 'stroke-dashoffset 0.3s ease, stroke 0.3s ease', transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+                  />
+                </svg>
+              </div>
+
               {showShortcuts && (
                 <div
                   className="shortcuts-popover"

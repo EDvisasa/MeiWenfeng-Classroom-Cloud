@@ -1288,6 +1288,7 @@ export default function App() {
           <ChatPanel
             isVsCode={isVsCode}
             messages={messages}
+            models={models}
             activeModel={activeModel}
             userAvatar={userAvatar}
             assistantAvatar={assistantAvatar}

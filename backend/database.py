@@ -80,13 +80,19 @@ def init_db():
         base_url TEXT,
         api_key TEXT,
         is_active INTEGER DEFAULT 0,
-        selected_model_id TEXT
+        selected_model_id TEXT,
+        max_context_tokens INTEGER DEFAULT 8192
     );
     """)
 
     # 兼容性升级：如果表已经存在，则尝试动态添加新列
     try:
         cursor.execute("ALTER TABLE model_config ADD COLUMN selected_model_id TEXT")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE model_config ADD COLUMN max_context_tokens INTEGER DEFAULT 8192")
     except sqlite3.OperationalError:
         pass
 
@@ -137,14 +143,12 @@ def init_db():
             "INSERT INTO rag_config (id, backend_type, ragflow_url, ragflow_key, external_url, external_key) VALUES (1, 'chromadb', 'http://localhost/api/v1', '', '', '')"
         )
 
-    # 初始化默认模型
+    # 初始化默认模型 (统一指向 LiteLLM 本地网关)
     default_models = [
-        ("DeepSeek (在线)", "openai", "https://api.deepseek.com/v1", os.getenv("DEEPSEEK_API_KEY", ""), 1, "deepseek-chat"),
-        ("Antigravity2API (本地)", "openai", "http://localhost:8045/v1", "sk-text", 0, "gemini-3-pro-high"),
-        ("Gemini-Antigravity (在线)", "gemini", "https://generativelanguage.googleapis.com", os.getenv("GEMINI_API_KEY", ""), 0, "gemini-3-pro-high"),
-        ("qwen3.6-35b (本地)", "openai", "http://localhost:8080/v1", "none", 0, "qwen3.6-35b"),
-        ("Gemma-9b (本地)", "openai", "http://localhost:11434/v1", "none", 0, "gemma-9b"),
-        ("Claude (在线)", "claude", "https://api.anthropic.com", os.getenv("CLAUDE_API_KEY", ""), 0, "claude-sonnet-4-5-thinking")
+        ("DeepSeek (网关)", "openai", "http://127.0.0.1:12704/v1", "sk-antigravity", 1, "deepseek-chat"),
+        ("Gemini-Pro (网关)", "openai", "http://127.0.0.1:12704/v1", "sk-antigravity", 0, "gemini-3.1-pro-preview"),
+        ("Qwen-Local (网关)", "openai", "http://127.0.0.1:12704/v1", "sk-antigravity", 0, "qwen-local"),
+        ("Claude-Sonnet (网关)", "openai", "http://127.0.0.1:12704/v1", "sk-antigravity", 0, "claude-3-sonnet")
     ]
     for name, protocol, base_url, api_key, is_active, selected_model_id in default_models:
         try:
