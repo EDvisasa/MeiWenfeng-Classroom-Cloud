@@ -47,7 +47,8 @@ def init_db():
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         content TEXT,
         summary TEXT,
-        level INTEGER DEFAULT 0
+        level INTEGER DEFAULT 0,
+        status TEXT DEFAULT 'active'
     );
     """)
 

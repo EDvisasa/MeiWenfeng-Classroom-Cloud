@@ -148,58 +148,80 @@ def process_memory_decay() -> Dict[str, Any]:
 
     # ==========================
     # Phase B: 被动延时降级 (Level N -> N+1)
+    # 修复了时间窗口压缩 Bug，确保能够按时间块聚合日志
     # ==========================
+    import datetime
+    import re
+
     for config in DECAY_CONFIGS:
         level = config["level"]
-        threshold = config["threshold"]
+        threshold_str = config["threshold"]
         next_level = config["next_level"]
         prompt = config["prompt"]
-        
-        cursor.execute(f"""
-            SELECT id, summary, timestamp FROM memory_logs 
-            WHERE level = ? AND timestamp < datetime('now', ?) AND status = 'active'
-            ORDER BY timestamp ASC
-        """, (level, threshold))
-        
-        rows = cursor.fetchall()
-        if not rows:
+
+        # 从 threshold 中提取天数（例如 "-2 days" -> 2）
+        match = re.search(r'\d+', threshold_str)
+        if not match:
             continue
-            
-        start_date = rows[0]["timestamp"].split()[0]
-        end_date = rows[-1]["timestamp"].split()[0]
-        if start_date == end_date:
-            date_range_str = start_date
-        else:
-            date_range_str = f"{start_date} 至 {end_date}"
-            
-        dynamic_prompt = prompt.replace("（根据内容总结时间跨度）", date_range_str)
-        dynamic_prompt = dynamic_prompt.replace("（如：近一周）", date_range_str)
-        dynamic_prompt = dynamic_prompt.replace("（如：近一个月）", date_range_str)
-            
-        combined_text = "\n---\n".join([r["summary"] for r in rows])
-        new_summary = generate_summary(combined_text, dynamic_prompt)
-        
-        if new_summary:
-            old_ids = [r["id"] for r in rows]
-            cursor.execute(f"UPDATE memory_logs SET status = 'compressed' WHERE id IN ({','.join(['?']*len(old_ids))})", old_ids)
-            
+        threshold_days = int(match.group())
+
+        # 寻找该层级最老的一条活跃日志
+        cursor.execute("SELECT timestamp FROM memory_logs WHERE level = ? AND status = 'active' ORDER BY timestamp ASC LIMIT 1", (level,))
+        oldest = cursor.fetchone()
+
+        if not oldest:
+            continue
+
+        oldest_time = datetime.datetime.strptime(oldest["timestamp"], "%Y-%m-%d %H:%M:%S")
+        window_end = oldest_time + datetime.timedelta(days=threshold_days)
+        current_time = datetime.datetime.now()
+
+        # 只有当整个时间窗口（如 2 天、7 天）完全成为过去时，才进行打包压缩
+        if window_end < current_time:
             cursor.execute("""
-                INSERT INTO memory_logs (content, summary, level, status)
-                VALUES ('', ?, ?, 'active')
-            """, (new_summary, next_level))
-            new_id = cursor.lastrowid
-            
-            conn.commit()
-            
-            filename = f"Memory_Level_{next_level}_{new_id}.md"
-            import datetime
-            date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            sync_text = f"【记录时间：{date_str}】\n{new_summary}"
-            rag_client = get_rag_client()
-            rag_client.sync_knowledge({filename: sync_text}, dataset_name="Memory_Knowledge")
-            
-            stats["processed"] += len(rows)
-            stats["levels"][level] = len(rows)
+                SELECT id, summary, timestamp FROM memory_logs
+                WHERE level = ? AND status = 'active' AND timestamp <= ?
+                ORDER BY timestamp ASC
+            """, (level, window_end.strftime("%Y-%m-%d %H:%M:%S")))
+
+            rows = cursor.fetchall()
+            if not rows:
+                continue
+
+            start_date = rows[0]["timestamp"].split()[0]
+            end_date = rows[-1]["timestamp"].split()[0]
+            if start_date == end_date:
+                date_range_str = start_date
+            else:
+                date_range_str = f"{start_date} 至 {end_date}"
+
+            dynamic_prompt = prompt.replace("（根据内容总结时间跨度）", date_range_str)
+            dynamic_prompt = dynamic_prompt.replace("（如：近一周）", date_range_str)
+            dynamic_prompt = dynamic_prompt.replace("（如：近一个月）", date_range_str)
+
+            combined_text = "\n---\n".join([r["summary"] for r in rows])
+            new_summary = generate_summary(combined_text, dynamic_prompt)
+
+            if new_summary:
+                old_ids = [r["id"] for r in rows]
+                cursor.execute(f"UPDATE memory_logs SET status = 'compressed' WHERE id IN ({','.join(['?']*len(old_ids))})", old_ids)
+
+                cursor.execute("""
+                    INSERT INTO memory_logs (content, summary, level, status)
+                    VALUES ('', ?, ?, 'active')
+                """, (new_summary, next_level))
+                new_id = cursor.lastrowid
+
+                conn.commit()
+
+                filename = f"Memory_Level_{next_level}_{new_id}.md"
+                date_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                sync_text = f"【记录时间：{date_str}】\n{new_summary}"
+                rag_client = get_rag_client()
+                rag_client.sync_knowledge({filename: sync_text}, dataset_name="Memory_Knowledge")
+
+                stats["processed"] += len(rows)
+                stats["levels"][level] = len(rows)
             
     conn.close()
     return stats
