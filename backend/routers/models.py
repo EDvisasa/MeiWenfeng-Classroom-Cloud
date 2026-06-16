@@ -35,10 +35,18 @@ def resolve_max_tokens(model_name: str, target_model: str, base_url: str, api_va
     return max_tokens
 
 def detect_and_update_max_tokens(model_id: int):
-    """通过本地网关 /v1/models 探测并更新 max_context_tokens"""
+    """通过本地网关 /v1/models 探测并更新 max_context_tokens，如果已被人工锁定则跳过"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
+        
+        # 0. 检查是否已被人工锁定
+        cursor.execute("SELECT is_custom_tokens FROM model_config WHERE id = ?", (model_id,))
+        check_row = cursor.fetchone()
+        if not check_row or check_row["is_custom_tokens"] == 1:
+            conn.close()
+            return
+
         cursor.execute("SELECT name, base_url, selected_model_id FROM model_config WHERE id = ?", (model_id,))
         row = cursor.fetchone()
         if not row:
@@ -83,12 +91,14 @@ class ModelUpdateRequest(BaseModel):
     api_key: str = ""
     protocol: str = "openai"
     selected_model_id: str = ""
+    max_context_tokens: Optional[int] = None
 
 class ModelCreateRequest(BaseModel):
     name: str
     protocol: str = "openai"
     base_url: str = ""
     api_key: str = ""
+    max_context_tokens: Optional[int] = None
 
 @router.get("/models")
 def list_models():
@@ -96,7 +106,7 @@ def list_models():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, protocol, base_url, api_key, is_active, selected_model_id, max_context_tokens FROM model_config")
+        cursor.execute("SELECT id, name, protocol, base_url, api_key, is_active, selected_model_id, max_context_tokens, is_custom_tokens FROM model_config")
         rows = cursor.fetchall()
         conn.close()
         return [dict(r) for r in rows]
@@ -116,15 +126,26 @@ def update_model_config(payload: ModelUpdateRequest, background_tasks: Backgroun
                 conn.close()
                 raise HTTPException(status_code=400, detail="配置名称已存在，请使用其他名称")
 
-        cursor.execute(
-            """UPDATE model_config 
-               SET name = ?, base_url = ?, api_key = ?, protocol = ?, selected_model_id = ? 
-               WHERE id = ?""",
-            (payload.name, payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, payload.id)
-        )
+        is_custom = 1 if payload.max_context_tokens else 0
+        
+        if is_custom:
+            cursor.execute(
+                """UPDATE model_config 
+                   SET name = ?, base_url = ?, api_key = ?, protocol = ?, selected_model_id = ?, max_context_tokens = ?, is_custom_tokens = ? 
+                   WHERE id = ?""",
+                (payload.name, payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, payload.max_context_tokens, is_custom, payload.id)
+            )
+        else:
+            cursor.execute(
+                """UPDATE model_config 
+                   SET name = ?, base_url = ?, api_key = ?, protocol = ?, selected_model_id = ?, is_custom_tokens = 0 
+                   WHERE id = ?""",
+                (payload.name, payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, payload.id)
+            )
         conn.commit()
         conn.close()
-        background_tasks.add_task(detect_and_update_max_tokens, payload.id)
+        if not is_custom:
+            background_tasks.add_task(detect_and_update_max_tokens, payload.id)
         return {"status": "success"}
     except HTTPException as he:
         raise he
@@ -143,16 +164,20 @@ def create_model_config(payload: ModelCreateRequest, background_tasks: Backgroun
             conn.close()
             raise HTTPException(status_code=400, detail="配置名称已存在，请使用其他名称")
             
+        is_custom = 1 if payload.max_context_tokens else 0
+        max_tokens = payload.max_context_tokens if payload.max_context_tokens else 8192
+        
         cursor.execute(
-            """INSERT INTO model_config (name, protocol, base_url, api_key, is_active, selected_model_id)
-               VALUES (?, ?, ?, ?, 0, '')""",
-            (payload.name, payload.protocol, payload.base_url, payload.api_key)
+            """INSERT INTO model_config (name, base_url, api_key, protocol, max_context_tokens, is_custom_tokens) 
+               VALUES (?, ?, ?, ?, ?, ?)""",
+            (payload.name, payload.base_url, payload.api_key, payload.protocol, max_tokens, is_custom)
         )
-        new_id = cursor.lastrowid
+        model_id = cursor.lastrowid
         conn.commit()
         conn.close()
-        background_tasks.add_task(detect_and_update_max_tokens, new_id)
-        return {"status": "success", "id": new_id}
+        if not is_custom:
+            background_tasks.add_task(detect_and_update_max_tokens, model_id)
+        return {"status": "success", "id": model_id}
     except HTTPException as he:
         raise he
     except Exception as e:

@@ -312,6 +312,7 @@ export default function App() {
   const [selectedConfigId, setSelectedConfigId] = useState(1);
   const [tempBaseUrl, setTempBaseUrl] = useState('');
   const [tempApiKey, setTempApiKey] = useState('');
+  const [tempMaxContextTokens, setTempMaxContextTokens] = useState('');
   const [tempSelectedSubModel, setTempSelectedSubModel] = useState('');
   const [availableModels, setAvailableModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -323,6 +324,7 @@ export default function App() {
   const [newConfigProtocol, setNewConfigProtocol] = useState('openai');
   const [newConfigBaseUrl, setNewConfigBaseUrl] = useState('');
   const [newConfigApiKey, setNewConfigApiKey] = useState('');
+  const [newConfigMaxContextTokens, setNewConfigMaxContextTokens] = useState('');
   const [renameConfigName, setRenameConfigName] = useState('');
 
   // RAG 知识库后端配置
@@ -486,6 +488,7 @@ export default function App() {
       setTempBaseUrl(active.base_url);
       setTempApiKey(active.api_key || '');
       setTempSelectedSubModel(active.selected_model_id || '');
+      setTempMaxContextTokens(active.max_context_tokens || '');
     }
   }, [models]);
 
@@ -601,6 +604,7 @@ export default function App() {
     if (selected) {
       setTempBaseUrl(selected.base_url);
       setTempApiKey(selected.api_key || '');
+      setTempMaxContextTokens(selected.max_context_tokens || '');
       setTempSelectedSubModel(selected.selected_model_id || '');
       setAvailableModels([]);
     }
@@ -620,6 +624,7 @@ export default function App() {
           name: selected.name,
           base_url: tempBaseUrl,
           api_key: tempApiKey,
+          max_context_tokens: tempMaxContextTokens ? parseInt(tempMaxContextTokens, 10) : null,
           protocol: selected.protocol,
           selected_model_id: tempSelectedSubModel
         })
@@ -652,6 +657,7 @@ export default function App() {
           name: selected.name,
           base_url: tempBaseUrl,
           api_key: tempApiKey,
+          max_context_tokens: tempMaxContextTokens ? parseInt(tempMaxContextTokens, 10) : null,
           protocol: selected.protocol,
           selected_model_id: tempSelectedSubModel
         })
@@ -695,7 +701,8 @@ export default function App() {
           name: newConfigName.trim(),
           protocol: newConfigProtocol,
           base_url: newConfigBaseUrl.trim(),
-          api_key: newConfigApiKey.trim()
+          api_key: newConfigApiKey.trim(),
+          max_context_tokens: newConfigMaxContextTokens ? parseInt(newConfigMaxContextTokens, 10) : null
         })
       });
       const data = await res.json();
@@ -705,12 +712,14 @@ export default function App() {
         setNewConfigBaseUrl('');
         setNewConfigApiKey('');
         setNewConfigProtocol('openai');
+        setNewConfigMaxContextTokens('');
 
         // 刷新列表并选中新创建的配置
         await fetchModels();
         setSelectedConfigId(data.id);
         setTempBaseUrl(newConfigBaseUrl.trim());
         setTempApiKey(newConfigApiKey.trim());
+        setTempMaxContextTokens(newConfigMaxContextTokens ? parseInt(newConfigMaxContextTokens, 10) : '');
         setTempSelectedSubModel('');
         setAvailableModels([]);
 
@@ -748,6 +757,7 @@ export default function App() {
           name: renameConfigName.trim(),
           base_url: tempBaseUrl,
           api_key: tempApiKey,
+          max_context_tokens: tempMaxContextTokens ? parseInt(tempMaxContextTokens, 10) : null,
           protocol: selected.protocol,
           selected_model_id: tempSelectedSubModel
         })
@@ -801,6 +811,7 @@ export default function App() {
           setSelectedConfigId(nextSelected.id);
           setTempBaseUrl(nextSelected.base_url);
           setTempApiKey(nextSelected.api_key || '');
+          setTempMaxContextTokens(nextSelected.max_context_tokens || '');
           setTempSelectedSubModel(nextSelected.selected_model_id || '');
           setAvailableModels([]);
         }
@@ -866,6 +877,7 @@ export default function App() {
           setSelectedConfigId(switchedObj.id);
           setTempBaseUrl(switchedObj.base_url);
           setTempApiKey(switchedObj.api_key || '');
+          setTempMaxContextTokens(switchedObj.max_context_tokens || '');
           setTempSelectedSubModel(switchedObj.selected_model_id || '');
         }
 
@@ -1591,7 +1603,19 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Max Tokens */}
+                  {/* Max Context Tokens */}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>最大上下文 Tokens (可选)</label>
+                    <input
+                      type="number"
+                      placeholder="留空则自动试探。填入将永久锁定该限界 (如 131072)"
+                      value={tempMaxContextTokens}
+                      onChange={(e) => setTempMaxContextTokens(e.target.value)}
+                      style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                    />
+                  </div>
+
+                  {/* Max Tokens (Output) */}
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
                     <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>最大返回 Tokens (推荐8192, 0表示无限制)</label>
                     <input
@@ -1843,6 +1867,17 @@ export default function App() {
                     style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
                   />
                 </div>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                  <label style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>最大上下文 Tokens (可选)</label>
+                  <input
+                    type="number"
+                    value={newConfigMaxContextTokens}
+                    onChange={(e) => setNewConfigMaxContextTokens(e.target.value)}
+                    placeholder="留空自动探测。填入将永久锁定该限界 (如 131072)"
+                    style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
+                  />
+                </div>
               </div>
 
               <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '16px' }}>
@@ -1853,6 +1888,7 @@ export default function App() {
                     setNewConfigBaseUrl('');
                     setNewConfigApiKey('');
                     setNewConfigProtocol('openai');
+                    setNewConfigMaxContextTokens('');
                   }}
                   style={{ padding: '8px 16px', background: 'var(--bg-tertiary)', color: 'var(--text-primary)', border: 'none', borderRadius: '4px', cursor: 'pointer' }}
                 >
