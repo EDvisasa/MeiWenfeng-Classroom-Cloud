@@ -264,7 +264,8 @@ export default function ChatPanel({
           if (b.text) {
             last.text = last.text ? (last.text + '\n\n' + b.text) : b.text;
           }
-          if (b.status === 'running' && isStreaming) last.status = 'running';
+          // Inherit status from the newest block
+          last.status = b.status;
         } else {
           merged.push({ ...b });
         }
