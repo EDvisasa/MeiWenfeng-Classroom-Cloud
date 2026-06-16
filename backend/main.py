@@ -58,6 +58,7 @@ if os.path.exists(IMAGE_DIR):
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:12703", "http://127.0.0.1:12703", "http://localhost:5173", "http://127.0.0.1:5173"],  # 限制来源，修复 CORS 漏洞
+    allow_origin_regex=r"^http://(?:localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(?:1[6-9]|2\d|3[0-1])\.\d+\.\d+)(?::\d+)?$", # 允许局域网内的跨域请求（手机端访问所需）
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
