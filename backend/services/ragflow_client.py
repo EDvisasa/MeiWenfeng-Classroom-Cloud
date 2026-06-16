@@ -1,11 +1,12 @@
 import os
 import httpx
 from typing import Dict, Any
+from backend.services.rag_factory import RAGClient
 
 RAGFLOW_API_KEY = os.environ.get("RAGFLOW_API_KEY", "")
 RAGFLOW_BASE_URL = os.environ.get("RAGFLOW_BASE_URL", "http://localhost/api/v1").rstrip("/")
 
-class RAGFlowClient:
+class RAGFlowClient(RAGClient):
     def __init__(self):
         self.dataset_name = "Classroom_Knowledge"
 

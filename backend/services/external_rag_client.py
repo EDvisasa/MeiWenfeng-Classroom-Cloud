@@ -11,9 +11,10 @@
 """
 import httpx
 from typing import Dict, Any, List, Optional
+from backend.services.rag_factory import RAGClient
 
 
-class ExternalRAGClient:
+class ExternalRAGClient(RAGClient):
     def __init__(self, base_url: str = "", api_key: str = ""):
         self.base_url = base_url.rstrip("/")
         self.api_key = api_key

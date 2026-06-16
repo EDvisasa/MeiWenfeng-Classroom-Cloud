@@ -1,12 +1,12 @@
 # 媚吻锋随身课堂 (MeiWenfeng Classroom)
 
-> 极致轻量化的本地 Web 角色扮演与教学引擎 - 剥离 LLM Prompt 实现极限 Token 压缩
+> 极致轻量化的本地 Web 角色扮演与教学引擎 - 基于 Agentic 工具流与深度解耦的管道架构
 
 ---
 
 ## 📖 项目简介
 
-媚吻锋随身课堂是一个完全独立于 SillyTavern 的本地 Web 角色扮演与教学应用。项目基于 Python (FastAPI) 后端与 React 前端构建，旨在通过将“好感度”、“课程进度”、“记忆管理”从 LLM Prompt 中完全剥离并结构化存储，实现极端的 Token 压缩和更高效的 RAG（检索增强生成）系统。
+媚吻锋随身课堂是一个完全独立于 SillyTavern 的本地 Web 角色扮演与教学应用。项目基于 Python (FastAPI) 后端与 React 前端构建，旨在通过构建深度的 `ResponsePipeline` 拦截管道与 `AgentExecutor` 智能体执行器，在保障前端流式打字机平滑体验的同时，实现稳定、安全的多轮本地工具调用（Agentic Tool Flow）和高效的 RAG（检索增强生成）系统。
 
 - ✅ **流式对话渲染** - 内嵌角色设定，自动渲染灰色斜体动作描写
 - ✅ **动态记忆衰减** - 本地 ChromaDB 支持，自动提取核心并按遗忘曲线衰减
@@ -82,6 +82,12 @@ pip install -r backend/requirements.txt
 ---
 
 ## ⚙️ 核心功能解析
+
+### 🤖 Agentic 工具流与管道架构 (New!)
+彻底告别将网络请求、工具执行和副作用拦截揉捏在一起的“上帝函数”。系统现已升级为智能体系统架构：
+- **底座协议层 (`LLMClientProtocol`)**：纯粹的物理层流式通信。
+- **应用执行层 (`AgentExecutor`)**：包裹底层协议，负责状态机驱动的多轮思考 (`<thought>`) 与本地工具 (`execute_bash`, `read_file`, `grep_search`) 调用循环。
+- **响应拦截层 (`ResponsePipeline`)**：字符级状态机实时拦截 XML 副作用标签（如 `<glossary>`, `[SYSTEM_PASS]`），同时保障向前端输送绝对纯净的 SSE 文本流，避免打字机卡顿或标签泄漏。
 
 ### 🧠 记忆系统与时间线重构
 内置本地 ChromaDB 向量知识库。基于自研的遗忘曲线算法，系统会按天对历史记忆（精确、关键、模糊、里程碑、索引）进行衰减处理和提炼，解决传统扮演 LLM 动辄塞入几万字上下文导致崩溃或幻觉的问题。

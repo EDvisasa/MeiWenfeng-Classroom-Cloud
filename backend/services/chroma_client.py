@@ -69,8 +69,9 @@ def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 60) -> List[str
 
 
 import threading
+from backend.services.rag_factory import RAGClient
 
-class ChromaRAGClient:
+class ChromaRAGClient(RAGClient):
     def __init__(self):
         self._client = None
         self._ef = None

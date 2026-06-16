@@ -8,6 +8,33 @@ RAG 工厂模块 —— 根据数据库中的 rag_config 动态返回当前激�
 """
 from __future__ import annotations
 from typing import Dict, Any, Optional, List
+from abc import ABC, abstractmethod
+
+
+class RAGClient(ABC):
+    """
+    统一的 RAG 客户端接口。
+    所有特定的 RAG 后端适配器（如 ChromaDB, RAGFlow）都必须实现此接口。
+    """
+    @abstractmethod
+    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def get_sync_status(self, dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
+        pass
+
+    @abstractmethod
+    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4) -> List[str]:
+        pass
+
+    @abstractmethod
+    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0) -> bool:
+        pass
+
+    @abstractmethod
+    def retrieve_memory(self, query: str, n_results: int = 3) -> List[str]:
+        pass
 
 
 def get_rag_config() -> Dict[str, Any]:
@@ -33,7 +60,7 @@ def get_rag_config() -> Dict[str, Any]:
     }
 
 
-def get_rag_client():
+def get_rag_client() -> RAGClient:
     """动态返回当前配置对应的 RAG 客户端实例"""
     config = get_rag_config()
     backend_type = config.get("backend_type", "chromadb")

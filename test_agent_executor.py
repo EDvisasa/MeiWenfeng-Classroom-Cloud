@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import patch, MagicMock
-from backend.services.model_router import AgentExecutor
+from backend.services.agent_tools import AgentExecutor
 
 # --- Mock LLM Client for testing ---
 class MockLLMClient:
@@ -65,7 +65,7 @@ def test_agent_executor_with_tool_call():
 
     mock_llm = MockLLMClient([iter1, iter2])
 
-    with patch("backend.services.model_router.TOOL_REGISTRY", mock_registry):
+    with patch("backend.services.agent_tools.TOOL_REGISTRY", mock_registry):
         executor = AgentExecutor(llm_client=mock_llm, max_iterations=3)
         messages = [{"role": "user", "content": "Run echo hello"}]
 
