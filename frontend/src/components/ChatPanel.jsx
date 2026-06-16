@@ -216,7 +216,7 @@ export default function ChatPanel({
   };
 
   // 统一解析和合并块（处理文本和 msg.blocks）
-  const parseAndMergeBlocks = (blocksOrText) => {
+  const parseAndMergeBlocks = (blocksOrText, isStreaming = false) => {
     let rawBlocks = Array.isArray(blocksOrText) ? blocksOrText : [{ type: 'text', text: blocksOrText || '' }];
 
     // 1. Normalize: split text blocks containing <thought> into separate blocks
@@ -239,7 +239,7 @@ export default function ChatPanel({
             const snippet = text.substring(lastIndex, match.index).replace(/<\/thought>/g, '').trim();
             if (snippet) normalized.push({ type: 'text', text: snippet });
           }
-          const isRunning = !text.substring(match.index).includes('</thought>');
+          const isRunning = isStreaming ? !text.substring(match.index).includes('</thought>') : false;
           normalized.push({ type: 'thinking', text: match[1].trim(), status: isRunning ? 'running' : 'done' });
           lastIndex = thoughtRegex.lastIndex;
         }
@@ -250,7 +250,8 @@ export default function ChatPanel({
         }
 
       } else {
-        normalized.push({ ...b });
+        const bStatus = isStreaming ? b.status : (b.type === 'thinking' || b.type === 'tool' ? 'done' : b.status);
+        normalized.push({ ...b, status: bStatus });
       }
     });
 
@@ -263,7 +264,7 @@ export default function ChatPanel({
           if (b.text) {
             last.text = last.text ? (last.text + '\n\n' + b.text) : b.text;
           }
-          if (b.status === 'running') last.status = 'running';
+          if (b.status === 'running' && isStreaming) last.status = 'running';
         } else {
           merged.push({ ...b });
         }
@@ -380,6 +381,8 @@ export default function ChatPanel({
             );
           }
 
+          const blocks = msg.blocks || [{ type: 'text', text: msg.content || '' }];
+          const mergedBlocks = parseAndMergeBlocks(blocks, msg.streaming);
           const isUser = msg.role === 'user';
 
           const handleStartEdit = () => {
