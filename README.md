@@ -89,6 +89,11 @@ pip install -r backend/requirements.txt
 - **底座协议层 (`LLMClientProtocol`)**：纯粹的物理层流式通信。
 - **应用执行层 (`AgentExecutor`)**：包裹底层协议，负责状态机驱动的多轮思考 (`<thought>`) 与本地工具 (`execute_bash`, `read_file`, `grep_search`) 调用循环。
 - **响应拦截层 (`ResponsePipeline`)**：字符级状态机实时拦截 XML 副作用标签（如 `<glossary>`, `[SYSTEM_PASS]`），同时保障向前端输送绝对纯净的 SSE 文本流，避免打字机卡顿或标签泄漏。
+- **大文件 OOM 防护**：通过 `@文件` 语法读取本地文件时，自动截断超大文件（限制 20000 字符），并智能引导大模型使用 `grep_search` 或 `read_file` 工具探索剩余内容，彻底杜绝上下文溢出崩溃。
+
+### 🖥️ 沉浸式双栏布局与智能 UI
+- **动态 Token 环形指示器**：实时计算底层隐藏上下文（系统设定/RAG/记忆）与当前对话的 Token 消耗总和，接近模型上限时自动变色预警。
+- **强壮的思考状态管理**：前端解析流已重构为“深模块 (Deep Module)”，精准追踪大模型流式输出生命周期与多轮工具调用时序，彻底解决思考块（Thinking Block）状态卡死或指示灯泄漏问题。
 
 ### 🧠 记忆系统与时间线重构
 内置本地 ChromaDB 向量知识库。基于自研的遗忘曲线算法，系统会按天对历史记忆（精确、关键、模糊、里程碑、索引）进行衰减处理和提炼，解决传统扮演 LLM 动辄塞入几万字上下文导致崩溃或幻觉的问题。
@@ -133,10 +138,15 @@ pip install -r backend/requirements.txt
 - **`docs/项目实施计划.md`**：如果需要做大型系统重构或调整阶段性核心目标，请以此为蓝本。
 
 **🧪 自动化测试体系**
-本项目拥有规范的后端测试用例。所有的测试文件（`test_*.py`）及集成验证脚本（如 `verify_*.py`）都被统一归纳并维护在 **`backend/tests/`** 目录中。
-- 项目根目录下已配置 `pytest.ini`（指定 `pythonpath = .`），这让路径解析变得极致丝滑。
-- **如何运行测试**：只需在项目根目录（`MeiWenfeng-Classroom`）打开终端，执行 `pytest` 即可自动发现并运行所有测试。
-- 新增功能时，请自觉在 `backend/tests/` 目录下编写对应测试。
+本项目针对前后端采用了符合各自生态最佳实践的测试组织规范：
+
+- **后端 (Python/pytest) - 集中式管理**：
+  所有的测试文件（`test_*.py`）及集成验证脚本（如 `verify_*.py`）都被统一归纳并维护在 **`backend/tests/`** 目录中。项目根目录下已配置 `pytest.ini`（指定 `pythonpath = .`），路径解析极致丝滑。
+  *如何运行*：只需在项目根目录（`MeiWenfeng-Classroom`）打开终端，执行 `pytest` 即可自动发现并运行所有测试。
+
+- **前端 (React/Vitest) - 并置式管理 (Colocation)**：
+  前端的业务逻辑测试（如 `*.test.js`）直接存放在源码同级目录（例如 `frontend/src/utils/blockParser.test.js`）。这符合现代前端工程保持高局部性和内聚性的标准，方便 TDD 开发与维护。
+  *如何运行*：在 `frontend` 目录下执行 `npm run test` 即可自动运行前端测试。
 
 ---
 
