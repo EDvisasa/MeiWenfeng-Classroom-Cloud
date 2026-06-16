@@ -87,7 +87,7 @@ pip install -r backend/requirements.txt
 ### 🤖 Agentic 工具流与管道架构 (New!)
 彻底告别将网络请求、工具执行和副作用拦截揉捏在一起的“上帝函数”。系统现已升级为智能体系统架构：
 - **底座协议层 (`LLMClientProtocol`)**：纯粹的物理层流式通信。
-- **应用执行层 (`AgentExecutor`)**：包裹底层协议，负责状态机驱动的多轮思考 (`<thought>`) 与本地工具 (`execute_bash`, `read_file`, `grep_search`) 调用循环。
+- **应用执行层 (`AgentExecutor`)**：包裹底层协议，负责状态机驱动的多轮思考 (`<thought>`) 与本地工具 (`execute_bash`, `read_file`, `grep_search`) 调用循环。内建严密的 AST 级防注入护栏，有效拦截恶意 Shell 命令和路径穿越攻击。
 - **响应拦截层 (`ResponsePipeline`)**：字符级状态机实时拦截 XML 副作用标签（如 `<glossary>`, `[SYSTEM_PASS]`），同时保障向前端输送绝对纯净的 SSE 文本流，避免打字机卡顿或标签泄漏。
 - **大文件 OOM 防护**：通过 `@文件` 语法读取本地文件时，自动截断超大文件（限制 20000 字符），并智能引导大模型使用 `grep_search` 或 `read_file` 工具探索剩余内容，彻底杜绝上下文溢出崩溃。
 
@@ -150,4 +150,4 @@ pip install -r backend/requirements.txt
 
 ---
 
-*最后更新: 2026-06-16*
+*最后更新: 2026-06-17*
