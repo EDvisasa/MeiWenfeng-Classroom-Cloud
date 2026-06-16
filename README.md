@@ -35,7 +35,7 @@ MeiWenfeng-Classroom/
 │   │   └── index.css         # 深色主题与样式系统
 │   ├── vite.config.js        # Vite 构建配置 (绑定 0.0.0.0)
 │   └── index.html            # 页面入口
-├── docs/                     # 项目文档与规划记录
+├── docs/                     # 项目文档与架构分析报告 (Bug 诊断记录等)
 ├── start.bat                 # Windows 一键启动脚本
 ├── start.sh                  # Linux/Mac 一键启动脚本
 ├── .env.example              # 环境变量参考模板

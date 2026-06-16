@@ -1,6 +1,7 @@
 import React from 'react';
 import { encode } from 'gpt-tokenizer';
 import { API_BASE } from '../config';
+import { parseAndMergeBlocks } from '../utils/blockParser';
 
 const ToolBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
@@ -213,67 +214,6 @@ export default function ChatPanel({
       }
       return <span key={`t_${offset}_${idx}`}>{part}</span>;
     });
-  };
-
-  // 统一解析和合并块（处理文本和 msg.blocks）
-  const parseAndMergeBlocks = (blocksOrText, isStreaming = false) => {
-    let rawBlocks = Array.isArray(blocksOrText) ? blocksOrText : [{ type: 'text', text: blocksOrText || '' }];
-
-    // 1. Normalize: split text blocks containing <thought> into separate blocks
-    let normalized = [];
-    rawBlocks.forEach(b => {
-      if (b.type === 'text') {
-        let text = b.text || '';
-        text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
-        text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
-        text = text.replace(/<call_tool[\s\S]*?(?:<\/call_tool>|$)/g, '').trim();
-        text = text.replace(/<tool_batch>[\s\S]*?(?:<\/tool_batch>|$)/g, '').trim();
-        // 注意：不在此处 strip </thought>，让 thoughtRegex 自己处理配对
-        // 如果先 strip 掉 </thought>，regex 的 |$ 分支会把后面所有故事正文也吸进 Thinking 块
-
-        const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
-        let match;
-        let lastIndex = 0;
-        while ((match = thoughtRegex.exec(text)) !== null) {
-          if (match.index > lastIndex) {
-            const snippet = text.substring(lastIndex, match.index).replace(/<\/thought>/g, '').trim();
-            if (snippet) normalized.push({ type: 'text', text: snippet });
-          }
-          const isRunning = isStreaming ? !text.substring(match.index).includes('</thought>') : false;
-          normalized.push({ type: 'thinking', text: match[1].trim(), status: isRunning ? 'running' : 'done' });
-          lastIndex = thoughtRegex.lastIndex;
-        }
-        if (lastIndex < text.length) {
-          // 清理孤立的 </thought>（没有匹配 <thought> 的闭合标签）
-          const snippet = text.substring(lastIndex).replace(/<\/thought>/g, '').trim();
-          if (snippet) normalized.push({ type: 'text', text: snippet });
-        }
-
-      } else {
-        const bStatus = isStreaming ? b.status : (b.type === 'thinking' || b.type === 'tool' ? 'done' : b.status);
-        normalized.push({ ...b, status: bStatus });
-      }
-    });
-
-    // 2. Merge adjacent thinking blocks
-    let merged = [];
-    normalized.forEach(b => {
-      if (b.type === 'thinking') {
-        const last = merged[merged.length - 1];
-        if (last && last.type === 'thinking') {
-          if (b.text) {
-            last.text = last.text ? (last.text + '\n\n' + b.text) : b.text;
-          }
-          // Inherit status from the newest block
-          last.status = b.status;
-        } else {
-          merged.push({ ...b });
-        }
-      } else {
-        merged.push(b);
-      }
-    });
-    return merged;
   };
 
   const renderNormalizedBlocks = (blocks) => {
