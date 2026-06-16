@@ -200,9 +200,66 @@ class AgentExecutor:
         self.llm_client = llm_client
         self.max_iterations = max_iterations
 
+
     def run(self, messages: List[Dict[str, str]], **kwargs) -> Generator[Dict[str, Any], None, None]:
-        iteration = 0
+        import platform
+        current_os = platform.system()
+        os_instruction = f"Operating System: {current_os}."
+        if current_os == "Windows":
+            os_instruction += " You are using Windows cmd.exe. CRITICAL: Multiline strings do NOT work well in `python -c` or standard terminal commands here. If you need to run a python script, write it entirely on ONE line using semicolons (e.g. `python -c \"import os; print('hi')\"`), or write it to a temporary .py file and execute that file. Use Windows commands (e.g., `dir` instead of `ls`)."
+        else:
+            os_instruction += " You are using a standard Unix bash shell."
+
+        system_injection = f"""
+<tool_use_guidelines>
+You have access to a local command-line terminal and file system tools.
+{os_instruction}
+
+CRITICAL RULES:
+1. THINK BEFORE YOU ACT: You MUST ALWAYS start your response with a <thought> block to explain your plan and reasoning.
+2. MULTIPLE TOOLS: You may execute multiple tool calls in a single turn by outputting multiple `<call_tool>` blocks back-to-back.
+3. STOP AND WAIT: After outputting your tool call(s), you MUST STOP generating immediately. DO NOT hallucinate the system's response. The system will automatically reply with "[System Tool Result]".
+4. ERROR RECOVERY: If the system execution result contains an error, analyze it in your next <thought> block and try a different command. Do NOT bother the user with technical errors.
+5. USE SPECIFIC TOOLS: You MUST use `read_file` to read files. NEVER use `cat` or `type` via `execute_bash`.
+6. ENFORCE SEARCH TOOL: To search for a specific string or keywords across files in a directory, you MUST use the `grep_search` tool. You are ABSOLUTELY FORBIDDEN from using `execute_bash` (like findstr, grep, or custom python scripts) to search files.
+7. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
+
+TOOL EXECUTION FORMAT:
+<thought>
+I need to check the current directory contents.
+</thought>
+<call_tool name="execute_bash">
+<command>{"dir" if current_os == "Windows" else "ls -la"}</command>
+</call_tool>
+
+OR to read a file (optionally specifying lines to read):
+<thought>
+I need to read lines 10 to 50 of config.json.
+</thought>
+<call_tool name="read_file">
+<path>config.json</path>
+<start_line>10</start_line>
+<end_line>50</end_line>
+</call_tool>
+
+OR to search for a query across files in a directory:
+<thought>
+I need to find where 'login' is mentioned in the src folder.
+</thought>
+<call_tool name="grep_search">
+<dir_path>C:/path/to/src</dir_path>
+<query>login</query>
+</call_tool>
+</tool_use_guidelines>
+"""
         current_messages = messages.copy()
+        if len(current_messages) > 0 and current_messages[0]["role"] == "system":
+            current_messages[0]["content"] = str(current_messages[0]["content"]) + "\\n\\n" + system_injection
+        else:
+            current_messages.insert(0, {"role": "system", "content": system_injection})
+
+        iteration = 0
+
 
         while iteration < self.max_iterations:
             iteration += 1

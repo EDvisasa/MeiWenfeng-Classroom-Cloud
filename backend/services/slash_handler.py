@@ -150,8 +150,38 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
     if system_injection:
         system_prompt += f"\n\n{system_injection}\n"
 
+
+    def on_stream_end(clean_text: str):
+        if not last_user_msg or not clean_text:
+            return
+        try:
+            memory_content = f"【对话记录】
+用户：{last_user_msg}
+媚吻锋：{clean_text}"
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO memory_logs (content, level, status) VALUES (?, 0, 'active')",
+                (memory_content,)
+            )
+            conn.commit()
+
+            cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
+            active_level0_count = cursor.fetchone()[0]
+            if active_level0_count >= 10:
+                import threading
+                from backend.services.memory_decay import process_memory_decay
+                threading.Thread(target=process_memory_decay, daemon=True).start()
+            conn.close()
+
+            rag_client = get_rag_client()
+            rag_client.save_memory(last_user_msg, clean_text, level=0)
+        except Exception as e:
+            logger.error(f"Failed to save memory in callback: {e}")
+
     # 初始化管道
-    pipeline = ResponsePipeline(original_user_msg=last_user_msg)
+    pipeline = ResponsePipeline(on_stream_end=on_stream_end)
+
     _register_pipeline_handlers(pipeline)
 
     def event_generator():
@@ -220,8 +250,7 @@ def _register_pipeline_handlers(pipeline: ResponsePipeline):
 
 # 下面保留原有的其他命令处理函数（_handle_reward, _handle_summarize 等）...
 def _handle_reward() -> StreamingResponse:
-    """处理 /奖励"""
-    def generator():
+    def raw_generator():
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
@@ -235,32 +264,42 @@ def _handle_reward() -> StreamingResponse:
                 cursor.execute("UPDATE affection SET value = ?, last_updated = datetime('now') WHERE id = 1", (new_val,))
             conn.commit()
             conn.close()
-            yield f"data: {json_escape('[系统提示] 媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度：' + str(new_val))}\n\n"
-            yield f"data: {json_escape('*眼波流转，娇媚地白了你一眼，但嘴角的笑意却怎么也藏不住：*“夫君这是开窍了？就知道拿这些来哄奴家开心~”')}\n\n"
+            yield f"[系统提示] 媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度：{new_val}
+
+"
+            yield "*眼波流转，娇媚地白了你一眼，但嘴角的笑意却怎么也藏不住：*“夫君这是开窍了？就知道拿这些来哄奴家开心~”"
         except Exception as e:
-            yield f"data: {json_escape('[系统提示] 奖励发送失败: ' + str(e))}\n\n"
-    return StreamingResponse(generator(), media_type="text/event-stream")
+            yield f"[系统提示] 奖励发送失败: {e}"
+            
+    pipeline = ResponsePipeline()
+    return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
 
 def _handle_summarize() -> StreamingResponse:
-    def generator():
-        yield f"data: {json_escape('[系统记忆压缩] 正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...')}\n\n"
+    def raw_generator():
+        yield "[系统记忆压缩] 正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...
+
+"
         try:
             stats = process_memory_decay()
-            yield f"data: {json_escape(f'[系统记忆压缩] 压缩完成！新记忆已归档入库。处理统计: {json.dumps(stats, ensure_ascii=False)}')}\n\n"
+            yield f"[系统记忆压缩] 压缩完成！新记忆已归档入库。处理统计: {json.dumps(stats, ensure_ascii=False)}"
         except Exception as e:
-            yield f"data: {json_escape('[系统记忆压缩] 压缩失败: ' + str(e))}\n\n"
-    return StreamingResponse(generator(), media_type="text/event-stream")
+            yield f"[系统记忆压缩] 压缩失败: {e}"
+            
+    pipeline = ResponsePipeline()
+    return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
 
 def _handle_prepare_lesson(file_path: str) -> StreamingResponse:
-    def generator():
+    def raw_generator():
         if not file_path:
-            yield f"data: {json_escape('[系统提示] 备课失败：未能在上下文中获取到选中的讲义文件路径。')}\n\n"
+            yield "[系统提示] 备课失败：未能在上下文中获取到选中的讲义文件路径。"
             return
         filename = os.path.basename(file_path)
-        yield f"data: {json_escape(f'[知识库联动] 正在同步本地文件《{filename}》到当前知识库后端，请稍候...')}\n\n"
+        yield f"[知识库联动] 正在同步本地文件《{filename}》到当前知识库后端，请稍候...
+
+"
         try:
             if not os.path.exists(file_path) or os.path.isdir(file_path):
-                 yield f"data: {json_escape('[知识库联动] 错误：无效的文件路径。')}\n\n"
+                 yield "[知识库联动] 错误：无效的文件路径。"
                  return
             with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
                 content = f.read()
@@ -268,12 +307,14 @@ def _handle_prepare_lesson(file_path: str) -> StreamingResponse:
             result = rag_client.sync_knowledge({filename: content}, dataset_name="Classroom_Knowledge")
             if result["status"] == "error":
                 error_msg = result.get("message")
-                yield f"data: {json_escape(f'[知识库联动] 同步出错: {error_msg}')}\n\n"
+                yield f"[知识库联动] 同步出错: {error_msg}"
             else:
-                yield f"data: {json_escape('[知识库联动] 同步成功！媚吻锋已熟读这份讲义资料。')}\n\n"
+                yield "[知识库联动] 同步成功！媚吻锋已熟读这份讲义资料。"
         except Exception as e:
-            yield f"data: {json_escape('[知识库联动] 发生异常: ' + str(e))}\n\n"
-    return StreamingResponse(generator(), media_type="text/event-stream")
+            yield f"[知识库联动] 发生异常: {e}"
+            
+    pipeline = ResponsePipeline()
+    return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
 
 def _handle_update_persona() -> StreamingResponse:
     def generator():
@@ -359,9 +400,9 @@ def _handle_update_persona() -> StreamingResponse:
 
 def _handle_set_mission(clean_cmd: str) -> StreamingResponse:
     mission_text = clean_cmd.replace("/set_mission", "").strip()
-    def generator():
+    def raw_generator():
         if not mission_text:
-            yield f"data: {json_escape('[系统提示] 目标内容不能为空，格式为：/设定目标 我的目标是打败魔尊')}\\n\\n"
+            yield "[系统提示] 目标内容不能为空，格式为：/设定目标 我的目标是打败魔尊"
             return
         try:
             conn = get_db_connection()
@@ -373,7 +414,9 @@ def _handle_set_mission(clean_cmd: str) -> StreamingResponse:
                 cursor.execute("UPDATE user_mission SET mission_text = ?, last_updated = datetime('now') WHERE id = 1", (mission_text,))
             conn.commit()
             conn.close()
-            yield f"data: {json_escape(f'[系统提示] 宏大目标已铭记于心：【{mission_text}】。接下来的所有授课和考核都将以此为最高导向！')}\\n\\n"
+            yield f"[系统提示] 宏大目标已铭记于心：【{mission_text}】。接下来的所有授课和考核都将以此为最高导向！"
         except Exception as e:
-            yield f"data: {json_escape('[系统报错] 目标设定失败: ' + str(e))}\\n\\n"
-    return StreamingResponse(generator(), media_type="text/event-stream")
+            yield f"[系统报错] 目标设定失败: {e}"
+            
+    pipeline = ResponsePipeline()
+    return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")

@@ -1,6 +1,6 @@
 from backend.services.response_pipeline import TagStreamInterceptor
 
-interceptor = TagStreamInterceptor()
+interceptor = TagStreamInterceptor(target_tags=["glossary"])
 chunks = [
     {"type": "text", "text": "This is a "},
     {"type": "text", "text": "test. <gloss"},
