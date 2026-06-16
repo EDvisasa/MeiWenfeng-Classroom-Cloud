@@ -1,0 +1,385 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>架构审查报告 — MeiWenfeng-Classroom</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header class="space-y-6">
+        <div>
+          <h1 class="text-3xl font-bold font-serif">架构审查报告 — MeiWenfeng-Classroom</h1>
+          <p class="text-sm text-slate-500 mt-2">2026/06/17</p>
+        </div>
+        <div class="flex gap-6 text-xs uppercase tracking-wider text-slate-600 bg-white p-4 rounded-lg border border-slate-200 inline-flex">
+          <div class="flex items-center gap-2"><div class="w-4 h-4 border-2 border-slate-400 bg-white"></div> 模块 (Module)</div>
+          <div class="flex items-center gap-2"><div class="w-6 h-0 border-t-2 border-dashed border-slate-400"></div> 缝隙 (Seam)</div>
+          <div class="flex items-center gap-2"><div class="w-6 h-0 border-t-2 border-red-600"></div> 泄漏 (Leakage)</div>
+          <div class="flex items-center gap-2"><div class="w-4 h-4 bg-slate-900"></div> 深度模块 (Deep Module)</div>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+        <article class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 space-y-4">
+            <h2 class="text-xl font-bold font-serif">隔离 SlashHandler 的文件写入操作</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 rounded">强烈建议</span>
+              <span class="px-2 py-1 text-xs font-medium bg-slate-100 text-slate-800 rounded">进程内 (in-process)</span>
+            </div>
+            <div class="font-mono text-sm text-slate-600">ResponsePipeline, AgentTools, SlashHandler</div>
+          </div>
+          <div class="p-6 grid grid-cols-2 gap-6 bg-slate-50">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart TD
+                  A[SlashHandler] -.leak.-> B[FileSystem]
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class A,B leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart TD
+                  A[SlashHandler] --> B[PathValidator]
+                  B --> C[FileSystem]
+                  classDef deep fill:#0f172a,color:#fff;
+                  class B deep
+              </pre>
+            </div>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">问题 (Problem)</h3>
+                <p class="text-sm">SlashHandler 在处理 `&lt;explainer&gt;` 标签时存在路径穿越漏洞，允许在预期目录之外进行任意文件写入。</p>
+              </div>
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">解决方案 (Solution)</h3>
+                <p class="text-sm">使用 `os.path.basename()` 对 `title` 属性进行净化，并在写入前验证绝对解析路径。</p>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">收益 (Wins)</h3>
+              <ul class="list-disc list-inside text-sm space-y-1">
+                <li>局部性 (Locality)：安全性被限制在一个模块内</li>
+                <li>实现吸收了路径验证逻辑</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 space-y-4">
+            <h2 class="text-xl font-bold font-serif">串行化记忆压缩过程</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 rounded">强烈建议</span>
+              <span class="px-2 py-1 text-xs font-medium bg-slate-100 text-slate-800 rounded">进程内 (in-process)</span>
+            </div>
+            <div class="font-mono text-sm text-slate-600">ResponsePipeline</div>
+          </div>
+          <div class="p-6 grid grid-cols-2 gap-6 bg-slate-50">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart TD
+                  A[Thread 1] -.leak.-> C[MemoryDB]
+                  B[Thread 2] -.leak.-> C
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class C leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart TD
+                  A[Threads] --> B[Lock / Queue]
+                  B --> C[MemoryDB]
+                  classDef deep fill:#0f172a,color:#fff;
+                  class B deep
+              </pre>
+            </div>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">问题 (Problem)</h3>
+                <p class="text-sm">记忆压缩过程存在竞争条件，允许并发线程产生重复的摘要日志。</p>
+              </div>
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">解决方案 (Solution)</h3>
+                <p class="text-sm">实现锁机制或单工作队列以串行化衰减过程。</p>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">收益 (Wins)</h3>
+              <ul class="list-disc list-inside text-sm space-y-1">
+                <li>实现吸收了并发控制逻辑</li>
+                <li>局部性 (Locality)：状态保持受保护</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 space-y-4">
+            <h2 class="text-xl font-bold font-serif">深化 BashTool 的防护机制</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 rounded">强烈建议</span>
+              <span class="px-2 py-1 text-xs font-medium bg-slate-100 text-slate-800 rounded">端口与适配器 (ports & adapters)</span>
+            </div>
+            <div class="font-mono text-sm text-slate-600">AgentTools, BashTool</div>
+          </div>
+          <div class="p-6 grid grid-cols-2 gap-6 bg-slate-50">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[BashTool] -.leak.-> B[Shell]
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class A,B leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[BashTool] --> B[AST Validator / Sandbox]
+                  B --> C[Shell]
+                  classDef deep fill:#0f172a,color:#fff;
+                  class B deep
+              </pre>
+            </div>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">问题 (Problem)</h3>
+                <p class="text-sm">朴素的字符串匹配黑名单过于单薄，可通过 Shell 转义轻易绕过。</p>
+              </div>
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">解决方案 (Solution)</h3>
+                <p class="text-sm">在隔离的沙箱中执行命令，或使用正规的 Shell 解析器来验证 AST。</p>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">收益 (Wins)</h3>
+              <ul class="list-disc list-inside text-sm space-y-1">
+                <li>深化 (Deepen)：提供健壮的安全接口</li>
+                <li>实现吸收了执行风险</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 space-y-4">
+            <h2 class="text-xl font-bold font-serif">收紧 CORS 边界</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium bg-emerald-100 text-emerald-800 rounded">强烈建议</span>
+              <span class="px-2 py-1 text-xs font-medium bg-slate-100 text-slate-800 rounded">端口与适配器 (ports & adapters)</span>
+            </div>
+            <div class="font-mono text-sm text-slate-600">API, IP Whitelist</div>
+          </div>
+          <div class="p-6 grid grid-cols-2 gap-6 bg-slate-50">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[Any Origin] -.leak.-> B[API]
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class A,B leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[Trusted Origin] --> B[CORS Adapter]
+                  B --> C[API]
+                  classDef deep fill:#0f172a,color:#fff;
+                  class B deep
+              </pre>
+            </div>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">问题 (Problem)</h3>
+                <p class="text-sm">通配符 CORS 配置将访问权限泄漏给恶意源，从而绕过 IP 白名单。</p>
+              </div>
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">解决方案 (Solution)</h3>
+                <p class="text-sm">将 `allow_origins` 限制为特定的受信任前端源，而不是使用 `["*"]`。</p>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">收益 (Wins)</h3>
+              <ul class="list-disc list-inside text-sm space-y-1">
+                <li>局部性 (Locality)：信任被限定在指定源</li>
+                <li>接口收紧了访问权限</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 space-y-4">
+            <h2 class="text-xl font-bold font-serif">加固 IP 白名单中间件</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">值得探索</span>
+              <span class="px-2 py-1 text-xs font-medium bg-slate-100 text-slate-800 rounded">进程内 (in-process)</span>
+            </div>
+            <div class="font-mono text-sm text-slate-600">API, IP Whitelist</div>
+          </div>
+          <div class="p-6 grid grid-cols-2 gap-6 bg-slate-50">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[Request] -.leak.-> B[Middleware]
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class B leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[Request] --> B[Null Check]
+                  B --> C[Middleware]
+                  classDef deep fill:#0f172a,color:#fff;
+                  class B deep
+              </pre>
+            </div>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">问题 (Problem)</h3>
+                <p class="text-sm">当 `request.client` 为 `None` 时，中间件会崩溃，导致 500 内部服务器错误。</p>
+              </div>
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">解决方案 (Solution)</h3>
+                <p class="text-sm">在访问 `request.client` 的属性前增加判空检查。</p>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">收益 (Wins)</h3>
+              <ul class="list-disc list-inside text-sm space-y-1">
+                <li>实现吸收了边界情况处理</li>
+                <li>接口保持稳定</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 space-y-4">
+            <h2 class="text-xl font-bold font-serif">在 blockParser 中保留格式</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">值得探索</span>
+              <span class="px-2 py-1 text-xs font-medium bg-slate-100 text-slate-800 rounded">进程内 (in-process)</span>
+            </div>
+            <div class="font-mono text-sm text-slate-600">Frontend Utils, blockParser.js</div>
+          </div>
+          <div class="p-6 grid grid-cols-2 gap-6 bg-slate-50">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[Raw Block] -.leak.-> B[Trim Chain]
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class B leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[Raw Block] --> B[Regex Replace]
+                  classDef deep fill:#0f172a,color:#fff;
+                  class B deep
+              </pre>
+            </div>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">问题 (Problem)</h3>
+                <p class="text-sm">连续的 `.trim()` 调用会从整个文本块中剥离掉原本意图保留的空白格式。</p>
+              </div>
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">解决方案 (Solution)</h3>
+                <p class="text-sm">移除 `.trim()` 调用，并将 `\s*` 整合到正则表达式中去处理。</p>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">收益 (Wins)</h3>
+              <ul class="list-disc list-inside text-sm space-y-1">
+                <li>局部性 (Locality)：解析逻辑保持内聚</li>
+                <li>实现吸收了空白符处理逻辑</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
+          <div class="p-6 border-b border-slate-100 space-y-4">
+            <h2 class="text-xl font-bold font-serif">深化 cropImage 的旋转逻辑</h2>
+            <div class="flex gap-2">
+              <span class="px-2 py-1 text-xs font-medium bg-amber-100 text-amber-800 rounded">值得探索</span>
+              <span class="px-2 py-1 text-xs font-medium bg-slate-100 text-slate-800 rounded">进程内 (in-process)</span>
+            </div>
+            <div class="font-mono text-sm text-slate-600">Frontend Utils, cropImage.js</div>
+          </div>
+          <div class="p-6 grid grid-cols-2 gap-6 bg-slate-50">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[Rotated Image] -.leak.-> B[Static Bounding Box]
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class B leak
+              </pre>
+            </div>
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex items-center justify-center">
+              <pre class="mermaid">
+                flowchart LR
+                  A[Rotated Image] --> B[Dynamic Bounds Math]
+                  classDef deep fill:#0f172a,color:#fff;
+                  class B deep
+              </pre>
+            </div>
+          </div>
+          <div class="p-6 space-y-4">
+            <div class="grid grid-cols-2 gap-6">
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">问题 (Problem)</h3>
+                <p class="text-sm">包围盒的尺寸忽略了旋转角度，导致旋转后的图像被错误裁剪。</p>
+              </div>
+              <div>
+                <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">解决方案 (Solution)</h3>
+                <p class="text-sm">基于旋转角度使用三角函数动态计算正确的包围盒尺寸。</p>
+              </div>
+            </div>
+            <div>
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 mb-2">收益 (Wins)</h3>
+              <ul class="list-disc list-inside text-sm space-y-1">
+                <li>实现吸收了旋转数学计算逻辑</li>
+                <li>接口保持简单纯粹</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+      </section>
+
+      <section id="top-recommendation" class="bg-indigo-50 rounded-xl border border-indigo-100 p-8">
+        <h2 class="text-sm font-bold uppercase tracking-wider text-indigo-900 mb-4">首要建议 (Top Recommendation)</h2>
+        <div class="space-y-2">
+          <a href="#candidates" class="text-2xl font-bold font-serif text-indigo-950 hover:underline">隔离 SlashHandler 的文件写入操作</a>
+          <p class="text-indigo-800">严重的路径穿越漏洞让文件系统访问权限跨越了缝隙泄露出去；深化该模块可以在局部范围内牢牢锁定安全性。</p>
+        </div>
+      </section>
+    </main>
+  </body>
+</html>
