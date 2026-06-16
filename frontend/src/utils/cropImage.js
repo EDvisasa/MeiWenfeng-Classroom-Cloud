@@ -21,14 +21,17 @@ export default async function getCroppedImg(
     return null;
   }
 
-  const bBoxWidth = image.width;
-  const bBoxHeight = image.height;
+  const rotRad = (rotation * Math.PI) / 180;
+  const bBoxWidth =
+    Math.abs(Math.cos(rotRad) * image.width) + Math.abs(Math.sin(rotRad) * image.height);
+  const bBoxHeight =
+    Math.abs(Math.sin(rotRad) * image.width) + Math.abs(Math.cos(rotRad) * image.height);
 
   canvas.width = bBoxWidth;
   canvas.height = bBoxHeight;
 
   ctx.translate(bBoxWidth / 2, bBoxHeight / 2);
-  ctx.rotate((rotation * Math.PI) / 180);
+  ctx.rotate(rotRad);
   ctx.scale(flip.horizontal ? -1 : 1, flip.vertical ? -1 : 1);
   ctx.translate(-image.width / 2, -image.height / 2);
 

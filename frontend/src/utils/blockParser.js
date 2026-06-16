@@ -6,10 +6,10 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
   rawBlocks.forEach(b => {
     if (b.type === 'text') {
       let text = b.text || '';
-      text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
-      text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
-      text = text.replace(/<call_tool[\s\S]*?(?:<\/call_tool>|$)/g, '').trim();
-      text = text.replace(/<tool_batch>[\s\S]*?(?:<\/tool_batch>|$)/g, '').trim();
+      text = text.replace(/\s*【此刻内心】[：:]\s*[（(][\s\S]*?[)）]\s*/g, '');
+      text = text.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)\s*/g, '');
+      text = text.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|$)\s*/g, '');
+      text = text.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|$)\s*/g, '');
 
       const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
       let match;

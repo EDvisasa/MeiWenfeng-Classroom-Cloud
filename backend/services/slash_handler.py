@@ -228,9 +228,19 @@ def _register_pipeline_handlers(pipeline: ResponsePipeline):
         content = content.strip()
         if not title: return
         try:
+            # Sanitize the title to prevent path traversal
+            safe_title = os.path.basename(title)
+            if not safe_title: return
+
             docs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "讲义玉简")
             os.makedirs(docs_dir, exist_ok=True)
-            filepath = os.path.join(docs_dir, title)
+
+            # Additional check: resolve absolute path and ensure it's still inside docs_dir
+            filepath = os.path.abspath(os.path.join(docs_dir, safe_title))
+            if not filepath.startswith(os.path.abspath(docs_dir)):
+                logger.warning(f"Path traversal attempt blocked: {title}")
+                return
+
             with open(filepath, "w", encoding="utf-8") as f:
                 f.write(content)
             logger.info(f"实体讲义玉简已生成: {filepath}")
