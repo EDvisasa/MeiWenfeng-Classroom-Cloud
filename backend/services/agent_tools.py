@@ -218,39 +218,39 @@ You have access to a local command-line terminal and file system tools.
 
 CRITICAL RULES:
 1. THINK BEFORE YOU ACT: You MUST ALWAYS start your response with a <thought> block to explain your plan and reasoning.
-2. MULTIPLE TOOLS: You may execute multiple tool calls in a single turn by outputting multiple `<call_tool>` blocks back-to-back.
-3. STOP AND WAIT: After outputting your tool call(s), you MUST STOP generating immediately. DO NOT hallucinate the system's response. The system will automatically reply with "[System Tool Result]".
-4. ERROR RECOVERY: If the system execution result contains an error, analyze it in your next <thought> block and try a different command. Do NOT bother the user with technical errors.
-5. USE SPECIFIC TOOLS: You MUST use `read_file` to read files. NEVER use `cat` or `type` via `execute_bash`.
-6. ENFORCE SEARCH TOOL: To search for a specific string or keywords across files in a directory, you MUST use the `grep_search` tool. You are ABSOLUTELY FORBIDDEN from using `execute_bash` (like findstr, grep, or custom python scripts) to search files.
-7. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
+2. STRICT TAG SEQUENCE: You MUST explicitly close your `</thought>` block BEFORE outputting any tool calls. NEVER nest tools inside `<thought>`.
+3. BATCH EXECUTION: To execute operations concurrently, you MUST wrap all your `<call_tool>` blocks inside a SINGLE `<tool_batch>...</tool_batch>` container. 
+4. STOP AT BATCH CLOSURE: After you output `</tool_batch>`, you MUST STOP generating immediately. DO NOT hallucinate the system's response. The system will execute all tools within the batch concurrently and return "[System Tool Result]"s.
+5. ERROR RECOVERY: If the system execution result contains an error, analyze it in your next <thought> block and try a different command. Do NOT bother the user with technical errors.
+6. USE SPECIFIC TOOLS: You MUST use `read_file` to read files. NEVER use `cat` or `type` via `execute_bash`.
+7. ENFORCE SEARCH TOOL: To search for a specific string or keywords across files in a directory, you MUST use the `grep_search` tool. You are ABSOLUTELY FORBIDDEN from using `execute_bash` (like findstr, grep, or custom python scripts) to search files.
+8. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
 
 TOOL EXECUTION FORMAT:
 <thought>
-I need to check the current directory contents.
+I need to check the current directory contents and read config.json.
 </thought>
+<tool_batch>
 <call_tool name="execute_bash">
 <command>{"dir" if current_os == "Windows" else "ls -la"}</command>
 </call_tool>
-
-OR to read a file (optionally specifying lines to read):
-<thought>
-I need to read lines 10 to 50 of config.json.
-</thought>
 <call_tool name="read_file">
 <path>config.json</path>
 <start_line>10</start_line>
 <end_line>50</end_line>
 </call_tool>
+</tool_batch>
 
 OR to search for a query across files in a directory:
 <thought>
 I need to find where 'login' is mentioned in the src folder.
 </thought>
+<tool_batch>
 <call_tool name="grep_search">
 <dir_path>C:/path/to/src</dir_path>
 <query>login</query>
 </call_tool>
+</tool_batch>
 </tool_use_guidelines>
 """
         current_messages = messages.copy()
@@ -271,13 +271,11 @@ I need to find where 'login' is mentioned in the src folder.
             in_tag = False
 
             for chunk in self.llm_client.stream_completion(current_messages, **kwargs):
-                if chunk.get("type") == "thinking":
-                    yield chunk
-                    continue
-
+                chunk_type = chunk.get("type", "text")  # "thinking" 或 "text"
                 text = chunk.get("text", "")
 
-                # 边收边解析，判断是否进入了工具标签
+                # 对 thinking 和 text 通道应用完全相同的拦截器状态机
+                # 防止 DeepSeek 把 <tool_batch> 或故事正文写入 reasoning_content 时直接泄漏
                 for char in text:
                     if not in_tag and not buffer and char == '<':
                         buffer += char
@@ -285,25 +283,31 @@ I need to find where 'login' is mentioned in the src folder.
 
                     if buffer or in_tag:
                         buffer += char
-                        if buffer.startswith("<call_tool") or buffer.startswith("<execute_bash"):
+                        if buffer.startswith("<tool_batch"):
                             in_tag = True
-                            # 缓冲中，不向前端 yield
+                            # 关键修复：检测 </tool_batch> 闭合，一旦发现就刷新并退出 in_tag 状态
+                            if "</tool_batch>" in buffer:
+                                full_content += buffer
+                                buffer = ""
+                                in_tag = False
+                                # 不 yield 任何内容（tool_batch 本体对前端不可见）
                         elif buffer.startswith("<"):
                             # 如果发现不是目标标签，释放缓冲
                             if ">" in buffer or len(buffer) > 20:
-                                if not buffer.startswith("<call_tool") and not buffer.startswith("<execute_bash"):
-                                    yield {"type": "text", "text": buffer}
+                                if not buffer.startswith("<tool_batch"):
+                                    yield {"type": chunk_type, "text": buffer}
                                     full_content += buffer
                                     buffer = ""
                                     in_tag = False
                         else:
                             # 意外情况，释放缓冲
-                            yield {"type": "text", "text": buffer}
+                            yield {"type": chunk_type, "text": buffer}
                             full_content += buffer
                             buffer = ""
                     else:
-                        yield {"type": "text", "text": char}
+                        yield {"type": chunk_type, "text": char}
                         full_content += char
+
 
             # 流结束后，如果有遗留缓冲（完整的工具标签）
             if buffer:
@@ -317,18 +321,45 @@ I need to find where 'login' is mentioned in the src folder.
 
             current_messages.append({"role": "assistant", "content": full_content})
 
+            import concurrent.futures
+            
             system_result_text = ""
-            for idx, t in enumerate(tools_to_run):
-                yield {"type": "tool_start", "tool_name": t["name"], "command": t["command_str"]}
+            
+            # 去重逻辑
+            unique_tools = []
+            seen = set()
+            for t in tools_to_run:
+                # 序列化 param 字典以便哈希去重
+                param_repr = repr(sorted(t["param"].items()) if isinstance(t.get("param"), dict) else t.get("param"))
+                key = (t["name"], param_repr)
+                if key not in seen:
+                    seen.add(key)
+                    unique_tools.append(t)
+            
+            tools_to_run = unique_tools
 
+            def run_tool(t):
                 if t["name"] in TOOL_REGISTRY:
-                    output = TOOL_REGISTRY[t["name"]].execute(t["param"])
+                    return TOOL_REGISTRY[t["name"]].execute(t["param"])
                 else:
-                    output = f"[Error] Unknown tool: {t['name']}"
+                    return f"[Error] Unknown tool: {t['name']}"
 
-                yield {"type": "tool_output", "text": output}
+            # 并发执行
+            results = [None] * len(tools_to_run)
+            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(tools_to_run) if tools_to_run else 1)) as executor:
+                future_to_tool = {executor.submit(run_tool, t): idx for idx, t in enumerate(tools_to_run)}
+                for future in concurrent.futures.as_completed(future_to_tool):
+                    idx = future_to_tool[future]
+                    try:
+                        results[idx] = future.result()
+                    except Exception as exc:
+                        results[idx] = f"[Error] Exception executing tool: {exc}"
+
+            # 串行 yield 结果反馈给前端 UI
+            for idx, (t, output) in enumerate(zip(tools_to_run, results)):
+                yield {"type": "tool_start", "tool_name": t["name"], "command": t["command_str"]}
+                yield {"type": "tool_output", "text": str(output)}
                 yield {"type": "tool_end"}
-
                 system_result_text += f"[System Tool Result {idx+1}]:\n{output}\n\n"
 
             # 将执行结果喂给模型，进入下一轮
@@ -339,6 +370,8 @@ I need to find where 'login' is mentioned in the src folder.
 
     def _parse_tools(self, full_content: str) -> List[Dict[str, Any]]:
         tools_to_run = []
+        
+        # 1. 尝试解析标准的 <call_tool>
         matches = re.finditer(r'<call_tool[^>]*>.*?(?:</call_tool>|$)', full_content, re.DOTALL)
         for match in matches:
             tool_xml = match.group(0)
@@ -357,12 +390,31 @@ I need to find where 'login' is mentioned in the src folder.
             except Exception:
                 pass
 
-        # 兼容旧版 <execute_bash> 标签
+        # 2. 如果没有找到标准的 <call_tool>，则尝试兼容大模型的直接标签幻觉（如 <grep_search>...</grep_search>）
         if not tools_to_run:
-            match_old = re.search(r'<execute_bash>(.*?)(?:</execute_bash>|$)', full_content, re.DOTALL)
-            if match_old:
-                c_str = match_old.group(1).strip()
-                tools_to_run.append({"name": "execute_bash", "param": {"command": c_str}, "command_str": c_str})
+            for tool_name in TOOL_REGISTRY.keys():
+                pattern = f'<{tool_name}>(.*?)(?:</{tool_name}>|$)'
+                for match in re.finditer(pattern, full_content, re.DOTALL):
+                    inner_xml = match.group(1).strip()
+                    # 将其组装成可以被 ET 解析的格式
+                    dummy_xml = f"<{tool_name}>{inner_xml}</{tool_name}>"
+                    try:
+                        root = ET.fromstring(dummy_xml)
+                        t_param = {}
+                        for child in root:
+                            t_param[child.tag] = child.text if child.text else ""
+                            
+                        # 特殊处理 execute_bash
+                        if tool_name == "execute_bash" and not t_param:
+                            # 兼容 <execute_bash>ls -la</execute_bash> 的旧格式
+                            c_str = inner_xml.strip()
+                            t_param = {"command": c_str}
+                        else:
+                            c_str = self._format_command_str(tool_name, t_param)
+                            
+                        tools_to_run.append({"name": tool_name, "param": t_param, "command_str": c_str})
+                    except Exception:
+                        pass
 
         return tools_to_run
 

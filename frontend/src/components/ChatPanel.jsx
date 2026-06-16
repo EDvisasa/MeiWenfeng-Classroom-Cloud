@@ -227,13 +227,16 @@ export default function ChatPanel({
         text = text.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
         text = text.replace(/<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)/g, '').trim();
         text = text.replace(/<call_tool[\s\S]*?(?:<\/call_tool>|$)/g, '').trim();
+        text = text.replace(/<tool_batch>[\s\S]*?(?:<\/tool_batch>|$)/g, '').trim();
+        // 注意：不在此处 strip </thought>，让 thoughtRegex 自己处理配对
+        // 如果先 strip 掉 </thought>，regex 的 |$ 分支会把后面所有故事正文也吸进 Thinking 块
 
         const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
         let match;
         let lastIndex = 0;
         while ((match = thoughtRegex.exec(text)) !== null) {
           if (match.index > lastIndex) {
-            const snippet = text.substring(lastIndex, match.index).trim();
+            const snippet = text.substring(lastIndex, match.index).replace(/<\/thought>/g, '').trim();
             if (snippet) normalized.push({ type: 'text', text: snippet });
           }
           const isRunning = !text.substring(match.index).includes('</thought>');
@@ -241,9 +244,11 @@ export default function ChatPanel({
           lastIndex = thoughtRegex.lastIndex;
         }
         if (lastIndex < text.length) {
-          const snippet = text.substring(lastIndex).trim();
+          // 清理孤立的 </thought>（没有匹配 <thought> 的闭合标签）
+          const snippet = text.substring(lastIndex).replace(/<\/thought>/g, '').trim();
           if (snippet) normalized.push({ type: 'text', text: snippet });
         }
+
       } else {
         normalized.push({ ...b });
       }

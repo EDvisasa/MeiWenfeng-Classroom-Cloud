@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>架构审查 — AgentExecutor 提示词接口</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header>
+        <h1 class="text-3xl font-bold font-serif mb-2">架构审查 — AgentExecutor 提示词接口</h1>
+        <p class="text-sm text-slate-500">2026-06-16</p>
+        <div class="mt-4 flex gap-4 text-xs uppercase tracking-wider text-slate-600">
+          <span class="flex items-center gap-2"><div class="w-3 h-3 bg-slate-800 rounded"></div> 模块 (Module)</span>
+          <span class="flex items-center gap-2"><div class="w-3 h-3 border-t-2 border-dashed border-slate-400"></div> 接缝 (Seam)</span>
+          <span class="flex items-center gap-2"><div class="w-3 h-3 bg-red-600 rounded"></div> 泄漏 (Leakage)</span>
+        </div>
+      </header>
+      
+      <section id="candidates" class="space-y-10">
+        
+        <article class="rounded-xl border border-slate-200 bg-white shadow-sm p-6">
+          <div class="mb-6">
+            <h2 class="text-xl font-bold">在 LLM 适配器上强制执行接口契约</h2>
+            <div class="mt-2 flex items-center gap-3 text-sm">
+              <span class="px-2 py-1 rounded bg-amber-100 text-amber-800 font-semibold tracking-wide">值得探索 (Worth exploring)</span>
+              <span class="px-2 py-1 rounded bg-slate-100 text-slate-600 font-mono">端口与适配器 (ports & adapters)</span>
+            </div>
+            <div class="mt-4 font-mono text-sm text-slate-600">backend/services/agent_tools.py</div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-6 mb-8">
+            <!-- Before -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-4">Before</h3>
+              <pre class="mermaid">
+                flowchart TD
+                  A[AgentExecutor 提示词接口] -.seam.- B[LLM 适配器实现]
+                  B -.leak.-> C[标签嵌套]
+                  classDef leak stroke:#dc2626,stroke-width:2px;
+                  class B,C leak
+              </pre>
+            </div>
+            
+            <!-- After -->
+            <div class="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <h3 class="text-xs uppercase tracking-wider text-slate-500 font-bold mb-4">After</h3>
+              <pre class="mermaid">
+                flowchart TD
+                  A[AgentExecutor 提示词接口] -.seam.- B[LLM 适配器实现]
+                  B --> C[标签顺序化]
+                  classDef deep fill:#0f172a,color:#fff,stroke:none;
+                  class A deep
+              </pre>
+            </div>
+          </div>
+
+          <div class="space-y-4">
+            <p class="text-slate-900"><strong>问题：</strong> LLM 的实现将其预训练的偏好跨越了接缝（seam）发生泄漏，把调用动作嵌套在了思考块（thought）内部，从而破坏了接口（interface）的契约。</p>
+            <p class="text-slate-900"><strong>解决方案：</strong> 深化（Deepen）提示词接口，明确规定在执行调用动作之前的确切闭合顺序。</p>
+            
+            <div>
+              <h4 class="text-sm font-bold text-slate-500 uppercase tracking-wider mb-2 mt-6">收益 (Wins)</h4>
+              <ul class="list-disc pl-5 space-y-1 text-slate-900">
+                <li>局部性（Locality）：状态边界得到尊重，错误被控制在单一模块内。</li>
+                <li>杠杆（Leverage）：用一种统一的提示词模式来约束 N 种本地模型。</li>
+                <li>接口收缩，实现部分吸收了浅层包装的复杂性。</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <article class="rounded-xl border border-slate-200 bg-white shadow-sm p-6">
+          <div class="mb-6">
+            <h2 class="text-xl font-bold">提示词接口与模型实现的分析</h2>
+          </div>
+          
+          <div class="space-y-4">
+            <p class="text-slate-900"><code>AgentExecutor</code> 为工具调用接缝（seam）定义了极其精确的接口（interface）。提示词明确制定了契约：</p>
+            
+            <pre class="bg-slate-100 p-4 rounded text-sm font-mono overflow-x-auto text-slate-800">
+TOOL EXECUTION FORMAT:
+&lt;thought&gt;
+I need to check the current directory contents.
+&lt;/thought&gt;
+&lt;call_tool name="execute_bash"&gt;
+&lt;command&gt;dir&lt;/command&gt;
+&lt;/call_tool&gt;</pre>
+
+            <p class="text-slate-900">该接口要求工具调用必须位于思考块的 <strong>外部</strong>。提示词从未设计过嵌套结构。</p>
+            <p class="text-slate-900">然而，本地 LLM 适配器作为一个有泄漏倾向的实现（implementation），其训练数据中常包含工具动作被嵌套在推理过程内部的偏好。该适配器无视了接口的契约，强行将两者合并在了一起。</p>
+            <p class="text-slate-900">此外，接口还强制要求在输出工具调用后必须 <code>立刻停止并等待 (STOP AND WAIT)</code>。LLM 适配器在局部遵循了这一停止指令，导致输出流在生成闭合标签之前就被强行切断。接口失败的根本原因在于，适配器未能在此接缝处满足严格的顺序约束。</p>
+          </div>
+        </article>
+
+      </section>
+
+    </main>
+  </body>
+</html>

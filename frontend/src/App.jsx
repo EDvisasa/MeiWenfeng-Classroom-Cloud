@@ -1109,6 +1109,20 @@ export default function App() {
             const newMsg = { ...msg, streaming: false };
             if (newMsg.blocks) {
               newMsg.blocks.forEach(b => b.status = 'done');
+
+              // Bug2 修复：GG公益站/DeepSeek 等代理模型会把最终故事全部放进
+              // reasoning_content（type=thinking），导致 delta.content 为空，没有 text block。
+              // 检测：流结束后如果没有 text block 但有 thinking block，
+              // 把最后一个 thinking block 的内容升级为 text block（正文区域显示）。
+              const hasText = newMsg.blocks.some(b => b.type === 'text' && b.text && b.text.trim());
+              if (!hasText) {
+                // 找最后一个有内容的 thinking block
+                const thinkingBlocks = newMsg.blocks.filter(b => b.type === 'thinking' && b.text && b.text.trim());
+                if (thinkingBlocks.length > 0) {
+                  const lastThinking = thinkingBlocks[thinkingBlocks.length - 1];
+                  lastThinking.type = 'text';
+                }
+              }
             }
             return newMsg;
           }
@@ -1121,14 +1135,6 @@ export default function App() {
     } catch (e) {
       if (e.name === 'AbortError') {
         console.log('Generation aborted by user.');
-        setMessages(prev => {
-          return prev.map(msg => {
-            if (msg.streaming) {
-              return { ...msg, streaming: false };
-            }
-            return msg;
-          });
-        });
       } else {
         console.error(e);
         const errorMsg = `*脸色微变，捂着额头，有些懊恼地蹙眉道：*“哎呀夫君...奴家好像开小差了（后端连接中断，可能是代理超时或 FastAPI 崩溃）。要不咱们重试一下？”\n\n**前端报错详情:** \`${e.message}\``;
@@ -1154,7 +1160,18 @@ export default function App() {
     } finally {
       setIsStreaming(false);
       abortControllerRef.current = null;
+      // Bug1 修复：无论正常/异常/中断，都确保 running 状态的 block 被标记为 done
+      // 防止 Thinking 黄灯在任何情况下永久不灭
+      setMessages(prev => prev.map(msg => {
+        if (msg.streaming || (msg.blocks && msg.blocks.some(b => b.status === 'running'))) {
+          const newMsg = { ...msg, streaming: false };
+          if (newMsg.blocks) newMsg.blocks.forEach(b => { if (b.status === 'running') b.status = 'done'; });
+          return newMsg;
+        }
+        return msg;
+      }));
     }
+
   };
 
   const toggleTheme = () => {
