@@ -132,4 +132,4 @@ pip install -r backend/requirements.txt
 
 ---
 
-*最后更新: 2026-06-15*
+*最后更新: 2026-06-16*
