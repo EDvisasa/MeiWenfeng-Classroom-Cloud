@@ -61,7 +61,7 @@ MeiWenfeng-Classroom/
 
 ```bash
 # 1. 准备项目代码
-git clone https://github.com/YourUsername/MeiWenfeng-Classroom.git
+git clone https://github.com/EDvisasa/MeiWenfeng-Classroom.git
 cd MeiWenfeng-Classroom
 
 # 2. 配置环境变量
