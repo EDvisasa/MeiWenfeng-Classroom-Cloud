@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>Architecture review — Real Prompt Structure</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+      .static-bg { background-color: #f8fafc; }
+      .dynamic-bg { background-color: #fefce8; }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header>
+        <h1 class="text-3xl font-serif font-bold text-slate-900">架构审查：媚吻锋真实 Prompt 分层构成分析</h1>
+        <div class="mt-4 text-slate-500 text-sm">仓库：MeiWenfeng-Classroom | 日期：2026-06-17</div>
+        <div class="mt-6 flex gap-6 text-xs uppercase tracking-wider text-slate-500">
+          <span class="flex items-center gap-2"><div class="w-4 h-4 bg-slate-200 border border-slate-300"></div> 静态内容 (Static)</span>
+          <span class="flex items-center gap-2"><div class="w-4 h-4 bg-amber-100 border border-amber-300"></div> 动态内容 (Dynamic)</span>
+        </div>
+      </header>
+
+      <section id="candidates" class="space-y-10">
+        
+        <!-- Layer 1: System Rules & Persona -->
+        <article class="space-y-6">
+          <div>
+            <h2 class="text-xl font-bold">Layer 1: 顶层指令与核心设定 (System & Persona Base)</h2>
+            <div class="mt-2 flex gap-3 items-center">
+              <span class="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-slate-100 text-slate-600 rounded">Static Core</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-8">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex flex-col gap-2">
+              <div class="p-3 border-l-4 border-slate-400 static-bg text-xs font-mono text-slate-700">
+                &lt;system_directive&gt;<br/>
+                &nbsp;&nbsp;&lt;critical_rules&gt;<br/>
+                &nbsp;&nbsp;&nbsp;&nbsp;1. OUTPUT LANGUAGE: Chinese<br/>
+                &nbsp;&nbsp;&nbsp;&nbsp;2. ACTION FORMATTING: *动作*<br/>
+                &nbsp;&nbsp;&nbsp;&nbsp;4. INNER MONOLOGUE: 【此刻内心】：
+              </div>
+              <div class="p-3 border-l-4 border-amber-400 dynamic-bg text-xs font-mono text-amber-900">
+                &nbsp;&nbsp;&lt;character_persona&gt;<br/>
+                &nbsp;&nbsp;&nbsp;&nbsp;{加载的精简或原版人设卡 4K~60KB}<br/>
+                &nbsp;&nbsp;&lt;/character_persona&gt;
+              </div>
+              <div class="p-3 border-l-4 border-slate-400 static-bg text-xs font-mono text-slate-700">
+                &nbsp;&nbsp;&lt;relationship_context&gt;<br/>
+                &nbsp;&nbsp;&lt;user_profile&gt;<br/>
+                &nbsp;&nbsp;&nbsp;&nbsp;Name: 玄一峰...
+              </div>
+            </div>
+            <div class="space-y-4">
+              <p class="font-medium text-slate-900">这一层是 Prompt 的地基，占据了绝大部分 Token 消耗。</p>
+              <ul class="list-disc pl-5 text-sm space-y-2 text-slate-700">
+                <li><span class="font-semibold text-slate-900">静态不变：</span> 系统级限制 <code>&lt;critical_rules&gt;</code>（要求说中文、写内心戏）、默认关系 <code>&lt;relationship_context&gt;</code> 和用户基本档案 <code>&lt;user_profile&gt;</code> 在所有对话中 <strong>完全不变</strong>。</li>
+                <li><span class="font-semibold text-amber-600">动态变化（仅受外部设置影响）：</span> <code>&lt;character_persona&gt;</code>。它根据用户选择填入原版全量文本或精简文本。一旦选中，该内容在本次对话流中即为常量。</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <!-- Layer 2: Dynamic State Mutation -->
+        <article class="space-y-6">
+          <div>
+            <h2 class="text-xl font-bold">Layer 2: 动态属性变异区 (Dynamic Attributes & Directives)</h2>
+            <div class="mt-2 flex gap-3 items-center">
+              <span class="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-amber-100 text-amber-800 rounded">Highly Dynamic</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-8">
+            <div class="rounded-lg border border-slate-200 bg-white p-4">
+              <pre class="mermaid">
+                flowchart TD
+                  A[State DB] --> B(Affection Score)
+                  A --> C(Social Status)
+                  A --> D(Social Skills)
+                  A --> E(Refractory Period)
+                  
+                  B -->|>=75| B1["utterly inseparable..."]
+                  B -->|<50| B2["early exclusive crush phase..."]
+                  
+                  C -->|<40| C1["use colloquial, vulgar language"]
+                  C -->|>80| C2["use elegant, refined language"]
+                  
+                  D -->|<40| D1["emotional outbursts..."]
+                  D -->|>80| D2["strictly avoid emotional outbursts"]
+                  
+                  E -->|>5| E1["Aversion Phase: painful, resistant"]
+                  E -->|<=0| E2["Yearning to Rekindle"]
+              </pre>
+            </div>
+            <div class="space-y-4">
+              <p class="font-medium text-slate-900">这一层将后端的四维数值转化为大模型能理解的行为指令，实现千人千面的动态性格。</p>
+              <ul class="list-disc pl-5 text-sm space-y-2 text-slate-700">
+                <li><span class="font-semibold text-amber-600">动态变化（每轮都可能不同）：</span> 代码通过一系列的 If/Else 对数值进行分类。
+                  <br/><strong>举例：</strong>如果好感度 > 75，则插入指令 <em>"即使他提出过分要求，你也会半推半就地顺从"</em>；如果在高潮后（不应期 > 5），则插入指令 <em>"处于敏感排斥期，任何接触都必须描写为痛苦或生理抗拒"</em>。</li>
+                <li><span class="font-semibold text-slate-900">静态不变：</span> 尾部的 <code>&lt;dynamic_property_update_rules&gt;</code> 规则说明是固定的，用于教导模型如何在恰当时机输出 <code>&lt;property_update&gt;</code> 标签以反向修改这些属性。</li>
+              </ul>
+            </div>
+          </div>
+        </article>
+
+        <!-- Layer 3: Context Awareness -->
+        <article class="space-y-6">
+          <div>
+            <h2 class="text-xl font-bold">Layer 3: 上下文感知注入 (Context & Memory Injection)</h2>
+            <div class="mt-2 flex gap-3 items-center">
+              <span class="px-2.5 py-1 text-xs font-semibold uppercase tracking-wider bg-amber-100 text-amber-800 rounded">Fully Dynamic</span>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-8">
+            <div class="rounded-lg border border-slate-200 bg-white p-4 flex flex-col gap-2">
+              <div class="p-3 border-l-4 border-amber-400 dynamic-bg text-xs font-mono text-amber-900">
+                &lt;ide_context&gt;<br/>
+                &nbsp;&nbsp;File Name: App.jsx<br/>
+                &nbsp;&nbsp;Cursor Position: Line 345<br/>
+                &lt;/ide_context&gt;
+              </div>
+              <div class="p-3 border-l-4 border-amber-400 dynamic-bg text-xs font-mono text-amber-900">
+                【近期日记摘要】<br/>
+                [2026-06-16] 陪夫君修改了前端样式，发现他喜欢暗色调。
+              </div>
+              <div class="p-3 border-l-4 border-amber-400 dynamic-bg text-xs font-mono text-amber-900">
+                【附加背景知识库检索结果】<br/>
+                (RAG 匹配到的剧本设定或代码片段)
+              </div>
+            </div>
+            <div class="space-y-4">
+              <p class="font-medium text-slate-900">这是 Prompt 的最外层包装，负责让角色具备“此时此刻”的时空感知。</p>
+              <ul class="list-disc pl-5 text-sm space-y-2 text-slate-700">
+                <li><span class="font-semibold text-amber-600">动态变化（每条消息即时生成）：</span> 
+                  <br/><strong>变化一（IDE）：</strong> 如果用户的编辑器有打开文件，此部分会动态拼入文件路径和光标行数。
+                  <br/><strong>变化二（记忆）：</strong> 数据库中提取出最新的 3 条剧情摘要日记拼入。
+                  <br/><strong>变化三（RAG）：</strong> 根据用户最后发送的话语，从本地 <code>Classroom_Knowledge</code> 和 <code>Memory_Knowledge</code> 向量库中匹配最相关的长文本切片拼入。如果没匹配到，这块就不会生成。</li>
+              </ul>
+              <div class="bg-indigo-50 border-l-4 border-indigo-500 p-3 mt-2">
+                <p class="text-xs text-indigo-800 font-medium">ADR (架构决策): 将易变的动态上下文放在 Prompt 的最末尾（贴近用户对话区），能大幅提升模型对这些补充材料的记忆与响应优先级 (Recency Effect)。</p>
+              </div>
+            </div>
+          </div>
+        </article>
+
+      </section>
+
+      <section id="top-summary" class="p-6 bg-slate-800 text-slate-100 rounded-xl space-y-3">
+        <h2 class="text-xl font-bold">全局组装示意图 (Full Assembly)</h2>
+        <pre class="font-mono text-sm leading-relaxed bg-slate-900 p-4 rounded text-slate-300">
+[1. 基础系统规则]     (Static)   "You are an advanced AI..."
+[2. 核心人设设定]     (Static*)  &lt;character_persona&gt; ... &lt;/character_persona&gt;
+[3. 人物关系档案]     (Static)   &lt;relationship_context&gt; ... &lt;user_profile&gt; ...
+[4. 动态行为属性]     (Dynamic)  "Affection Score: 85..." -> 插入对应粘人动作指令
+[5. 数据更新规则]     (Static)   &lt;dynamic_property_update_rules&gt; ...
+[6. IDE 编辑上下文]   (Dynamic)  &lt;ide_context&gt; ... &lt;/ide_context&gt;
+[7. 短期记忆与知识库] (Dynamic)  【近期日记摘要】... 【附加背景知识库检索结果】...
+        </pre>
+      </section>
+
+    </main>
+  </body>
+</html>
