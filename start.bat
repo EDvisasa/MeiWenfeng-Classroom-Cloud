@@ -18,7 +18,7 @@ echo.
 
 rem 2. Check and Setup virtualenv
 if not exist .venv\Scripts\python.exe (
-    echo [Info] Python virtual environment (.venv) not found.
+    echo [Info] Python virtual environment venv not found.
     echo [Info] Automatically creating virtual environment...
     python -m venv .venv
 )
