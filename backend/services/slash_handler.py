@@ -270,7 +270,9 @@ def _handle_prepare_lesson(file_path: str) -> StreamingResponse:
 def _handle_update_persona() -> StreamingResponse:
     def generator():
         yield f"data: {json_escape('[系统更新] 正在检测本地角色卡源目录...')}\n\n"
-        external_dir = "D:/Games/AI小说文档/01-SillyTarern文件/01-[roll点开局·遇仙记]/02-角色卡/00-[自创]遇仙记/02-媚吻锋/00-人设文档/性格调色盘"
+        # 优先从环境变量读取原版人设文件夹路径，默认指向 data/persona/original 避免泄露隐私路径
+        base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        external_dir = os.getenv("PERSONA_SOURCE_DIR", os.path.join(base_root, "data", "persona", "original"))
         latest_file = None
         try:
             if os.path.exists(external_dir):
@@ -335,7 +337,14 @@ def _handle_update_persona() -> StreamingResponse:
             with open(local_simplified_path, "w", encoding="utf-8") as f:
                 f.write(simplified_persona)
             yield f"data: {json_escape('[系统更新] 精简人设本地缓存生成成功！')}\n\n"
-            external_simplified_dir = "D:/Games/AI小说文档/01-SillyTarern文件/01-[roll点开局·遇仙记]/02-角色卡/00-[自创]遇仙记/02-媚吻锋/02-延伸功能-媚吻锋学习小课堂/01_动态人设系统"
+            # 优先从环境变量读取精简人设同步输出目录，默认指向 data/persona/simplified
+            base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            external_simplified_dir = os.getenv("PERSONA_SIMPLIFIED_OUTPUT_DIR", os.path.join(base_root, "data", "persona", "simplified"))
+            if not os.path.exists(external_simplified_dir):
+                try:
+                    os.makedirs(external_simplified_dir, exist_ok=True)
+                except Exception:
+                    pass
             if os.path.exists(external_simplified_dir):
                 external_simplified_path = os.path.join(external_simplified_dir, "当前精简人设.md")
                 header_warning = "> ⚠️ **注意**：本文件为 AI 自动生成的精简缓存。请勿手动修改此文件。如需更新，请对 AI 发送【更新人设】指令，AI 将自动从数据源提取最新卡片并重写此文件。\n\n"
