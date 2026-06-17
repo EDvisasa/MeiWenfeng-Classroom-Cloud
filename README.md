@@ -65,8 +65,7 @@ git clone https://github.com/EDvisasa/MeiWenfeng-Classroom.git
 cd MeiWenfeng-Classroom
 
 # 2. 配置环境变量
-# 复制 .env.example 为 .env，并填入您的 API Key
-copy .env.example .env
+# 请直接打开项目中的 .env.example 或生成的 .env 文件，填入您的 API Key 后保存为 .env
 
 # 3. 准备后端环境
 python -m venv .venv
