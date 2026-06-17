@@ -101,7 +101,8 @@ def init_db():
         api_key TEXT,
         is_active INTEGER DEFAULT 0,
         selected_model_id TEXT,
-        max_context_tokens INTEGER DEFAULT 8192
+        max_context_tokens INTEGER DEFAULT 8192,
+        is_custom_tokens INTEGER DEFAULT 0
     );
     """)
 
@@ -113,6 +114,11 @@ def init_db():
 
     try:
         cursor.execute("ALTER TABLE model_config ADD COLUMN max_context_tokens INTEGER DEFAULT 8192")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE model_config ADD COLUMN is_custom_tokens INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass
 
