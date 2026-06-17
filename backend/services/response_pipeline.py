@@ -5,6 +5,7 @@ from typing import AsyncGenerator, Callable, Dict, Any, List, Optional, Awaitabl
 
 from backend.database import get_db_connection
 from backend.services.rag_factory import get_rag_client
+from backend.services.action_registry import ActionRegistry
 
 logger = logging.getLogger(__name__)
 
@@ -145,16 +146,30 @@ class ResponsePipeline:
     聊天响应管道：负责流缓冲、SSE 格式化和副作用派发。
     这是一个纯粹的流处理组件，不包含具体的数据库写入逻辑。
     """
-    def __init__(self, on_stream_end: Callable[[str], None] = None):
+    def __init__(self, on_stream_end: Callable[[str], None] = None, registry: ActionRegistry = None):
         self.on_stream_end = on_stream_end
         self.original_user_msg = ""
+        self.registry = registry
+        # 兼容旧代码，直到完全迁移
         self.handlers: Dict[str, Callable] = {}
-        self.interceptor = TagStreamInterceptor(target_tags=list(self.handlers.keys()))
+
+        target_tags = []
+        if self.registry:
+            target_tags.extend(self.registry.get_all_tags())
+        target_tags.extend(list(self.handlers.keys()))
+
+        self.interceptor = TagStreamInterceptor(target_tags=target_tags)
 
     def register_handler(self, tag_name: str, handler: Callable):
         """注册副作用处理器，并自动同步给拦截器"""
         self.handlers[tag_name] = handler
-        self.interceptor.target_tags = list(self.handlers.keys())
+
+        target_tags = []
+        if self.registry:
+            target_tags.extend(self.registry.get_all_tags())
+        target_tags.extend(list(self.handlers.keys()))
+
+        self.interceptor.target_tags = target_tags
 
     def process_stream(self, raw_stream: Generator) -> Generator[str, None, None]:
         """处理原始大模型流，并转换为 SSE 格式发送"""
@@ -202,16 +217,31 @@ class ResponsePipeline:
         data = self.interceptor.intercepted_data
 
         # 处理 [SYSTEM_PASS]
-        if data.get("system_pass") and "system_pass" in self.handlers:
-            try:
-                self.handlers["system_pass"]()
-            except Exception as e:
-                logger.error(f"Error handling system_pass: {e}")
+        if data.get("system_pass"):
+            if self.registry and self.registry.get_handler("system_pass"):
+                try:
+                    self.registry.get_handler("system_pass").handle({}, "")
+                except Exception as e:
+                    logger.error(f"Error handling system_pass via registry: {e}")
+            elif "system_pass" in self.handlers:
+                try:
+                    self.handlers["system_pass"]()
+                except Exception as e:
+                    logger.error(f"Error handling system_pass: {e}")
 
         # 处理其他 XML 标签
         for tag_name, items in data.items():
             if tag_name == "system_pass": continue
-            if tag_name in self.handlers:
+
+            handler_obj = self.registry.get_handler(tag_name) if self.registry else None
+
+            if handler_obj:
+                for item in items:
+                    try:
+                        handler_obj.handle(item["attrs"], item["content"])
+                    except Exception as e:
+                        logger.error(f"Error handling tag <{tag_name}> via registry: {e}")
+            elif tag_name in self.handlers:
                 for item in items:
                     try:
                         self.handlers[tag_name](item["attrs"], item["content"])

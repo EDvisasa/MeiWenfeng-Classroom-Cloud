@@ -35,7 +35,11 @@ MeiWenfeng-Classroom/
 │   │   └── index.css         # 深色主题与样式系统
 │   ├── vite.config.js        # Vite 构建配置 (绑定 0.0.0.0)
 │   └── index.html            # 页面入口
-├── docs/                     # 项目文档与架构分析报告 (Bug 诊断记录等)
+├── docs/                     # 项目文档与架构分析报告
+│   ├── analysis/             # 技术分析与 Bug 诊断报告 (HTML)
+│   ├── architecture/         # 架构设计与审查报告
+│   ├── planning/             # 任务进展与项目实施计划
+│   └── 开发与测试指南.md     # 自动化测试与端到端用例参考
 ├── start.bat                 # Windows 一键启动脚本
 ├── start.sh                  # Linux/Mac 一键启动脚本
 ├── .env.example              # 环境变量参考模板
@@ -133,20 +137,11 @@ pip install -r backend/requirements.txt
 
 ## 📚 开发者指引 (给 AI 的备注)
 
-当你后续接手此工程进行二次开发时，请首先查阅 `docs/` 目录：
-- **`docs/任务进展.md`**：了解项目最新版本的开发进度和已修复 Bug 记录。
-- **`docs/项目实施计划.md`**：如果需要做大型系统重构或调整阶段性核心目标，请以此为蓝本。
-
-**🧪 自动化测试体系**
-本项目针对前后端采用了符合各自生态最佳实践的测试组织规范：
-
-- **后端 (Python/pytest) - 集中式管理**：
-  所有的测试文件（`test_*.py`）及集成验证脚本（如 `verify_*.py`）都被统一归纳并维护在 **`backend/tests/`** 目录中。项目根目录下已配置 `pytest.ini`（指定 `pythonpath = .`），路径解析极致丝滑。
-  *如何运行*：只需在项目根目录（`MeiWenfeng-Classroom`）打开终端，执行 `pytest` 即可自动发现并运行所有测试。
-
-- **前端 (React/Vitest) - 并置式管理 (Colocation)**：
-  前端的业务逻辑测试（如 `*.test.js`）直接存放在源码同级目录（例如 `frontend/src/utils/blockParser.test.js`）。这符合现代前端工程保持高局部性和内聚性的标准，方便 TDD 开发与维护。
-  *如何运行*：在 `frontend` 目录下执行 `npm run test` 即可自动运行前端测试。
+当你后续接手此工程进行二次开发时，请首先查阅 `docs/` 目录下的相关文档：
+- **`docs/开发与测试指南.md`**：包含本项目的自动化测试体系说明，以及常用的端到端测试用例参考。
+- **`docs/planning/任务进展.md`**：了解项目最新版本的开发进度和已修复 Bug 记录。
+- **`docs/planning/项目实施计划.md`**：如果需要做大型系统重构或调整阶段性核心目标，请以此为蓝本。
+- **`docs/analysis/`** 与 **`docs/architecture/`**：包含过往的架构审查、Bug 诊断与深度重构报告。
 
 ---
 

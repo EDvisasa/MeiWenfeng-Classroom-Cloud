@@ -12,6 +12,9 @@ from backend.services.prompts import get_system_prompt, SUMMARIZATION_SYSTEM_PRO
 from backend.services.rag_factory import get_rag_client
 from backend.services.memory_decay import process_memory_decay
 from backend.services.response_pipeline import ResponsePipeline, json_escape
+from backend.services.character_state import CharacterStateManager, CharacterStateError
+from backend.services.action_registry import action_registry
+import backend.services.side_effects  # Ensure handlers are registered
 
 logger = logging.getLogger(__name__)
 
@@ -115,16 +118,18 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
     在原本的大模型对话流基础上，追加特定的 System Prompt 注入，让大模型根据指令自动执行动作。
     采用解耦的 ResponsePipeline。
     """
-    affection_value = 100
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM affection WHERE id = 1")
-        row = cursor.fetchone()
-        if row: affection_value = row["value"]
-        conn.close()
-    except Exception as e:
-        logger.error(f"Failed to fetch affection: {e}")
+        state = CharacterStateManager.get_state()
+        affection_value = state.affection
+        social_status = state.social_status
+        social_skills = state.social_skills
+        refractory_period = state.refractory_period
+    except CharacterStateError as e:
+        logger.error(f"Failed to fetch character state in slash handler: {e}")
+        affection_value = 50
+        social_status = 50
+        social_skills = 50
+        refractory_period = 0
 
     rag_context = ""
     if last_user_msg:
@@ -143,7 +148,7 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
         except Exception as e:
             logger.error(f"RAG Retrieval failed: {e}")
 
-    system_prompt = get_system_prompt(affection_value, persona_type)
+    system_prompt = get_system_prompt(affection_value, persona_type, social_status, social_skills, refractory_period)
     if rag_context:
         system_prompt += f"\n\n<retrieved_background_knowledge>\n{rag_context}\n</retrieved_background_knowledge>\n<instruction>Integrate this background knowledge naturally into your response if relevant. If irrelevant, ignore it.</instruction>"
 
@@ -178,9 +183,7 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
             logger.error(f"Failed to save memory in callback: {e}")
 
     # 初始化管道
-    pipeline = ResponsePipeline(on_stream_end=on_stream_end)
-
-    _register_pipeline_handlers(pipeline)
+    pipeline = ResponsePipeline(on_stream_end=on_stream_end, registry=action_registry)
 
     def event_generator():
         try:
@@ -193,102 +196,48 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
-def _register_pipeline_handlers(pipeline: ResponsePipeline):
-    """注册副作用处理器到管道"""
-    def handle_system_pass():
-        from backend.services.course_manager import advance_course_progress
-        advance_course_progress()
-        logger.info("课程进度已通过 [SYSTEM_PASS] 自动推进！")
-
-    def handle_glossary(attrs: dict, content: str):
-        term = attrs.get("term", "").strip()
-        definition = content.strip()
-        if not term: return
-        conn = get_db_connection()
-        try:
-            cursor = conn.cursor()
-            cursor.execute("INSERT OR IGNORE INTO glossary (term, definition) VALUES (?, ?)", (term, definition))
-            conn.commit()
-            logger.info(f"术语已收录: {term}")
-        except Exception as e:
-            logger.error(f"处理 glossary 失败: {e}")
-        finally:
-            conn.close()
-
-    def handle_new_course(attrs: dict, content: str):
-        phase = attrs.get("phase", "").strip()
-        topic = attrs.get("topic", "").strip()
-        if not phase or not topic: return
-        from backend.services.course_manager import append_to_syllabus
-        append_to_syllabus(phase, topic)
-        logger.info(f"大纲已成功追加新课题: {phase} - {topic}")
-
-    def handle_explainer(attrs: dict, content: str):
-        title = attrs.get("title", "").strip()
-        content = content.strip()
-        if not title: return
-        try:
-            # Sanitize the title to prevent path traversal
-            safe_title = os.path.basename(title)
-            if not safe_title: return
-
-            docs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "讲义玉简")
-            os.makedirs(docs_dir, exist_ok=True)
-
-            # Additional check: resolve absolute path and ensure it's still inside docs_dir
-            filepath = os.path.abspath(os.path.join(docs_dir, safe_title))
-            if not filepath.startswith(os.path.abspath(docs_dir)):
-                logger.warning(f"Path traversal attempt blocked: {title}")
-                return
-
-            with open(filepath, "w", encoding="utf-8") as f:
-                f.write(content)
-            logger.info(f"实体讲义玉简已生成: {filepath}")
-            # 注意：由于是在流结束后同步执行，这里无法直接 yield 给前端。
-            # 如果需要告诉前端去打开文件，可以在前端实现轮询，或者在 pipeline 中设计一种在结束时附带系统消息的机制。
-            # 这里先将文件落库。
-        except Exception as e:
-            logger.error(f"处理 explainer 失败: {e}")
-
-    pipeline.register_handler("system_pass", handle_system_pass)
-    pipeline.register_handler("glossary", handle_glossary)
-    pipeline.register_handler("new_course", handle_new_course)
-    pipeline.register_handler("explainer", handle_explainer)
-
-
 # 下面保留原有的其他命令处理函数（_handle_reward, _handle_summarize 等）...
 def _handle_reward() -> StreamingResponse:
     def raw_generator():
         try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("SELECT value FROM affection WHERE id = 1")
-            row = cursor.fetchone()
-            current = row["value"] if row else 50
-            new_val = max(0, min(100, current + 10))
-            if not row:
-                cursor.execute("INSERT INTO affection (id, value, last_updated) VALUES (1, ?, datetime('now'))", (new_val,))
-            else:
-                cursor.execute("UPDATE affection SET value = ?, last_updated = datetime('now') WHERE id = 1", (new_val,))
-            conn.commit()
-            conn.close()
-            yield f"[系统提示] 媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度：{new_val}\n\n"
+            state = CharacterStateManager.modify_state(affection_delta=10)
+            yield f"[系统提示] 媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度：{state.affection}\n\n"
             yield "*眼波流转，娇媚地白了你一眼，但嘴角的笑意却怎么也藏不住：*“夫君这是开窍了？就知道拿这些来哄奴家开心~”"
-        except Exception as e:
+        except CharacterStateError as e:
             yield f"[系统提示] 奖励发送失败: {e}"
-            
+
     pipeline = ResponsePipeline()
     return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
 
 def _handle_summarize() -> StreamingResponse:
     def raw_generator():
         yield "[系统记忆压缩] 正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...\n\n"
-        try:
-            stats = process_memory_decay()
+        import threading
+        import time
+        result_container = {}
+        def target():
+            try:
+                from backend.services.memory_decay import process_memory_decay
+                stats = process_memory_decay()
+                result_container["stats"] = stats
+            except Exception as e:
+                result_container["error"] = str(e)
+
+        t = threading.Thread(target=target)
+        t.start()
+
+        # Yield keep-alive messages to prevent frontend timeout and Errno 22 on Windows
+        while t.is_alive():
+            time.sleep(2)
+            yield "...\n\n"
+
+        t.join()
+        if "error" in result_container:
+            yield f"[系统记忆压缩] 压缩失败: {result_container['error']}"
+        else:
+            stats = result_container.get("stats", {})
             yield f"[系统记忆压缩] 压缩完成！新记忆已归档入库。处理统计: {json.dumps(stats, ensure_ascii=False)}"
-        except Exception as e:
-            yield f"[系统记忆压缩] 压缩失败: {e}"
-            
+
     pipeline = ResponsePipeline()
     return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
 

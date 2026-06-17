@@ -6,11 +6,13 @@ from pydantic import BaseModel
 from typing import List, Dict, Any
 
 from backend.database import get_db_connection
+from backend.services.character_state import CharacterStateManager, CharacterStateError
 from backend.services.model_router import stream_chat
 from backend.services.prompts import get_system_prompt
 from backend.services.rag_factory import get_rag_client
-from backend.services.slash_handler import handle_slash_command, _register_pipeline_handlers
+from backend.services.slash_handler import handle_slash_command
 from backend.services.response_pipeline import ResponsePipeline, json_escape
+from backend.services.action_registry import action_registry
 import tiktoken
 
 logger = logging.getLogger(__name__)
@@ -28,18 +30,19 @@ class ChatRequest(BaseModel):
     custom_max_tokens: int = 8192
 
 def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str):
-    # 2. 从数据库加载好感度，用于拼接 System Prompt
-    affection_value = 100
+    # 2. 从数据库加载好感度和动态属性，用于拼接 System Prompt
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM affection WHERE id = 1")
-        row = cursor.fetchone()
-        if row:
-            affection_value = row["value"]
-        conn.close()
-    except Exception as e:
-        logger.error(f"Failed to fetch affection: {e}")
+        state = CharacterStateManager.get_state()
+        affection_value = state.affection
+        social_status = state.social_status
+        social_skills = state.social_skills
+        refractory_period = state.refractory_period
+    except CharacterStateError as e:
+        logger.error(f"Failed to fetch character state in chat router: {e}")
+        affection_value = 50
+        social_status = 50
+        social_skills = 50
+        refractory_period = 0
 
     # 提取最后一条用户消息用于 RAG 检索
     rag_context = ""
@@ -83,7 +86,7 @@ def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str)
         except Exception as e:
             logger.error(f"RAG Retrieval failed: {e}")
 
-    system_prompt = get_system_prompt(affection_value, payload.persona_type)
+    system_prompt = get_system_prompt(affection_value, payload.persona_type, social_status, social_skills, refractory_period)
 
     if payload.current_file_path:
         import os
@@ -228,9 +231,8 @@ def send_message(payload: ChatRequest):
 
     system_prompt, kb_count, mem_count = _build_full_system_prompt(payload, original_last_user_msg)
 
-    pipeline = ResponsePipeline()
+    pipeline = ResponsePipeline(registry=action_registry)
     pipeline.original_user_msg = original_last_user_msg
-    _register_pipeline_handlers(pipeline)
 
     def event_generator():
         try:

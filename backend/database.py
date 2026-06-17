@@ -63,14 +63,33 @@ def init_db():
     );
     """)
 
-    # 好感度表
+    # 好感度表 (动态属性)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS affection (
         id INTEGER PRIMARY KEY,
         value INTEGER DEFAULT 50,
+        social_status INTEGER DEFAULT 50,
+        social_skills INTEGER DEFAULT 50,
+        refractory_period INTEGER DEFAULT 0,
         last_updated DATETIME
     );
     """)
+
+    # 兼容性升级：如果表已经存在，则尝试动态添加新列
+    try:
+        cursor.execute("ALTER TABLE affection ADD COLUMN social_status INTEGER DEFAULT 50")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE affection ADD COLUMN social_skills INTEGER DEFAULT 50")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE affection ADD COLUMN refractory_period INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
 
     # 模型配置表
     cursor.execute("""
