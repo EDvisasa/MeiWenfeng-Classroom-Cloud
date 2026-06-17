@@ -73,6 +73,13 @@ python -m venv .venv
 # 激活虚拟环境后安装依赖
 .venv\Scripts\activate
 pip install -r backend/requirements.txt
+
+# 4. 准备前端与引擎 Node 依赖
+cd frontend
+npm install
+cd ../backend/claude_engine
+npm install
+cd ../..
 ```
 
 ### 第二步：一键启动
