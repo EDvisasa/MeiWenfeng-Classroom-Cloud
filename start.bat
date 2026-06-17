@@ -17,13 +17,15 @@ echo.
 :env_ok
 
 rem 2. Check and Setup virtualenv
-if exist .venv goto venv_ok
-echo [Info] Python virtual environment (.venv) not found.
-echo [Info] Automatically creating virtual environment and installing backend dependencies...
-python -m venv .venv
-call .venv\Scripts\activate
-pip install -r backend/requirements.txt
-:venv_ok
+if not exist .venv\Scripts\python.exe (
+    echo [Info] Python virtual environment (.venv) not found.
+    echo [Info] Automatically creating virtual environment...
+    python -m venv .venv
+)
+if not exist .venv\Scripts\uvicorn.exe (
+    echo [Info] Installing backend dependencies...
+    .venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+)
 
 rem 3. Check and Setup Node dependencies
 if exist frontend\node_modules goto frontend_ok
