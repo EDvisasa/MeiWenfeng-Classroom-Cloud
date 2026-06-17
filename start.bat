@@ -16,13 +16,29 @@ echo [Important] Please open .env and enter your API Key to enable chat!
 echo.
 :env_ok
 
-rem 2. Check virtualenv
+rem 2. Check and Setup virtualenv
 if exist .venv goto venv_ok
-echo [Error] Python virtual environment (.venv) not found!
-echo Please make sure the virtual environment is created in the project root.
-pause
-exit /b
+echo [Info] Python virtual environment (.venv) not found.
+echo [Info] Automatically creating virtual environment and installing backend dependencies...
+python -m venv .venv
+call .venv\Scripts\activate
+pip install -r backend/requirements.txt
 :venv_ok
+
+rem 3. Check and Setup Node dependencies
+if exist frontend\node_modules goto frontend_ok
+echo [Info] Frontend dependencies not found. Installing...
+cd frontend
+call npm install
+cd ..
+:frontend_ok
+
+if exist backend\claude_engine\node_modules goto engine_ok
+echo [Info] Claude Engine dependencies not found. Installing...
+cd backend\claude_engine
+call npm install
+cd ..\..
+:engine_ok
 
 rem 3. Cleanup Zombie Processes
 echo ==========================================

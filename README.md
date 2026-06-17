@@ -63,22 +63,6 @@ MeiWenfeng-Classroom/
 # 1. 准备项目代码
 git clone https://github.com/EDvisasa/MeiWenfeng-Classroom.git
 cd MeiWenfeng-Classroom
-
-# 2. 配置环境变量
-# 请直接打开项目中的 .env.example 或生成的 .env 文件，填入您的 API Key 后保存为 .env
-
-# 3. 准备后端环境
-python -m venv .venv
-# 激活虚拟环境后安装依赖
-.venv\Scripts\activate
-pip install -r backend/requirements.txt
-
-# 4. 准备前端与引擎 Node 依赖
-cd frontend
-npm install
-cd ../backend/claude_engine
-npm install
-cd ../..
 ```
 
 ### 第二步：一键启动
