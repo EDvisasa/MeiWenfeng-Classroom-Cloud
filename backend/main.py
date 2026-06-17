@@ -50,7 +50,8 @@ app = FastAPI(
 
 # 3.5. 静态挂载用户本地图片资源
 from fastapi.staticfiles import StaticFiles
-IMAGE_DIR = "D:/Games/AI小说文档/01-SillyTarern文件/01-[roll点开局·遇仙记]/02-角色卡/00-[自创]遇仙记/02-媚吻锋/00-图片资源/正常"
+# 通过环境变量读取图片目录，若未配置则使用默认的相对路径，避免硬编码暴露隐私路径
+IMAGE_DIR = os.getenv("IMAGE_DIR", os.path.join(ROOT_DIR, "data", "images"))
 if os.path.exists(IMAGE_DIR):
     app.mount("/api/images/static", StaticFiles(directory=IMAGE_DIR), name="character_images")
 

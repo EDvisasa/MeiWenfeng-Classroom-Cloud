@@ -42,3 +42,6 @@ frontend/build/
 # 插件构建产物
 vscode-extension/out/
 vscode-extension/dist/
+
+# 用户静态资源与上传数据
+data/
