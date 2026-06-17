@@ -5,7 +5,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-const PORT = 12702;
+const PORT = process.env.NODE_PORT || 12702;
 
 // This endpoint will bridge the React frontend SSE protocol with Open-ClaudeCode
 app.post('/api/chat/stream', async (req, res) => {
