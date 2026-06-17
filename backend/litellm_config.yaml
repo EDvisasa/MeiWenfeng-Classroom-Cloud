@@ -1,0 +1,26 @@
+model_list:
+  # 统一在后端网关管理所有大模型节点
+  - model_name: "gemini-3.1-pro-preview"
+    litellm_params:
+      model: "gemini/gemini-3.1-pro-preview"
+      api_key: "os.environ/GEMINI_API_KEY"
+
+  - model_name: "claude-3-sonnet"
+    litellm_params:
+      model: "anthropic/claude-3-sonnet-20240229"
+      api_key: "os.environ/ANTHROPIC_API_KEY"
+
+  - model_name: "deepseek-chat"
+    litellm_params:
+      model: "deepseek/deepseek-chat"
+      api_key: "os.environ/DEEPSEEK_API_KEY"
+      api_base: "https://api.deepseek.com/v1"
+
+  - model_name: "qwen-local"
+    litellm_params:
+      model: "ollama_chat/qwen3.6-35b"
+      api_base: "http://localhost:11434"
+
+litellm_settings:
+  drop_params: true
+  set_verbose: false

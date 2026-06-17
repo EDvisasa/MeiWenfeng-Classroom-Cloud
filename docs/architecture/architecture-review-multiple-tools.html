@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Architecture Review: ChatPanel Status Management</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header>
+        <h1 class="text-4xl font-serif font-bold mb-4">Architecture Review: ChatPanel Multiple Tool Calls & Thinking Status</h1>
+        <div class="text-slate-500 text-sm mb-8 font-mono">Date: 2026-06-17 | Target: frontend/src/components/ChatPanel.jsx</div>
+        <div class="flex gap-6 text-xs uppercase tracking-wider items-center bg-white p-4 rounded-lg border border-slate-200 shadow-sm inline-flex">
+          <div class="flex items-center gap-2"><div class="w-4 h-4 bg-slate-200 border border-slate-400"></div> 模块 (Module)</div>
+          <div class="flex items-center gap-2"><div class="w-6 h-0 border-t-2 border-dashed border-slate-400"></div> 缝隙 (Seam)</div>
+          <div class="flex items-center gap-2"><div class="w-6 h-0 border-t-2 border-red-600"></div> 泄漏 (Leak)</div>
+          <div class="flex items-center gap-2"><div class="w-4 h-4 deep"></div> 深模块 (Deep Module)</div>
+        </div>
+      </header>
+
+      <section id="top-recommendation" class="bg-white p-8 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-indigo-600">
+        <h2 class="text-2xl font-bold mb-3">核心架构诊断：统一生命周期与状态合并逻辑</h2>
+        <p class="text-slate-700 leading-relaxed text-lg">
+          在当前的 <code>ChatPanel.jsx</code> 中，<code>parseAndMergeBlocks</code> 被升级为了一个依赖 <code>isStreaming</code> 标志的深模块。然而，针对<strong>多工具连续调用后紧接普通的 Thinking 过程</strong>这一场景，它仍存在设计上的脆弱性。当后端不断发来带状态的 <code>blocks</code> 时，前端将它们合并处理，但对于最后一次大模型补充的 <code>Thinking</code> 过程，原有的合并逻辑可能因未能正确处理前一个已完结状态（done）和新流入状态（running）的层级关系，导致本该处于 <code>running</code> 的思考块在合并后提前被判定为 <code>done</code>（指示灯变绿）。这本质上是状态在合并（Merge）缝隙处的泄露。
+        </p>
+      </section>
+
+      <section id="candidates" class="space-y-12">
+        <article id="deepen-merge">
+          <h3 class="text-3xl font-bold mb-4 text-slate-800">深度重构：状态合并缝隙的加深 (Deepening the Block Merge Seam)</h3>
+
+          <div class="flex gap-3 mb-6">
+            <span class="px-3 py-1.5 bg-emerald-100 text-emerald-800 text-sm font-bold rounded shadow-sm">Strong Recommendation</span>
+            <span class="px-3 py-1.5 bg-slate-200 text-slate-700 text-sm font-medium rounded shadow-sm">in-process dependency</span>
+          </div>
+
+          <div class="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-8">
+            <div>
+              <h4 class="text-xl font-bold mb-3 text-slate-800 flex items-center gap-2"><span class="text-red-500">❌</span> 问题分析 (The Problem)</h4>
+              <p class="text-slate-700 leading-relaxed">
+                在 <code>parseAndMergeBlocks</code> 的第二步（合并相邻的 thinking 块）中，代码是这样处理状态的：
+                <code class="block bg-slate-100 p-3 rounded mt-2 text-sm text-slate-800">if (b.status === 'running' && isStreaming) last.status = 'running';</code>
+                当发生多次工具调用后，模型可能会再次输出 <code>&lt;thought&gt;</code>。如果后端传来的 <code>msg.blocks</code> 结构未能良好地隔离各个思考阶段（例如工具调用前后的 thinking 被压平），或者在处理非文本块（如 tool 块）时：
+                <code class="block bg-slate-100 p-3 rounded mt-2 text-sm text-slate-800">const bStatus = isStreaming ? b.status : (b.type === 'thinking' || b.type === 'tool' ? 'done' : b.status);</code>
+                如果工具块（tool）插在两个思考块（thinking）之间，它们无法被合并。但如果后端的机制是将后续的文本流追加在之前的文本块中，那么最后一个新产生的 thinking 块的 <code>status</code> 将取决于正则的解析。由于 <code>isStreaming</code> 是全局级别的，如果前一个思考块已经被判定为 <code>done</code>（因为它有 <code>&lt;/thought&gt;</code>），而新的思考块正在生成（没有闭合），它们合并时 <code>last.status = 'running'</code> 能够生效。
+                <br/><br/>
+                <strong>真正的泄露点在于：</strong>如果后端将工具调用过程作为一个独立的 block 发送，而大模型在工具调用完成后的“继续回复”产生的 <code>&lt;thought&gt;</code> 是包含在新的文本流中，但前端将之前已完成的整个消息树视作 <code>done</code> 状态，或者在正则处理中，由于之前的 <code>&lt;/thought&gt;</code> 存在，导致 <code>lastIndex</code> 处理出现覆盖，使得新的 <code>running</code> 状态未被正确捕获。
+              </p>
+            </div>
+
+            <div>
+              <h4 class="text-xl font-bold mb-3 text-slate-800 flex items-center gap-2"><span class="text-emerald-500">✅</span> 解决方案 (The Solution)</h4>
+              <p class="text-slate-700 leading-relaxed">
+                将 <code>parseAndMergeBlocks</code> 对区块的规整化（Normalization）和合并（Merging）进行更彻底的隔离。
+                <ol class="list-decimal list-inside space-y-2 mt-2">
+                  <li><strong>引入区块级别的生命周期：</strong>不仅依赖全局的 <code>isStreaming</code>，还要根据每个思考块是否真正闭合来决定其独有的状态。如果文本块中存在未闭合的 <code>&lt;thought&gt;</code>，且全局正在 <code>isStreaming</code>，那么<strong>只有最后那个未闭合的块</strong>才是 <code>running</code>。</li>
+                  <li><strong>强化合并逻辑的杠杆（Leverage）：</strong>在合并多个 thinking 块时，状态不应简单地通过 <code>if (b.status === 'running') last.status = 'running'</code> 来覆盖，而应明确：只要合并组中存在任何一个是 <code>running</code>，整个合并后的块就应该是 <code>running</code>；但更优的架构是<strong>不合并跨越了工具调用的思考块</strong>，让工具调用前后的思考过程独立显示，从而保留时间线上的局部性（Locality）。</li>
+                </ol>
+              </p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-8 mt-8">
+              <!-- Before Diagram -->
+              <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 border-b pb-2">Before: 状态覆盖泄漏</div>
+                <pre class="mermaid">
+                  sequenceDiagram
+                    participant Stream
+                    participant Parser
+                    participant MergedBlock
+                    Stream->>Parser: text with &lt;thought&gt;...&lt;/thought&gt; (done)
+                    Stream->>Parser: tool block (done)
+                    Stream->>Parser: text with &lt;thought&gt;... (running)
+                    Note over Parser,MergedBlock: If text blocks are merged, the 'done' state from previous thoughts or tools might shadow the active 'running' state.
+                    Parser-->>MergedBlock: Status: done (Leak!)
+                </pre>
+              </div>
+
+              <!-- After Diagram -->
+              <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+                <div class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 border-b pb-2">After: 独立的区块生命周期</div>
+                <pre class="mermaid">
+                  sequenceDiagram
+                    participant Stream
+                    participant Parser
+                    participant BlockTree
+                    Stream->>Parser: text with &lt;thought&gt;...&lt;/thought&gt;
+                    Parser->>BlockTree: ThinkingBlock [Status: done]
+                    Stream->>Parser: tool block
+                    Parser->>BlockTree: ToolBlock [Status: done]
+                    Stream->>Parser: text with &lt;thought&gt;...
+                    Parser->>BlockTree: ThinkingBlock [Status: running]
+                    Note over Parser,BlockTree: Blocks are kept distinct. Only adjacent identical blocks without intervening tools are merged.
+                </pre>
+              </div>
+            </div>
+
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>

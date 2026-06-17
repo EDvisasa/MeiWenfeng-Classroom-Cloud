@@ -1,0 +1,49 @@
+{
+  "name": "mei-wenfeng-classroom",
+  "displayName": "🌸 媚吻锋随身课堂",
+  "description": "沉浸式修仙私教与智能代码助手",
+  "version": "1.0.0",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "categories": [
+    "Machine Learning",
+    "Education"
+  ],
+  "activationEvents": [
+    "onView:mei-wenfeng-sidebar"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "mei-wenfeng-container",
+          "title": "媚吻锋",
+          "icon": "resources/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "mei-wenfeng-container": [
+        {
+          "type": "webview",
+          "id": "mei-wenfeng-sidebar",
+          "name": "随身课堂"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run package",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "package": "esbuild src/extension.ts --bundle --outfile=dist/extension.js --external:vscode --format=cjs --platform=node"
+  },
+  "devDependencies": {
+    "@types/node": "^16.11.7",
+    "@types/vscode": "^1.80.0",
+    "esbuild": "^0.17.18",
+    "typescript": "^5.0.4"
+  }
+}

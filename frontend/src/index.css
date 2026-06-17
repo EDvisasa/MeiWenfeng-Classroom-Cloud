@@ -1,0 +1,1970 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --bg-primary: rgba(255, 255, 255, 0.88);
+  --bg-secondary: rgba(245, 245, 245, 0.6);
+  --bg-tertiary: rgba(230, 230, 230, 0.5);
+  --bg-panel: rgba(255, 255, 255, 0.88);
+  /* 匹配 JSON 中的 blur_tint_color */
+  --border-color: rgba(235, 233, 232, 1);
+  --border-focus: #4b6cb7;
+
+  --accent-pink: #4b6cb7;
+  --accent-pink-hover: #182848;
+  --accent-glow: rgba(75, 108, 183, 0.3);
+
+  --text-primary: rgba(45, 45, 45, 1);
+  /* 匹配 JSON 中的 main_text_color */
+  --text-secondary: rgba(100, 100, 100, 1);
+  /* 匹配 JSON 中的 italics_text_color */
+  --text-action: rgba(34, 151, 153, 1);
+  /* 匹配 JSON 中的 underline_text_color */
+  --text-dialog: rgba(83, 126, 197, 1);
+  /* 匹配 JSON 中的 quote_text_color */
+
+  --success: #2e8b57;
+  --warning: #daa520;
+  --danger: #dc143c;
+
+  --font-sans: 'SimSun', 'STSong', 'Outfit', 'Inter', serif;
+  /* 切换为偏古风/宋体 */
+  --font-mono: 'Fira Code', 'Courier New', monospace;
+
+  --shadow-sm: 0 4px 6px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.1);
+  --glass-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.15);
+
+  --border-radius-sm: 8px;
+  --border-radius-md: 12px;
+  --border-radius-lg: 20px;
+}
+
+/* 亮色主题 (默认) */
+.theme-light {
+  --bg-primary: rgba(255, 255, 255, 0.88);
+  --bg-secondary: rgba(245, 245, 245, 0.6);
+  --bg-tertiary: rgba(230, 230, 230, 0.5);
+  --bg-panel: rgba(255, 255, 255, 0.88);
+  --border-color: rgba(235, 233, 232, 1);
+  --text-primary: rgba(45, 45, 45, 1);
+  --text-secondary: rgba(100, 100, 100, 1);
+  --text-dialog: rgba(83, 126, 197, 1);
+}
+
+/* 暗色主题 */
+.theme-dark {
+  --bg-primary: rgba(20, 20, 24, 0.92);
+  --bg-secondary: rgba(35, 35, 45, 0.85);
+  --bg-tertiary: rgba(50, 50, 65, 0.75);
+  --bg-panel: rgba(18, 18, 22, 0.92);
+  --border-color: rgba(65, 65, 80, 0.9);
+  --text-primary: rgba(245, 245, 250, 1);
+  --text-secondary: rgba(160, 160, 175, 1);
+  --text-dialog: rgba(160, 190, 240, 1);
+
+  /* 专为暗色模式调优的文字和强调色 */
+  --text-action: #a78bfa;
+  /* 优雅的淡紫色，适合动作旁白 */
+  --accent-pink: #f472b6;
+  /* 明亮的粉色，适合对话和强调文字 */
+  --accent-pink-hover: #db2777;
+  --accent-glow: rgba(244, 114, 182, 0.35);
+}
+
+.header-btn {
+  background: rgba(128, 128, 128, 0.1);
+  border: 1px solid var(--border-color);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-primary);
+  transition: all 0.2s;
+  flex-shrink: 0;
+}
+
+
+.header-btn:hover {
+  background: rgba(128, 128, 128, 0.2);
+}
+
+/* Claude Code 风格的图标专用按钮 */
+.cc-icon-btn {
+  background: transparent;
+  border: none;
+  padding: 0;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.cc-icon-btn:hover {
+  background: rgba(128, 128, 128, 0.15);
+  color: var(--text-primary);
+}
+
+.cc-icon-btn.active {
+  color: var(--accent-pink);
+  background: rgba(75, 108, 183, 0.1);
+}
+
+.cc-icon-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+/* 历史对话列表弹出层 */
+.session-list-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  min-width: 220px;
+  max-width: 280px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 200;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.session-list-header {
+  padding: 10px 14px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.session-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  cursor: pointer;
+  transition: background 0.12s;
+  min-height: 36px;
+}
+
+.session-item:hover {
+  background: rgba(128, 128, 128, 0.08);
+}
+
+.session-item.active {
+  background: rgba(75, 108, 183, 0.08);
+}
+
+.session-item.active .session-title {
+  color: var(--accent-pink);
+  font-weight: 600;
+}
+
+.session-title {
+  flex: 1;
+  font-size: 13px;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.session-delete-btn {
+  background: none;
+  border: none;
+  padding: 3px 5px;
+  border-radius: 4px;
+  cursor: pointer;
+  color: var(--text-secondary);
+  opacity: 0;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+  display: flex;
+  align-items: center;
+}
+
+.session-item:hover .session-delete-btn {
+  opacity: 1;
+}
+
+.session-delete-btn:hover {
+  color: var(--danger);
+  background: rgba(220, 20, 60, 0.08);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: #e0e0e0;
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  -webkit-font-smoothing: antialiased;
+}
+
+#root {
+  height: 100%;
+}
+
+/* ==========================================
+   布局结构 (参照截图的文字小说流排版)
+   ========================================== */
+.app-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  background-image: url('/bg_image.png');
+  background-size: cover;
+  background-position: center;
+  background-attachment: fixed;
+}
+
+/* 顶部栏 */
+.header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  height: 48px;
+  padding: 0 24px;
+  background: var(--bg-panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 14px;
+  user-select: none;
+  z-index: 10;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.logo-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: 1px;
+}
+
+.logo-icon {
+  color: var(--accent-pink);
+  font-size: 18px;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.4);
+  padding: 4px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+}
+
+.status-indicator {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: var(--success);
+}
+
+.status-indicator.offline {
+  background-color: var(--danger);
+}
+
+/* 主面板区域 */
+.main-layout {
+  display: flex;
+  flex-direction: row;
+  flex: 1;
+  overflow: visible;
+  min-height: 0;
+  padding: 16px;
+  gap: 16px;
+  justify-content: flex-start;
+  position: relative;
+}
+
+@media (max-width: 800px) {
+  .main-layout {
+    flex-direction: column;
+    overflow-y: auto;
+    padding: 0;
+    gap: 0;
+  }
+
+  .header-bar {
+    padding: 8px;
+    height: auto;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .center-panel {
+    border-radius: 0;
+    border: none;
+    flex: 1 0 auto;
+    min-height: 80vh;
+  }
+
+  .right-panel-container {
+    display: none;
+    flex-direction: column;
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 100;
+    background: var(--bg-panel);
+    padding: 16px;
+    overflow-y: auto;
+  }
+
+  .right-panel-container.show-mobile {
+    display: flex;
+  }
+
+  /* Disable backdrop-filter on mobile panels to fix animation lag */
+  .right-panel-container .ide-panel {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  .right-panel-container.show-mobile .right-panel {
+    width: 100%;
+    height: auto;
+  }
+}
+
+.mobile-only-btn {
+  display: none !important;
+}
+
+@media (max-width: 800px) {
+  .mobile-only-btn {
+    display: flex !important;
+  }
+}
+
+.mobile-close-btn {
+  display: none !important;
+}
+
+@media (max-width: 800px) {
+  .mobile-close-btn {
+    display: block !important;
+    margin-top: 16px;
+    padding: 12px;
+    background: var(--danger);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: bold;
+    cursor: pointer;
+    text-align: center;
+  }
+}
+
+/* 面板通用样式 */
+.ide-panel {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-panel);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: none;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
+  overflow: visible;
+  min-height: 0;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 40px;
+  padding: 0 20px;
+  background: rgba(255, 255, 255, 0.3);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* 左侧栏：悬浮在左侧，不占据主空间，可折叠 */
+.left-panel {
+  position: relative;
+  width: 280px;
+  border-radius: var(--border-radius-md);
+  opacity: 1;
+  z-index: 5;
+}
+
+.file-tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 12px;
+  list-style: none;
+}
+
+.tree-folder {
+  margin-bottom: 12px;
+}
+
+.folder-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  padding: 4px 6px;
+  cursor: pointer;
+  border-radius: var(--border-radius-sm);
+  transition: background 0.2s;
+}
+
+.folder-title:hover {
+  background-color: var(--bg-tertiary);
+}
+
+.folder-items {
+  padding-left: 18px;
+  margin-top: 4px;
+}
+
+.file-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  padding: 6px 8px;
+  cursor: pointer;
+  border-radius: var(--border-radius-sm);
+  margin-bottom: 2px;
+  transition: all 0.2s;
+}
+
+.file-item:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.file-item.active {
+  background-color: rgba(236, 72, 153, 0.08);
+  color: var(--accent-pink);
+  border-left: 2px solid var(--accent-pink);
+}
+
+/* 中间栏：授课对话区 */
+.center-panel {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  min-height: 0;
+  background: var(--bg-panel);
+  /* 匹配 JSON 中的 chat_tint_color */
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  border-radius: var(--border-radius-md);
+  border: 1px solid var(--border-color);
+}
+
+.chat-history {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 对话气泡 */
+.message-item {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 24px;
+}
+
+.message-item.user-msg {
+  align-self: stretch;
+}
+
+.message-item.assistant-msg {
+  align-self: stretch;
+}
+
+.message-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  width: 100%;
+}
+
+.user-msg .message-header {
+  justify-content: flex-end;
+  gap: 12px;
+}
+
+.assistant-msg .message-header {
+  justify-content: flex-start;
+  gap: 12px;
+}
+
+.sender-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.avatar {
+  width: var(--avatar-size, 36px);
+  height: var(--avatar-size, 36px);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(var(--avatar-size, 36px) * 0.5);
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+
+.user-msg .avatar {
+  background-color: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+}
+
+.assistant-msg .avatar {
+  background-color: rgba(244, 114, 182, 0.2);
+  border: 1px solid var(--accent-pink);
+  box-shadow: 0 0 10px rgba(244, 114, 182, 0.2);
+}
+
+.message-bubble-row {
+  display: flex;
+  width: 100%;
+}
+
+.user-msg .message-bubble-row {
+  justify-content: stretch;
+}
+
+.assistant-msg .message-bubble-row {
+  justify-content: stretch;
+}
+
+.message-bubble {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 16px;
+  font-size: var(--chat-font-size, 16px);
+  line-height: 1.8;
+  letter-spacing: 0.5px;
+  border-radius: var(--border-radius-md);
+  width: 100%;
+  box-shadow: var(--shadow-sm);
+  word-break: break-word;
+}
+
+.user-msg .message-bubble {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  position: relative;
+  padding-bottom: 28px;
+  /* space for absolute positioned edit button */
+}
+
+.user-msg .edit-msg-btn {
+  position: absolute;
+  right: 8px;
+  bottom: 6px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-secondary);
+  border-radius: 4px;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: all 0.15s ease-in-out;
+}
+
+.user-msg .edit-msg-btn:hover {
+  opacity: 1;
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--text-secondary);
+}
+
+.user-msg .edit-msg-btn svg {
+  width: 10px;
+  height: 10px;
+}
+
+/* 编辑状态的样式 */
+.user-msg .message-bubble.editing {
+  padding: 12px;
+  border: 1px solid var(--accent-pink);
+  box-shadow: 0 0 0 2px var(--accent-glow);
+  background-color: var(--bg-primary);
+}
+
+.edit-textarea {
+  width: 100%;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: inherit;
+  resize: vertical;
+  min-height: 60px;
+  line-height: 1.6;
+  border-radius: 6px !important;
+  padding: 8px !important;
+  box-sizing: border-box;
+}
+
+.edit-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.edit-confirm-btn,
+.edit-cancel-btn {
+  padding: 6px 14px;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.edit-confirm-btn {
+  background-color: var(--accent-pink);
+  color: white;
+}
+
+.edit-confirm-btn:hover {
+  background-color: var(--accent-pink-hover);
+  transform: translateY(-1px);
+}
+
+.edit-cancel-btn {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.edit-cancel-btn:hover {
+  background-color: var(--bg-secondary);
+  color: var(--text-primary);
+}
+
+.assistant-msg .message-bubble {
+  background-color: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+}
+
+.sender-name {
+  font-size: var(--name-font-size, 12px);
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.assistant-msg .sender-name {
+  color: #ff4d4f;
+  /* 红色 */
+}
+
+.user-msg .sender-name {
+  text-align: right;
+  color: #1890ff;
+  /* 蓝色 */
+}
+
+/* 渲染斜体描述文本 */
+.action-text {
+  color: var(--text-dialog);
+  /* 使用深蓝色表示动作/旁白 */
+  font-weight: 400;
+  display: inline;
+}
+
+/* 输入框区域 */
+.input-area {
+  padding: 10px 14px 14px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border-color);
+  position: relative;
+  overflow: visible !important;
+}
+
+.input-wrapper {
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  overflow: visible !important;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.input-wrapper:focus-within {
+  border-color: var(--accent-pink);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+.chat-input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 14px;
+  resize: none;
+  min-height: 20px;
+  max-height: 120px;
+  line-height: 1.5;
+  padding: 10px 14px 6px;
+}
+
+.chat-input::placeholder {
+  font-size: calc(1em - 2px);
+}
+
+.input-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px 8px 6px;
+  border-top: 1px solid var(--border-color);
+}
+
+.shortcuts-trigger-btn {
+  background: none;
+  border: none;
+  padding: 4px;
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  transition: background 0.15s, color 0.15s;
+}
+
+.shortcuts-trigger-btn:hover {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+}
+
+.send-button {
+  background-color: var(--accent-pink);
+  color: #fff;
+  border: none;
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.send-button:hover {
+  background-color: var(--accent-pink-hover);
+  transform: translateY(-1px);
+}
+
+.send-button:disabled {
+  background-color: var(--bg-tertiary);
+  color: var(--text-secondary);
+  cursor: not-allowed;
+  transform: none;
+}
+
+.stop-button {
+  background-color: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  width: 26px;
+  height: 26px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: all 0.15s cubic-bezier(0.4, 0, 0.2, 1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.stop-button:hover {
+  background-color: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--text-primary);
+}
+
+.stop-button:active {
+  transform: scale(0.85);
+}
+
+.pulse-stop {
+  animation: stop-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes stop-pulse {
+  0%, 100% {
+    opacity: 1;
+  }
+  50% {
+    opacity: .5;
+  }
+}
+
+/* 提示语 */
+.input-hints {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.hint-badge {
+  font-size: 11px;
+  color: var(--text-secondary);
+  background-color: var(--bg-tertiary);
+  padding: 3px 8px;
+  border-radius: 12px;
+  border: 1px solid var(--border-color);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.hint-badge:hover {
+  border-color: var(--accent-pink);
+  color: var(--text-primary);
+}
+
+/* 右侧栏：状态属性 + 大纲 */
+.right-panel {
+  position: relative;
+  width: 300px;
+  height: 100%;
+  border-radius: var(--border-radius-md);
+  opacity: 1;
+  z-index: 5;
+}
+
+.right-content {
+  flex: 1;
+  overflow-y: auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+/* 内心独白卡片 */
+.thought-box {
+  padding: 16px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: var(--border-radius-md);
+  font-style: italic;
+  color: var(--text-dialog);
+  line-height: 1.6;
+  border-left: 3px solid var(--accent-pink);
+  position: relative;
+}
+
+.thought-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-style: normal;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+  font-weight: 600;
+}
+
+/* 裁剪弹窗 */
+.crop-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  backdrop-filter: blur(4px);
+}
+
+.crop-modal-content {
+  background: var(--bg-panel);
+  padding: 24px;
+  border-radius: var(--border-radius-lg);
+  width: 400px;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.crop-container {
+  position: relative;
+  width: 100%;
+  height: 300px;
+  background: #333;
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.avatar-upload-trigger {
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.avatar-upload-trigger:hover::after {
+  content: '更换';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  font-size: 10px;
+  text-align: center;
+  padding: 2px 0;
+}
+
+.no-image-text {
+  font-size: 13px;
+  color: var(--text-secondary);
+  text-align: center;
+  padding: 20px;
+}
+
+.character-details {
+  padding: 12px 16px;
+}
+
+.character-name {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.character-role {
+  font-size: 12px;
+  color: var(--accent-pink);
+  font-weight: 500;
+  margin-top: 2px;
+}
+
+/* 大纲进度 */
+.progress-widget {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.widget-title {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 6px;
+}
+
+.syllabus-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+}
+
+.syllabus-item {
+  font-size: 13px;
+}
+
+.phase-tag {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent-pink);
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.topic-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.topic-status {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid var(--border-color);
+  flex-shrink: 0;
+}
+
+.topic-status.active {
+  border-color: var(--accent-pink);
+  background-color: rgba(244, 114, 182, 0.5);
+  box-shadow: 0 0 8px var(--accent-pink);
+}
+
+.topic-status.done {
+  border-color: var(--success);
+  background-color: var(--success);
+  position: relative;
+}
+
+.topic-status.done::after {
+  content: '✓';
+  color: var(--bg-primary);
+  font-size: 9px;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-weight: bold;
+}
+
+.topic-title {
+  color: var(--text-secondary);
+}
+
+.syllabus-item.active .topic-title {
+  color: var(--text-primary);
+  font-weight: 500;
+}
+
+.syllabus-item.done .topic-title {
+  color: var(--text-secondary);
+  text-decoration: line-through;
+}
+
+/* 模型选择 */
+.model-widget {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: var(--border-radius-md);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+}
+
+.model-selector {
+  width: 100%;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+  padding: 8px 12px;
+  font-size: 13px;
+  border-radius: var(--border-radius-sm);
+  outline: none;
+  cursor: pointer;
+  font-family: var(--font-sans);
+}
+
+.model-selector:focus {
+  border-color: var(--accent-pink);
+}
+
+/* ==========================================
+   动画与细节效果
+   ========================================== */
+@keyframes pulse {
+  0% {
+    transform: scale(1);
+    opacity: 1;
+  }
+
+  50% {
+    transform: scale(1.08);
+    opacity: 0.8;
+  }
+
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* 打字机光标 */
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 15px;
+  background-color: var(--accent-pink);
+  margin-left: 2px;
+  animation: blink 0.8s infinite;
+  vertical-align: middle;
+}
+
+@keyframes blink {
+
+  0%,
+  100% {
+    opacity: 0;
+  }
+
+  50% {
+    opacity: 1;
+  }
+}
+
+/* ==========================================
+   VS Code Native 风格重写 (针对 .vscode-env)
+   ========================================== */
+.vscode-env {
+  background-image: none !important;
+  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif) !important;
+}
+
+/* 极简折叠：在侧边栏中隐藏按钮文字，仅保留图标以防折行 */
+.vscode-env .header-btn span {
+  display: none !important;
+}
+
+.vscode-env .header-btn {
+  width: 28px !important;
+  height: 28px !important;
+  padding: 0 !important;
+  border-radius: 50% !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.vscode-env .logo-section span:not(.logo-icon) {
+  display: none !important;
+}
+
+.vscode-env .connection-status span {
+  display: none !important;
+}
+
+.vscode-env .connection-status {
+  padding: 4px !important;
+  gap: 0 !important;
+}
+
+/* ================== 主题定义 ================== */
+
+/* 1. VS Code 白底黑与多彩字 (theme-light) */
+.vscode-env.theme-light {
+  background-color: #ffffff !important;
+  color: #000000 !important;
+  --bg-primary: #ffffff;
+  --bg-secondary: #f6f8fa;
+  --bg-tertiary: #eaeef2;
+  --bg-panel: #ffffff;
+  --border-color: #d0d7de;
+  --text-primary: #000000;
+  --text-secondary: #57606a;
+
+  /* 多彩字定义 */
+  --text-dialog: #8250df;
+  /* 紫色动作旁白 */
+  --success: #1a7f37;
+  /* 绿色 */
+  --danger: #cf222e;
+  /* 红色 */
+  --warning: #9a6700;
+
+  --accent-pink: #0969da;
+  /* 主色调蓝色 */
+  --accent-pink-hover: #0c59ba;
+}
+
+.vscode-env.theme-light .message-row.user .sender-name {
+  color: #0969da !important;
+  /* 学生姓名: 蓝色 */
+}
+
+.vscode-env.theme-light .message-row.assistant .sender-name {
+  color: #cf222e !important;
+  /* 导师姓名: 红色 */
+}
+
+.vscode-env.theme-light .action-text {
+  color: #8250df !important;
+  /* 动作/旁白: 紫色 */
+  font-weight: 500 !important;
+}
+
+.vscode-env.theme-light .system-info-msg {
+  color: #0969da !important;
+  /* 系统提示: 蓝色 */
+  background-color: rgba(9, 105, 218, 0.1) !important;
+  border: 1px solid rgba(9, 105, 218, 0.2) !important;
+}
+
+.vscode-env.theme-light .send-button {
+  background-color: #0969da !important;
+  color: #ffffff !important;
+}
+
+.vscode-env.theme-light .send-button:hover {
+  background-color: #0c59ba !important;
+}
+
+.vscode-env.theme-light .header-btn {
+  background: #f6f8fa !important;
+  border: 1px solid #d0d7de !important;
+  color: #24292f !important;
+}
+
+.vscode-env.theme-light .header-btn:hover {
+  background: #eaeef2 !important;
+}
+
+.vscode-env.theme-light .settings-popover,
+.vscode-env.theme-light .shortcuts-popover,
+.vscode-env.theme-light .command-list-popover {
+  background-color: #ffffff !important;
+  border: 1px solid #d0d7de !important;
+  box-shadow: 0 8px 24px rgba(140, 149, 159, 0.2) !important;
+  color: #24292f !important;
+}
+
+.vscode-env.theme-light .command-list-popover .command-item.active {
+  background-color: rgba(9, 105, 218, 0.1) !important;
+  color: #0969da !important;
+  border-left-color: #0969da !important;
+}
+
+.vscode-env.theme-light input[type="text"],
+.vscode-env.theme-light input[type="password"],
+.vscode-env.theme-light select,
+.vscode-env.theme-light textarea {
+  background-color: #ffffff !important;
+  border: 1px solid #d0d7de !important;
+  color: #24292f !important;
+}
+
+.vscode-env.theme-light input[type="text"]:focus,
+.vscode-env.theme-light input[type="password"]:focus,
+.vscode-env.theme-light select:focus,
+.vscode-env.theme-light textarea:focus {
+  border-color: #0969da !important;
+  outline: none !important;
+}
+
+
+/* 2. VS Code 黑底白与多彩字 (theme-dark) */
+.vscode-env.theme-dark {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+  --bg-primary: #000000;
+  --bg-secondary: #161b22;
+  --bg-tertiary: #21262d;
+  --bg-panel: #000000;
+  --border-color: #30363d;
+  --text-primary: #ffffff;
+  --text-secondary: #8b949e;
+
+  /* 多彩字定义 */
+  --text-dialog: #d2a8ff;
+  /* 亮紫色动作旁白 */
+  --success: #39d353;
+  /* 亮绿色 */
+  --danger: #ff7b72;
+  /* 亮红色 */
+  --warning: #d29922;
+
+  --accent-pink: #58a6ff;
+  /* 主色调天蓝色 */
+  --accent-pink-hover: #1f6feb;
+}
+
+.vscode-env.theme-dark .message-row.user .sender-name {
+  color: #58a6ff !important;
+  /* 学生姓名: 亮蓝色 */
+}
+
+.vscode-env.theme-dark .message-row.assistant .sender-name {
+  color: #ff7b72 !important;
+  /* 导师姓名: 亮红色 */
+}
+
+.vscode-env.theme-dark .action-text {
+  color: #d2a8ff !important;
+  /* 动作/旁白: 亮紫色 */
+  font-weight: 500 !important;
+}
+
+.vscode-env.theme-dark .system-info-msg {
+  color: #58a6ff !important;
+  /* 系统提示: 蓝色 */
+  background-color: rgba(88, 166, 255, 0.1) !important;
+  border: 1px solid rgba(88, 166, 255, 0.2) !important;
+}
+
+.vscode-env.theme-dark .send-button {
+  background-color: #21262d !important;
+  color: #c9d1d9 !important;
+  border: 1px solid #30363d !important;
+}
+
+.vscode-env.theme-dark .send-button:hover {
+  background-color: #30363d !important;
+  color: #ffffff !important;
+}
+
+.vscode-env.theme-dark .header-btn {
+  background: #21262d !important;
+  border: 1px solid #30363d !important;
+  color: #c9d1d9 !important;
+}
+
+.vscode-env.theme-dark .header-btn:hover {
+  background: #30363d !important;
+}
+
+.vscode-env.theme-dark .settings-popover,
+.vscode-env.theme-dark .shortcuts-popover,
+.vscode-env.theme-dark .command-list-popover {
+  background-color: #161b22 !important;
+  border: 1px solid #30363d !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.5) !important;
+  color: #c9d1d9 !important;
+}
+
+.vscode-env.theme-dark .command-list-popover .command-item.active {
+  background-color: rgba(88, 166, 255, 0.15) !important;
+  color: #58a6ff !important;
+  border-left-color: #58a6ff !important;
+}
+
+.vscode-env.theme-dark input[type="text"],
+.vscode-env.theme-dark input[type="password"],
+.vscode-env.theme-dark select,
+.vscode-env.theme-dark textarea {
+  background-color: #0d1117 !important;
+  border: 1px solid #30363d !important;
+  color: #c9d1d9 !important;
+}
+
+.vscode-env.theme-dark input[type="text"]:focus,
+.vscode-env.theme-dark input[type="password"]:focus,
+.vscode-env.theme-dark select:focus,
+.vscode-env.theme-dark textarea:focus {
+  border-color: #58a6ff !important;
+  outline: none !important;
+}
+
+
+/* ================== 通用 VS Code 重写样式 ================== */
+.vscode-env .message-item {
+  width: 100% !important;
+  max-width: 100% !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin-bottom: 16px !important;
+}
+
+.vscode-env .message-header {
+  display: flex !important;
+  align-items: center !important;
+  width: 100% !important;
+  margin-bottom: 4px !important;
+}
+
+.vscode-env .user-msg .message-header {
+  justify-content: flex-end !important;
+  gap: 8px !important;
+}
+
+.vscode-env .assistant-msg .message-header {
+  justify-content: flex-start !important;
+  gap: 8px !important;
+}
+
+.vscode-env .avatar {
+  width: var(--avatar-size, 36px) !important;
+  height: var(--avatar-size, 36px) !important;
+  font-size: calc(var(--avatar-size, 36px) * 0.45) !important;
+  border-radius: 50% !important;
+  box-shadow: none !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+}
+
+.vscode-env .message-bubble-row {
+  display: flex !important;
+  width: 100% !important;
+}
+
+.vscode-env .user-msg .message-bubble-row {
+  justify-content: stretch !important;
+}
+
+.vscode-env .assistant-msg .message-bubble-row {
+  justify-content: stretch !important;
+}
+
+.vscode-env .message-bubble {
+  padding: 8px 12px !important;
+  border-radius: 12px !important;
+  font-size: var(--chat-font-size, 13px) !important;
+  line-height: 1.5 !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05) !important;
+  display: flex !important;
+  flex-direction: column !important;
+  max-width: 100% !important;
+  width: 100% !important;
+  word-break: break-word !important;
+}
+
+
+.vscode-env .sender-name {
+  font-size: var(--name-font-size, 11px) !important;
+  text-align: left !important;
+  margin-bottom: 4px !important;
+  font-weight: 700 !important;
+  opacity: 0.8 !important;
+  text-transform: uppercase !important;
+  letter-spacing: 0.5px !important;
+}
+
+/* Light Theme bubbles */
+.vscode-env.theme-light .user-msg .message-bubble {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.vscode-env.theme-light .assistant-msg .message-bubble {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+/* Dark Theme bubbles */
+.vscode-env.theme-dark .user-msg .message-bubble {
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.vscode-env.theme-dark .assistant-msg .message-bubble {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+}
+
+.vscode-env .edit-message-btn {
+  background: transparent !important;
+  border: none !important;
+  cursor: pointer !important;
+  font-size: 11px !important;
+  color: var(--text-secondary) !important;
+  margin-left: 8px !important;
+  padding: 2px 6px !important;
+  border-radius: 4px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  opacity: 0.6 !important;
+}
+
+.vscode-env .edit-message-btn:hover {
+  opacity: 1 !important;
+  background-color: var(--bg-tertiary) !important;
+  color: var(--accent-pink) !important;
+}
+
+.vscode-env .input-area {
+  background: var(--bg-primary) !important;
+  border-top: 1px solid var(--border-color) !important;
+  padding: 6px 10px 10px !important;
+}
+
+.vscode-env .input-wrapper {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  overflow: visible !important;
+}
+
+.vscode-env .input-wrapper:focus-within {
+  border-color: var(--accent-pink) !important;
+  box-shadow: none !important;
+}
+
+.vscode-env .chat-input {
+  color: var(--text-primary) !important;
+  font-size: var(--chat-font-size, 13px) !important;
+  min-height: 18px !important;
+  padding: 8px 12px !important;
+  flex: none !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.vscode-env .input-toolbar {
+  padding: 3px 6px 4px !important;
+}
+
+.vscode-env .shortcuts-trigger-btn {
+  background: transparent !important;
+  border: none !important;
+  color: var(--text-secondary) !important;
+  width: 22px !important;
+  height: 22px !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  padding: 0 !important;
+}
+
+.vscode-env .shortcuts-trigger-btn svg {
+  width: 18px !important;
+  height: 18px !important;
+}
+
+.vscode-env .shortcuts-trigger-btn:hover {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+}
+
+.vscode-env .send-button {
+  background-color: var(--accent-pink) !important;
+  color: #fff !important;
+  border: none !important;
+  border-radius: 4px !important;
+  width: 22px !important;
+  height: 22px !important;
+  padding: 0 !important;
+  cursor: pointer !important;
+}
+
+.vscode-env .hint-badge {
+  background-color: var(--bg-tertiary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 4px !important;
+  font-size: 11px !important;
+  padding: 2px 6px !important;
+}
+
+.vscode-env .hint-badge:hover {
+  background-color: var(--bg-secondary) !important;
+  border-color: var(--accent-pink) !important;
+}
+
+.vscode-env .right-panel-container.show-mobile {
+  z-index: 9999 !important;
+}
+
+.vscode-env .thought-box {
+  background: var(--bg-secondary) !important;
+  border-left: 3px solid var(--text-dialog) !important;
+  border-radius: 4px !important;
+  color: var(--text-dialog) !important;
+  font-size: 12px !important;
+  padding: 10px 12px !important;
+}
+
+
+
+.vscode-env .progress-widget,
+.vscode-env .model-widget {
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
+  box-shadow: none !important;
+  border-radius: 6px !important;
+  color: var(--text-primary) !important;
+  padding: 12px !important;
+}
+
+.vscode-env .widget-title,
+.vscode-env .topic-title {
+  color: var(--text-primary) !important;
+  border-bottom-color: var(--border-color) !important;
+}
+
+.vscode-env .topic-title {
+  font-size: 12px !important;
+}
+
+.vscode-env .topic-status {
+  width: 12px !important;
+  height: 12px !important;
+}
+
+.vscode-env .model-selector {
+  background-color: var(--bg-primary) !important;
+  color: var(--text-primary) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 4px !important;
+  padding: 6px !important;
+  font-size: 12px !important;
+}
+
+.vscode-env .character-details {
+  padding: 8px 4px !important;
+}
+
+.vscode-env .character-name {
+  font-size: 14px !important;
+}
+
+.vscode-env .character-role {
+  font-size: 11px !important;
+}
+
+/* 毛玻璃效果切换 */
+.disable-blur {
+  --bg-primary: #ffffff !important;
+  --bg-secondary: #f5f5f5 !important;
+  --bg-tertiary: #e6e6e6 !important;
+  --bg-panel: #ffffff !important;
+}
+
+.disable-blur.theme-dark {
+  --bg-primary: #141418 !important;
+  --bg-secondary: #23232d !important;
+  --bg-tertiary: #323241 !important;
+  --bg-panel: #121216 !important;
+}
+
+.disable-blur .header-bar,
+.disable-blur .ide-panel,
+.disable-blur .settings-popover,
+.disable-blur .crop-modal-content {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+.vscode-env .character-role {
+  color: var(--accent-pink) !important;
+}
+
+/* Claude Code Tool Block Styles */
+/* Elegant Thinking Block */
+.thinking-content {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  color: var(--text-secondary);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  position: relative;
+  overflow: hidden;
+  margin-top: 8px;
+  transition: max-height 0.3s ease-out, border-color 0.2s;
+  max-height: 2000px;
+}
+
+.thinking-content.collapsed {
+  max-height: 42px; /* Approx 1 line + padding */
+}
+
+.thinking-content:not(.collapsed) {
+  overflow-y: auto;
+}
+
+.thinking-content.clickable {
+  cursor: pointer;
+}
+
+.thinking-content.clickable:hover {
+  border-color: var(--text-secondary);
+}
+
+.thinking-content.collapsed::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 24px;
+  background: linear-gradient(to bottom, transparent, var(--bg-secondary));
+  pointer-events: none;
+}
+
+.claude-tool-block {
+  margin: 12px 0;
+  font-family: var(--font-sans);
+}
+
+.claude-tool-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.claude-tool-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background-color: #2ea043; /* Green */
+}
+
+.claude-tool-status-dot.running {
+  background-color: #d29922; /* Yellow */
+  box-shadow: 0 0 5px #d29922;
+  animation: pulse 1.5s infinite;
+}
+
+@keyframes pulse {
+  0% { opacity: 0.6; }
+  50% { opacity: 1; }
+  100% { opacity: 0.6; }
+}
+
+.claude-tool-name {
+  font-weight: 600;
+  font-size: 14px;
+  color: var(--text-primary);
+  text-transform: capitalize;
+}
+
+.claude-tool-io {
+  background-color: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+  color: var(--text-secondary);
+  overflow: hidden;
+  position: relative;
+  transition: max-height 0.3s ease-out, border-color 0.2s;
+  max-height: 2000px;
+}
+
+.claude-tool-io.collapsed {
+  max-height: 90px;
+}
+
+.claude-tool-io:not(.collapsed) {
+  overflow-x: auto;
+}
+
+.claude-tool-io.clickable {
+  cursor: pointer;
+}
+
+.claude-tool-io.clickable:hover {
+  border-color: var(--text-secondary);
+}
+
+.claude-tool-io.collapsed::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(to bottom, transparent, var(--bg-secondary));
+  pointer-events: none;
+}
+
+.claude-tool-io-row {
+  display: flex;
+  gap: 16px;
+}
+
+.claude-tool-io-label {
+  font-weight: 600;
+  color: var(--text-primary);
+  opacity: 0.5;
+  width: 25px;
+  flex-shrink: 0;
+  user-select: none;
+}
+
+.claude-tool-io-content {
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text-primary);
+}
+/* ==========================================
+   Startup Loading Overlay
+   ========================================== */
+.startup-loading-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  background: rgba(255, 255, 255, 0.6);
+  z-index: 9999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+
+.theme-dark .startup-loading-overlay {
+  background: rgba(20, 20, 24, 0.7);
+}
+
+.loading-content-box {
+  background: var(--bg-panel);
+  padding: 40px 30px;
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  max-width: 450px;
+  border: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.bouncing-dots {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.bouncing-dots div {
+  width: 16px;
+  height: 16px;
+  background-color: var(--accent-pink);
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+.bouncing-dots div:nth-child(1) { animation-delay: -0.32s; }
+.bouncing-dots div:nth-child(2) { animation-delay: -0.16s; }
+
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+.loading-tip {
+  margin-top: 24px;
+  font-size: 13px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  font-family: var(--font-sans);
+  font-weight: 500;
+  min-height: 42px;
+  animation: fadeIn 0.5s ease-in-out;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tips-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: transparent;
+  color: var(--text-primary);
+  border: 1.5px solid var(--text-primary);
+  font-weight: 900;
+  font-family: "Arial Rounded MT Bold", "Nunito", sans-serif;
+  font-size: 10px;
+  padding: 1.5px 6.5px;
+  border-radius: 10px;
+  margin-right: 8px;
+  letter-spacing: 0.5px;
+}
+
+.retry-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background-color: var(--danger);
+  color: white;
+  border: none;
+  border-radius: 20px;
+  font-size: 14px;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.retry-btn:hover {
+  background-color: #b01030;
+  transform: scale(1.05);
+}
+
+.retry-btn svg {
+  animation: none;
+}
+
+.retry-btn:active svg, .retry-btn.spinning svg {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}

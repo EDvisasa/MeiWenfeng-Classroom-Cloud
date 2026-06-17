@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>架构分析报告 — 记忆系统衰减逻辑深度核查</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+      import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+      mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+      .seam { stroke-dasharray: 4 4; }
+      .leak { stroke: #dc2626; }
+      .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+  </head>
+  <body class="bg-stone-50 text-slate-900 font-sans">
+    <main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+      <header>
+        <h1 class="text-4xl font-serif font-bold mb-4">架构分析报告 — 记忆系统衰减与时间压缩逻辑深度核查</h1>
+        <div class="text-slate-500 text-sm mb-8 font-mono">Date: 2026-06-17 | Target: backend/services/memory_decay.py</div>
+      </header>
+
+      <section class="bg-white p-8 rounded-lg border border-slate-200 shadow-sm border-l-4 border-l-red-600">
+        <h2 class="text-2xl font-bold mb-3">核心诊断：逐日衰减导致的“单点压缩”假象</h2>
+        <p class="text-slate-700 leading-relaxed text-lg">
+          经过深度仿真测试与数据库核查，用户的怀疑完全正确。原有的记忆压缩逻辑（Level 1 -> 2 -> 3）存在严重的<strong>时间轴滑动窗口 Bug</strong>。
+          <br><br>
+          原逻辑使用 <code>timestamp < datetime('now', threshold)</code> 进行查询，由于定时任务每天运行，导致每天只有<strong>恰好跨越阈值的那 1 条日志</strong>被选中。结果是：大模型被要求“压缩这几天的日记”，但实际上每次只被喂给了 1 天的日记。这不仅失去了记忆归纳、提取羁绊的意义，还会导致 Level 2 和 Level 3 的日志数量无限膨胀（1 换 1），且浪费大量 Token。
+        </p>
+      </section>
+
+      <section class="space-y-12">
+        <article>
+          <h3 class="text-3xl font-bold mb-4 text-slate-800">深度重构：引入绝对时间窗口聚合</h3>
+
+          <div class="grid grid-cols-2 gap-8 mb-8">
+            <!-- Before Diagram -->
+            <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 border-b pb-2">Before: 逐日滑动 (1对1伪压缩)</div>
+              <pre class="mermaid">
+                gantt
+                  title 每日定时任务执行情况
+                  dateFormat  YYYY-MM-DD
+                  axisFormat  %m-%d
+                  section 原始日志
+                  Day 1 Log :done, l1, 2026-06-01, 1d
+                  Day 2 Log :done, l2, 2026-06-02, 1d
+                  Day 3 Log :done, l3, 2026-06-03, 1d
+                  section 压缩动作 (-2 days)
+                  Day 3 任务 (仅选中 Day 1) :active, c1, 2026-06-03, 1d
+                  Day 4 任务 (仅选中 Day 2) :active, c2, 2026-06-04, 1d
+                  Day 5 任务 (仅选中 Day 3) :active, c3, 2026-06-05, 1d
+              </pre>
+            </div>
+
+            <!-- After Diagram -->
+            <div class="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
+              <div class="text-sm font-bold uppercase tracking-wider text-slate-500 mb-4 border-b pb-2">After: 时间块窗口聚合 (N对1真压缩)</div>
+              <pre class="mermaid">
+                gantt
+                  title 每日定时任务执行情况
+                  dateFormat  YYYY-MM-DD
+                  axisFormat  %m-%d
+                  section 原始日志
+                  Day 1 Log :done, l1, 2026-06-01, 1d
+                  Day 2 Log :done, l2, 2026-06-02, 1d
+                  Day 3 Log :done, l3, 2026-06-03, 1d
+                  section 压缩动作 (2 days 窗口)
+                  Day 3 任务 (未满窗口跳过) :crit, s1, 2026-06-03, 1d
+                  Day 4 任务 (选中 Day 1,2,3) :active, c1, 2026-06-04, 1d
+              </pre>
+            </div>
+          </div>
+
+          <div class="bg-white p-8 rounded-xl border border-slate-200 shadow-sm space-y-8">
+            <div>
+              <h4 class="text-xl font-bold mb-3 text-slate-800 flex items-center gap-2"><span class="text-emerald-500">✅</span> 修复方案 (The Fix)</h4>
+              <p class="text-slate-700 leading-relaxed">
+                我们重写了 <code>backend/services/memory_decay.py</code> 中的 Phase B 逻辑：
+                <ol class="list-decimal list-inside space-y-2 mt-2">
+                  <li><strong>确立绝对锚点</strong>：每次执行时，查询该层级下<strong>最老的一条活跃日志</strong>的 <code>timestamp</code> 作为 <code>oldest_time</code>。</li>
+                  <li><strong>计算时间窗口</strong>：将配置中的阈值（如 "-2 days"）解析为绝对天数，计算出 <code>window_end = oldest_time + threshold_days</code>。</li>
+                  <li><strong>整体打包</strong>：只有当当前时间超越了 <code>window_end</code> 时，才将这期间所有的日志一次性取出，喂给大模型进行合并压缩。这确保了如“近一周”、“近一个月”的 Prompt 能真正发挥出归纳总结的威力。</li>
+                </ol>
+              </p>
+            </div>
+
+            <div>
+              <h4 class="text-xl font-bold mb-3 text-slate-800 flex items-center gap-2"><span class="text-emerald-500">✅</span> 附带修复 (Schema Fix)</h4>
+              <p class="text-slate-700 leading-relaxed">
+                在审查过程中，同时发现 <code>backend/database.py</code> 中 <code>init_db()</code> 创建 <code>memory_logs</code> 表的 SQL 语句遗漏了 <code>status TEXT DEFAULT 'active'</code> 字段。这会导致如果未来重建数据库，衰减逻辑将直接崩溃。已在本次核查中一并修复。
+              </p>
+            </div>
+          </div>
+        </article>
+      </section>
+    </main>
+  </body>
+</html>
