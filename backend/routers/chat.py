@@ -21,7 +21,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 class Message(BaseModel):
     role: str
-    content: str
+    content: str = ""
 
 class ChatRequest(BaseModel):
     messages: List[Message]

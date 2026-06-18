@@ -11,7 +11,7 @@ router = APIRouter(prefix="/api/chat", tags=["memory", "sessions"])
 
 class Message(BaseModel):
     role: str
-    content: str
+    content: str = ""
 
 class SessionSavePayload(BaseModel):
     id: str
