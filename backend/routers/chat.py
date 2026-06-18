@@ -8,6 +8,7 @@ from typing import List, Dict, Any
 from backend.database import get_db_connection
 from backend.services.character_state import CharacterStateManager, CharacterStateError
 from backend.services.model_router import stream_chat
+from backend.services.memory_decay import check_decay_needed, process_memory_decay
 from backend.services.prompts import get_system_prompt
 from backend.services.rag_factory import get_rag_client
 from backend.services.slash_handler import handle_slash_command

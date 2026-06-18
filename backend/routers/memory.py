@@ -3,7 +3,8 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List
 from backend.database import get_db_connection
-from backend.services.memory_decay import process_memory_decay
+from backend.services.memory_decay import check_decay_needed
+from backend.services.action_registry import action_registry
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/api/chat", tags=["memory", "sessions"])
@@ -17,12 +18,39 @@ class SessionSavePayload(BaseModel):
     title: str
     messages: List[Message]
 
+
+from backend.services.memory_decay import check_decay_needed
+
+@router.get("/check_decay")
+def check_decay():
+    """检查是否需要进行跨级记忆压缩 (Level 1及以上)"""
+    try:
+        needed = check_decay_needed(phase_b_only=True)
+        return {"needed": needed}
+    except Exception as e:
+        logger.error(f"Check decay failed: {e}")
+        return {"needed": False}
+
+@router.post("/force_decay")
+def force_decay():
+    """强制执行跨级记忆压缩 (Level 1及以上)"""
+    try:
+        handler = action_registry.get_handler("memory_decay")
+        if handler:
+            handler.handle({"phase_a_only": False, "phase_b_only": True}, "")
+        return {"status": "success", "message": "记忆压缩已触发"}
+    except Exception as e:
+        logger.error(f"Force decay failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @router.post("/summarize")
 def summarize_memory():
     """触发记忆压缩和遗忘算法"""
     try:
-        stats = process_memory_decay()
-        return {"status": "success", "message": "记忆压缩整理完成。", "stats": stats}
+        handler = action_registry.get_handler("memory_decay")
+        if handler:
+            handler.handle({}, "")
+        return {"status": "success", "message": "记忆压缩整理完成。"}
     except Exception as e:
         logger.error(f"Memory decay failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))

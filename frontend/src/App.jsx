@@ -383,6 +383,23 @@ export default function App() {
             setActiveSessionId(activeId);
             const activeSess = data.find(s => s.id === activeId) || data[0];
             setMessages(activeSess.messages || []);
+
+            // Check for long-term decay
+            try {
+              const decayRes = await fetch(`${API_BASE}/api/chat/check_decay`);
+              if (decayRes.ok) {
+                const decayData = await decayRes.json();
+                if (decayData.needed) {
+                  setMessages(prev => [...prev, {
+                    role: 'system_info',
+                    type: 'decay_prompt',
+                    content: '好久不见，导师需要重新整理先前的学习档案，是否立即执行？(建议切换至高性价比模型)'
+                  }]);
+                }
+              }
+            } catch(e) {
+              console.error('Failed to check decay:', e);
+            }
           } else {
             const defaultId = Date.now().toString();
             const defaultSess = {
@@ -1032,7 +1049,7 @@ export default function App() {
                   setMessages(prev => {
                     const updated = [...prev];
                     const last = updated.pop();
-                    updated.push({ role: 'system_info', content: parsed.text });
+                    updated.push({ role: 'system_info', content: parsed.text, icon: parsed.icon });
                     updated.push(last);
                     return updated;
                   });

@@ -265,9 +265,11 @@ class ResponsePipeline:
             cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
             active_level0_count = cursor.fetchone()[0]
             if active_level0_count >= 10:
-                import threading
-                from backend.services.memory_decay import process_memory_decay
-                threading.Thread(target=process_memory_decay, daemon=True).start()
+                if self.registry and self.registry.get_handler("memory_decay"):
+                    try:
+                        self.registry.get_handler("memory_decay").handle({"phase_a_only": True}, "")
+                    except Exception as e:
+                        logger.error(f"Error handling memory_decay via registry: {e}")
 
             conn.close()
 
