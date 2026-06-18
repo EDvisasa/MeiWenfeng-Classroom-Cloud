@@ -129,6 +129,7 @@ export default function ChatPanel({
 
   const [baseSystemTokens, setBaseSystemTokens] = React.useState(0);
   const [dynamicTokens, setDynamicTokens] = React.useState(0);
+  const [decayStates, setDecayStates] = React.useState({});
 
   // 获取当前激活模型的 max_context_tokens
   const activeModelConfig = models?.find(m => m.name === activeModel);
@@ -300,6 +301,48 @@ export default function ChatPanel({
       <div className="chat-history">
         {messages.map((msg, index) => {
           if (msg.role === 'system_info') {
+            if (msg.type === 'decay_prompt') {
+              const state = decayStates[index] || 'prompt'; // 'prompt', 'loading', 'done', 'hidden'
+              if (state === 'hidden') return null;
+              
+              return (
+                <div key={index} className="system-info-msg" style={{ alignSelf: 'center', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--accent-pink)', borderRadius: '6px', padding: '10px 14px', fontSize: '12px', color: 'var(--text-primary)', margin: '12px 0', maxWidth: '90%', textAlign: 'center', boxShadow: '0 2px 8px rgba(244, 114, 182, 0.15)' }}>
+                  {state === 'prompt' && (
+                    <>
+                      <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>💡 {msg.content}</div>
+                      <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                        <button onClick={async () => {
+                          setDecayStates(prev => ({...prev, [index]: 'loading'}));
+                          try {
+                            const res = await fetch(`${API_BASE}/api/chat/force_decay`, { method: 'POST' });
+                            if (res.ok) setDecayStates(prev => ({...prev, [index]: 'done'}));
+                            else setDecayStates(prev => ({...prev, [index]: 'prompt'}));
+                          } catch(e) {
+                            setDecayStates(prev => ({...prev, [index]: 'prompt'}));
+                          }
+                        }} style={{ padding: '6px 14px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>立即整理</button>
+                        <button onClick={() => {
+                          setDecayStates(prev => ({...prev, [index]: 'hidden'}));
+                        }} style={{ padding: '6px 14px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer' }}>暂不整理</button>
+                      </div>
+                    </>
+                  )}
+                  {state === 'loading' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: 'var(--accent-pink)', fontWeight: 'bold' }}>
+                      <svg style={{ animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                      导师正在整理学习档案当中，请稍后...
+                    </div>
+                  )}
+                  {state === 'done' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: '#10b981', fontWeight: 'bold' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      档案整理完毕，记忆已同步。
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             return (
               <div
                 key={index}
@@ -315,8 +358,18 @@ export default function ChatPanel({
                   margin: '8px 0',
                   maxWidth: '90%',
                   textAlign: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
                 }}
               >
+                {msg.icon === 'books' && (
+                  <svg style={{ animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite', color: 'var(--accent-pink)' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                )}
+                {msg.icon === 'check' && (
+                  <svg style={{ color: '#10b981' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                )}
                 {msg.content}
               </div>
             );
