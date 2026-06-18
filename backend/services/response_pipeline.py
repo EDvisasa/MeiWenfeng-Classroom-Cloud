@@ -87,8 +87,8 @@ class TagStreamInterceptor:
                             elif start_match and start_match.group(1) in self.target_tags:
                                 self.in_tag = True
                                 self.current_tag_name = start_match.group(1)
-                            elif len(self.buffer) > 1 and not self.buffer.startswith("</"):
-                                # 不是我们要拦截的起始标签，放行
+                            elif len(self.buffer) > 1:
+                                # 不是我们要拦截的标签（包括未在 in_tag 状态下的 </...），放行
                                 safe_text = self._flush_buffer_safe()
                                 if safe_text:
                                     yield {"type": "text", "text": safe_text} if is_dict else safe_text
