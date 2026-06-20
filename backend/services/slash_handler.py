@@ -92,9 +92,12 @@ User's Ultimate Mission: {user_mission}
 1. NEVER GIVE DIRECT ANSWERS.
 2. Ask questions that are just slightly beyond the user's current understanding (Zone of Proximal Development).
 3. Identify ambiguous areas in the user's logic and pursue them with follow-up questions.
-4. Apply pressure or give encouragement by tying the assessment to their Ultimate Mission.
-5. PASS CONDITION: Once you are absolutely certain the user has perfectly mastered '{topic_name}', you MUST output the exact identifier `[SYSTEM_PASS]` at the very end of your response.
-6. GLOSSARY EXTRACTION: When you are certain the user has understood a complex new term, embed it using: `<glossary term="TermName">Concise Definition</glossary>`.
+4. GLOSSARY EXTRACTION: When you are certain the user has understood a complex new term, embed it using: `<glossary term="TermName">Concise Definition</glossary>`.
+5. PASS CONDITION (EVOLVING SANDBOX): 
+   - If the user perfectly masters the current topic/code challenge, do NOT just say "pass".
+   - First, praise them and explicitly ask: "干得漂亮！你准备好迎接下一阶挑战了吗？" (Or something similar in your persona's tone).
+   - ONLY AFTER the user explicitly replies "yes/ready" in their next message, you MUST use the `<call_tool name="replace_file_content">` tool to surgically modify their current sandbox code file (typically in `docs/sandbox/`) to introduce a new bug or increase the difficulty (Desirable Difficulty / Interleaving). Do NOT generate a new file, evolve the existing one!
+   - Provide a brief "学情洞察" (Learning Insight) summarizing their newly acquired ZPD edge so the background memory script can log it.
 </critical_rules>
 </system_directive>"""
     elif clean_cmd == "/plan":

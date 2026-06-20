@@ -65,6 +65,8 @@ git clone https://github.com/EDvisasa/MeiWenfeng-Classroom.git
 cd MeiWenfeng-Classroom
 ```
 
+
+
 ### 第二步：一键启动
 
 双击根目录下的 **`start.bat`**。
@@ -139,8 +141,8 @@ cd MeiWenfeng-Classroom
 
 当你后续接手此工程进行二次开发时，请首先查阅 `docs/` 目录下的相关文档：
 - **`docs/开发与测试指南.md`**：包含本项目的自动化测试体系说明，以及常用的端到端测试用例参考。
-- **`docs/planning/任务进展.md`**：了解项目最新版本的开发进度和已修复 Bug 记录。
-- **`docs/planning/项目实施计划.md`**：如果需要做大型系统重构或调整阶段性核心目标，请以此为蓝本。
+- **`docs/planning/01_当前开发任务.md`**：获取项目当前冲刺阶段（Sprint）切实可执行的开发任务清单。
+- **`docs/planning/00_开发计划总纲.md`**：如果需要做大型系统重构或调整阶段性核心目标，请以此为蓝本。
 - **`docs/analysis/`** 与 **`docs/architecture/`**：包含过往的架构审查、Bug 诊断与深度重构报告。
 
 ---
