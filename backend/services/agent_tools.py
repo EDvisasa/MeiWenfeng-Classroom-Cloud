@@ -14,14 +14,43 @@ class AgentTool:
     def execute(self, params: dict) -> str:
         raise NotImplementedError()
 
+import time
+import uuid
+
+# Global dictionary for BashTool HITL approvals
+PENDING_APPROVALS = {}
+
 class BashTool(AgentTool):
     name = "execute_bash"
     description = "Execute a local terminal command."
 
     def execute(self, params: dict) -> str:
         command = params.get("command", "")
+        approval_id = params.get("approval_id", "")
+        
         if not command:
             return "[Error] No command provided."
+
+        if approval_id:
+            PENDING_APPROVALS[approval_id] = "pending"
+            start_time = time.time()
+            timeout = 60
+            
+            while True:
+                status = PENDING_APPROVALS.get(approval_id)
+                if status == "approve":
+                    del PENDING_APPROVALS[approval_id]
+                    break
+                elif status == "reject":
+                    del PENDING_APPROVALS[approval_id]
+                    return "[Error] User rejected the execution of this command."
+                    
+                if time.time() - start_time > timeout:
+                    if approval_id in PENDING_APPROVALS:
+                        del PENDING_APPROVALS[approval_id]
+                    return "[Error] Command approval timed out after 60 seconds."
+                    
+                time.sleep(0.5)
 
         # Physical Guardrails to enforce tool usage using shlex for safer parsing
         try:
@@ -228,12 +257,48 @@ class ReplaceFileContentTool(AgentTool):
         except Exception as e:
             return f"[Error] Failed to replace content: {str(e)}"
 
+class CreateFileTool(AgentTool):
+    name = "create_file"
+    description = "Create a brand new file with the specified content. Restricted to the docs/sandbox directory."
+
+    def execute(self, params: dict) -> str:
+        path = params.get("path", "")
+        content = params.get("content", "")
+        
+        if not path or content is None:
+            return "[Error] path and content are required."
+            
+        # Security Guardrail: Sandbox Restriction
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        sandbox_dir = os.path.realpath(os.path.join(project_root, "docs", "sandbox"))
+        target_path = os.path.realpath(path)
+        
+        try:
+            if os.path.commonpath([sandbox_dir, target_path]) != sandbox_dir:
+                return f"[Error] GUARDRAIL BLOCKED: Sandbox boundary violation. You are only allowed to modify files within {sandbox_dir}."
+            if target_path == sandbox_dir:
+                return f"[Error] GUARDRAIL BLOCKED: Cannot modify the sandbox directory itself."
+        except ValueError:
+            return f"[Error] GUARDRAIL BLOCKED: Sandbox boundary violation (different drive)."
+            
+        if os.path.exists(target_path):
+            return f"[Error] File already exists at {target_path}. Please use replace_file_content to edit it."
+            
+        try:
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+            with open(target_path, 'w', encoding='utf-8') as f:
+                f.write(content)
+            return f"[Success] Created new file at {target_path}"
+        except Exception as e:
+            return f"[Error] Failed to create file: {str(e)}"
+
 # Register tools
 TOOL_REGISTRY = {
-    BashTool.name: BashTool(),
-    ReadFileTool.name: ReadFileTool(),
-    GrepSearchTool.name: GrepSearchTool(),
-    ReplaceFileContentTool.name: ReplaceFileContentTool()
+    "read_file": ReadFileTool(),
+    "grep_search": GrepSearchTool(),
+    "execute_bash": BashTool(),
+    "replace_file_content": ReplaceFileContentTool(),
+    "create_file": CreateFileTool(),
 }
 
 
@@ -383,11 +448,15 @@ I need to update the sandbox test file to increase difficulty.
 </thought>
 <tool_batch>
 <call_tool name="replace_file_content">
-<path>C:/.../docs/sandbox/test.py</path>
-<old_content>def test():
-    pass</old_content>
-<new_content>def test():
-    raise NotImplementedError("Fix this!")</new_content>
+  <path>docs/sandbox/target_file.py</path>
+  <old_content>exact text to be replaced (must be unique)</old_content>
+  <new_content>new text</new_content>
+</call_tool>
+
+If you need to create an entirely new file from scratch in the sandbox, use:
+<call_tool name="create_file">
+  <path>docs/sandbox/new_file.py</path>
+  <content>entire content of the new file</content>
 </call_tool>
 </tool_batch>
 </tool_use_guidelines>
@@ -488,23 +557,47 @@ I need to update the sandbox test file to increase difficulty.
                 else:
                     return f"[Error] Unknown tool: {t['name']}"
 
-            # 并发执行
-            results = [None] * len(tools_to_run)
-            with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(tools_to_run) if tools_to_run else 1)) as executor:
-                future_to_tool = {executor.submit(run_tool, t): idx for idx, t in enumerate(tools_to_run)}
-                for future in concurrent.futures.as_completed(future_to_tool):
-                    idx = future_to_tool[future]
-                    try:
-                        results[idx] = future.result()
-                    except Exception as exc:
-                        results[idx] = f"[Error] Exception executing tool: {exc}"
+            # 区分安全工具与危险工具
+            safe_tools = [t for t in tools_to_run if t["name"] != "execute_bash"]
+            unsafe_tools = [t for t in tools_to_run if t["name"] == "execute_bash"]
 
-            # 串行 yield 结果反馈给前端 UI
-            for idx, (t, output) in enumerate(zip(tools_to_run, results)):
-                yield {"type": "tool_start", "tool_name": t["name"], "command": t["command_str"]}
-                yield {"type": "tool_output", "text": str(output)}
-                yield {"type": "tool_end"}
-                system_result_text += f"[System Tool Result {idx+1}]:\n{output}\n\n"
+            # 1. 并发执行 Safe Tools
+            if safe_tools:
+                results = [None] * len(safe_tools)
+                with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(safe_tools))) as executor:
+                    future_to_tool = {executor.submit(run_tool, t): idx for idx, t in enumerate(safe_tools)}
+                    for future in concurrent.futures.as_completed(future_to_tool):
+                        idx = future_to_tool[future]
+                        try:
+                            results[idx] = future.result()
+                        except Exception as exc:
+                            results[idx] = f"[Error] Exception executing tool: {exc}"
+
+                for idx, (t, output) in enumerate(zip(safe_tools, results)):
+                    yield {"type": "tool_start", "tool_name": t["name"], "command": t["command_str"]}
+                    yield {"type": "tool_output", "text": str(output)}
+                    yield {"type": "tool_end"}
+                    system_result_text += f"[System Tool Result {t['name']}]:\n{output}\n\n"
+
+            # 2. 串行执行 Unsafe Tools 提前 yield 发送前端拦截卡片
+            if unsafe_tools:
+                for t in unsafe_tools:
+                    approval_id = uuid.uuid4().hex
+                    
+                    if "param" not in t or not isinstance(t["param"], dict):
+                        t["param"] = {}
+                    t["param"]["approval_id"] = approval_id
+                    
+                    yield {"type": "tool_start", "tool_name": t["name"], "command": t["command_str"], "approval_id": approval_id}
+                    
+                    try:
+                        output = run_tool(t)
+                    except Exception as exc:
+                        output = f"[Error] Exception executing unsafe tool: {exc}"
+                        
+                    yield {"type": "tool_output", "text": str(output)}
+                    yield {"type": "tool_end"}
+                    system_result_text += f"[System Tool Result {t['name']}]:\n{output}\n\n"
 
             # 将执行结果喂给模型，进入下一轮
             current_messages.append({

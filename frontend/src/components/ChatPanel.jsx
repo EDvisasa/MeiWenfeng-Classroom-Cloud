@@ -2,6 +2,123 @@ import React from 'react';
 import { encode } from 'gpt-tokenizer';
 import { API_BASE } from '../config';
 import { parseAndMergeBlocks } from '../utils/blockParser';
+import { AlertTriangle, Check, X } from 'lucide-react';
+
+const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
+  const [timeLeft, setTimeLeft] = React.useState(60);
+
+  React.useEffect(() => {
+    if (!pendingApproval) return;
+    
+    setTimeLeft(60);
+    const timer = setInterval(() => {
+      setTimeLeft(prev => {
+        if (prev <= 1) {
+          clearInterval(timer);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, [pendingApproval]);
+
+  if (!pendingApproval) return null;
+
+  return (
+    <div style={{
+      position: 'absolute',
+      bottom: '100%',
+      marginBottom: '12px',
+      left: 0,
+      width: '100%',
+      boxSizing: 'border-box',
+      background: 'var(--bg-panel, #ffffff)',
+      border: '1px solid var(--border-color, #e2e8f0)',
+      borderRadius: '12px',
+      padding: '16px',
+      boxShadow: 'var(--shadow-lg, 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1))',
+      zIndex: 10000,
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      color: 'var(--text-primary, #1e293b)'
+    }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#ef4444' }}>
+          <AlertTriangle size={18} />
+          <span style={{ fontSize: '13px', fontWeight: '600', letterSpacing: '0.2px' }}>需要授权执行 Bash 命令</span>
+        </div>
+        <div style={{ fontSize: '12px', color: timeLeft <= 10 ? '#ef4444' : 'var(--text-secondary, #64748b)', fontFamily: 'monospace' }}>
+          {timeLeft}s
+        </div>
+      </div>
+      
+      <div style={{
+        background: 'var(--bg-secondary, #f8fafc)',
+        padding: '10px 12px',
+        borderRadius: '6px',
+        border: '1px solid var(--border-color, #e2e8f0)',
+        overflowX: 'auto',
+      }}>
+        <pre style={{ margin: 0, fontSize: '12px', fontFamily: 'monospace', color: 'var(--text-primary, #334155)' }}>
+          {pendingApproval.command}
+        </pre>
+      </div>
+
+      <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', marginTop: '4px' }}>
+        <button
+          onClick={onReject}
+          disabled={timeLeft === 0}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 16px',
+            borderRadius: '6px',
+            border: '1px solid var(--border-color, #e2e8f0)',
+            background: 'transparent',
+            color: 'var(--text-primary, #334155)',
+            fontSize: '13px',
+            fontWeight: '500',
+            cursor: timeLeft === 0 ? 'not-allowed' : 'pointer',
+            opacity: timeLeft === 0 ? 0.5 : 1,
+            transition: 'background 0.2s'
+          }}
+          onMouseOver={(e) => !timeLeft === 0 && (e.currentTarget.style.background = 'var(--bg-secondary, #f1f5f9)')}
+          onMouseOut={(e) => !timeLeft === 0 && (e.currentTarget.style.background = 'transparent')}
+        >
+          <X size={14} /> 拒绝
+        </button>
+        <button
+          onClick={onApprove}
+          disabled={timeLeft === 0}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px',
+            padding: '6px 16px',
+            borderRadius: '6px',
+            border: 'none',
+            background: '#0066ff',
+            color: '#ffffff',
+            fontSize: '13px',
+            fontWeight: '600',
+            cursor: timeLeft === 0 ? 'not-allowed' : 'pointer',
+            opacity: timeLeft === 0 ? 0.5 : 1,
+            boxShadow: '0 2px 4px rgba(0, 102, 255, 0.2)',
+            transition: 'background 0.2s, opacity 0.2s'
+          }}
+          onMouseOver={(e) => !timeLeft === 0 && (e.currentTarget.style.background = '#0052cc')}
+          onMouseOut={(e) => !timeLeft === 0 && (e.currentTarget.style.background = '#0066ff')}
+        >
+          <Check size={14} /> 允许执行
+        </button>
+      </div>
+    </div>
+  );
+};
 
 const ToolBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
@@ -162,12 +279,33 @@ export default function ChatPanel({
   showSessionList,
   setShowSessionList,
   selectedFilePath,
-  stopGeneration
+  stopGeneration,
+  pendingApproval,
+  setPendingApproval
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const [editingIndex, setEditingIndex] = React.useState(null);
   const [editContent, setEditContent] = React.useState('');
+
+  const handleApprovalSubmit = async (action) => {
+    if (!pendingApproval) return;
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/approve_tool`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          approval_id: pendingApproval.approval_id,
+          action: action
+        })
+      });
+      if (!res.ok) console.error("Failed to submit approval");
+    } catch (e) {
+      console.error(e);
+    }
+    setPendingApproval(null);
+  };
 
   const [baseSystemTokens, setBaseSystemTokens] = React.useState(0);
   const [dynamicTokens, setDynamicTokens] = React.useState(0);
@@ -521,7 +659,7 @@ export default function ChatPanel({
                         {renderNormalizedBlocks(parseAndMergeBlocks(msg.content))}
                       </div>
                     )}
-                    {msg.streaming && <span className="typing-cursor" />}
+                    {(isStreaming && msg.streaming && !pendingApproval) && <span className="typing-cursor" />}
                     {isUser && (
                       <button className="edit-msg-btn" onClick={handleStartEdit} title="编辑并重发">
                         <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
@@ -599,30 +737,39 @@ export default function ChatPanel({
           </div>
         )}
 
-        {/* 显示当前跟踪的激活文件 (给用户的视觉反馈) */}
-        {isVsCode && selectedFilePath && (
-          <div style={{
-            padding: '4px 10px',
-            fontSize: '10px',
-            color: 'var(--text-secondary)',
-            backgroundColor: 'var(--bg-secondary)',
-            borderTopLeftRadius: '8px',
-            borderTopRightRadius: '8px',
-            borderBottom: '1px solid var(--border-color)',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-            whiteSpace: 'nowrap',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis'
-          }}>
-            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M13.85 4.44l-3.28-3.3a.5.5 0 0 0-.35-.14H2.5a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5V4.8a.5.5 0 0 0-.15-.36zM10.5 2.21L12.79 4.5H10.5V2.21zM13 14H3V2h6.5v3a.5.5 0 0 0 .5.5h3v8.5z" /></svg>
-            Tracking (@current_file): {selectedFilePath.split('\\').pop().split('/').pop()}
-          </div>
-        )}
+        {/* 整体输入区容器：确保卡片浮在 Tracking 栏和输入框的上方 */}
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+          {/* 瞬态拦截审批卡片 */}
+          <BashApprovalCard 
+            pendingApproval={pendingApproval}
+            onApprove={() => handleApprovalSubmit('approve')}
+            onReject={() => handleApprovalSubmit('reject')}
+          />
 
-        {/* 卡片式输入框 */}
-        <div className="input-wrapper" style={{ borderTopLeftRadius: isVsCode && selectedFilePath ? '0' : '8px', borderTopRightRadius: isVsCode && selectedFilePath ? '0' : '8px' }}>
+          {/* 显示当前跟踪的激活文件 (给用户的视觉反馈) */}
+          {isVsCode && selectedFilePath && (
+            <div style={{
+              padding: '4px 10px',
+              fontSize: '10px',
+              color: 'var(--text-secondary)',
+              backgroundColor: 'var(--bg-secondary)',
+              borderTopLeftRadius: '8px',
+              borderTopRightRadius: '8px',
+              borderBottom: '1px solid var(--border-color)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '4px',
+              whiteSpace: 'nowrap',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis'
+            }}>
+              <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor"><path d="M13.85 4.44l-3.28-3.3a.5.5 0 0 0-.35-.14H2.5a.5.5 0 0 0-.5.5v13a.5.5 0 0 0 .5.5h11a.5.5 0 0 0 .5-.5V4.8a.5.5 0 0 0-.15-.36zM10.5 2.21L12.79 4.5H10.5V2.21zM13 14H3V2h6.5v3a.5.5 0 0 0 .5.5h3v8.5z" /></svg>
+              Tracking (@current_file): {selectedFilePath.split('\\').pop().split('/').pop()}
+            </div>
+          )}
+
+          {/* 卡片式输入框 */}
+          <div className="input-wrapper" style={{ borderTopLeftRadius: isVsCode && selectedFilePath ? '0' : '8px', borderTopRightRadius: isVsCode && selectedFilePath ? '0' : '8px' }}>
           {/* 行1：文字输入区 */}
           <textarea
             ref={inputRef}
@@ -756,6 +903,7 @@ export default function ChatPanel({
                 </svg>
               </button>
             )}
+          </div>
           </div>
         </div>
       </div>

@@ -52,42 +52,46 @@ class CharacterStateManager:
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
+            
+            # Ensure row exists
+            cursor.execute("SELECT 1 FROM affection WHERE id = 1")
+            if not cursor.fetchone():
+                cursor.execute("INSERT OR IGNORE INTO affection (id, value, social_status, social_skills, refractory_period, last_updated) VALUES (1, 50, 50, 50, 0, datetime('now'))")
+
+            # Atomic update
+            if set_refractory is not None:
+                cursor.execute("""
+                    UPDATE affection 
+                    SET value = MIN(100, MAX(0, value + ?)),
+                        social_status = MIN(100, MAX(0, social_status + ?)),
+                        social_skills = MIN(100, MAX(0, social_skills + ?)),
+                        refractory_period = MAX(0, ?),
+                        last_updated = datetime('now')
+                    WHERE id = 1
+                """, (affection_delta, social_status_delta, social_skills_delta, set_refractory))
+            else:
+                cursor.execute("""
+                    UPDATE affection 
+                    SET value = MIN(100, MAX(0, value + ?)),
+                        social_status = MIN(100, MAX(0, social_status + ?)),
+                        social_skills = MIN(100, MAX(0, social_skills + ?)),
+                        refractory_period = MAX(0, refractory_period + ?),
+                        last_updated = datetime('now')
+                    WHERE id = 1
+                """, (affection_delta, social_status_delta, social_skills_delta, refractory_delta))
+
+            # Retrieve the newly updated values within the same transaction lock
             cursor.execute("SELECT value, social_status, social_skills, refractory_period FROM affection WHERE id = 1")
             row = cursor.fetchone()
             
-            if not row:
-                cursor.execute("INSERT INTO affection (id, value, social_status, social_skills, refractory_period, last_updated) VALUES (1, 50, 50, 50, 0, datetime('now'))")
-                current = 50
-                cur_social_status = 50
-                cur_social_skills = 50
-                cur_refractory = 0
-            else:
-                current = row["value"]
-                cur_social_status = row["social_status"]
-                cur_social_skills = row["social_skills"]
-                cur_refractory = row["refractory_period"]
-
-            new_val = max(0, min(100, current + affection_delta))
-            new_social_status = max(0, min(100, cur_social_status + social_status_delta))
-            new_social_skills = max(0, min(100, cur_social_skills + social_skills_delta))
-
-            if set_refractory is not None:
-                new_refractory = max(0, set_refractory)
-            else:
-                new_refractory = max(0, cur_refractory + refractory_delta)
-
-            cursor.execute(
-                "UPDATE affection SET value = ?, social_status = ?, social_skills = ?, refractory_period = ?, last_updated = datetime('now') WHERE id = 1",
-                (new_val, new_social_status, new_social_skills, new_refractory)
-            )
             conn.commit()
             conn.close()
 
             return CharacterState(
-                affection=new_val,
-                social_status=new_social_status,
-                social_skills=new_social_skills,
-                refractory_period=new_refractory
+                affection=row["value"],
+                social_status=row["social_status"],
+                social_skills=row["social_skills"],
+                refractory_period=row["refractory_period"]
             )
         except Exception as e:
             logger.error(f"Failed to update character state: {e}")
