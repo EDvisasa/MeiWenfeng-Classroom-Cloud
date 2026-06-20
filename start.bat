@@ -47,15 +47,15 @@ echo ==========================================
 echo Cleaning up potential zombie processes...
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":12701" ^| find "LISTENING"') do (
     echo Killing zombie process holding port 12701 PID %%a
-    taskkill /f /pid %%a >nul 2>&1
+    taskkill /f /t /pid %%a >nul 2>&1
 )
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":12702" ^| find "LISTENING"') do (
     echo Killing zombie process holding port 12702 PID %%a
-    taskkill /f /pid %%a >nul 2>&1
+    taskkill /f /t /pid %%a >nul 2>&1
 )
 for /f "tokens=5" %%a in ('netstat -aon ^| find ":12703" ^| find "LISTENING"') do (
     echo Killing zombie process holding port 12703 PID %%a
-    taskkill /f /pid %%a >nul 2>&1
+    taskkill /f /t /pid %%a >nul 2>&1
 )
 
 rem 4. Start all services using concurrently
