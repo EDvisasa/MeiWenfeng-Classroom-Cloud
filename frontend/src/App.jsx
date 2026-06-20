@@ -1069,6 +1069,51 @@ export default function App() {
                   } else {
                     lastBlock.text += (parsed.text || '');
                   }
+                } else if (parsed.type === 'retry_status') {
+                  currentBlocks.forEach(b => { if (b.type === 'thinking') b.status = 'done'; });
+                  
+                  let lastBlock = currentBlocks[currentBlocks.length - 1];
+                  
+                  // If we are starting a retry (either no retry block exists, or the last block is not a running retry)
+                  if (!lastBlock || lastBlock.type !== 'retry' || lastBlock.status === 'done') {
+                    // Do not clear the partial blocks yet so they remain visible during reconnection!
+                    currentBlocks.push({ type: 'retry', status: 'running', error_msg: '', retry_info: '' });
+                    lastBlock = currentBlocks[currentBlocks.length - 1];
+                  }
+                  
+                  if (parsed.text) {
+                    try {
+                      const data = JSON.parse(parsed.text);
+                      if (data.success) {
+                        lastBlock.status = 'done';
+                        
+                        // Now that we have successfully reconnected and are about to start a fresh stream,
+                        // clear the partial blocks that came BEFORE this retry block in the current attempt.
+                        const retryIndex = currentBlocks.lastIndexOf(lastBlock);
+                        if (retryIndex > 0) {
+                            let keepUntilIndex = retryIndex - 1;
+                            while (keepUntilIndex >= 0 && currentBlocks[keepUntilIndex].type !== 'tool' && currentBlocks[keepUntilIndex].type !== 'retry') {
+                                keepUntilIndex--;
+                            }
+                            if (keepUntilIndex + 1 < retryIndex) {
+                                currentBlocks.splice(keepUntilIndex + 1, retryIndex - 1 - keepUntilIndex);
+                            }
+                        }
+                      } else if (data.failed) {
+                        lastBlock.status = 'failed';
+                        lastBlock.error_msg = data.error;
+                      } else {
+                        lastBlock.status = 'running';
+                        lastBlock.error_msg = data.error;
+                        lastBlock.retry_info = `Retrying in ${data.wait_time}s · attempt ${data.attempt}/${data.max_retries}`;
+                      }
+                    } catch(e) {
+                      lastBlock.status = 'running';
+                      lastBlock.error_msg = parsed.text;
+                    }
+                  } else {
+                    lastBlock.status = 'done';
+                  }
                 } else if (parsed.type === 'tool_start') {
                   currentBlocks.forEach(b => { if (b.type === 'thinking') b.status = 'done'; });
                   currentBlocks.push({ type: 'tool', tool_name: parsed.tool_name, command: parsed.command, output: '', status: 'running' });

@@ -204,14 +204,61 @@ class OpenAILLMClient:
         if "max_tokens" in kwargs and kwargs["max_tokens"] > 0:
             call_kwargs["max_tokens"] = kwargs["max_tokens"]
 
-        response = self.client.chat.completions.create(**call_kwargs)
-        for chunk in response:
-            if chunk.choices and len(chunk.choices) > 0:
-                delta = chunk.choices[0].delta
-                if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                    yield {"type": "thinking", "text": delta.reasoning_content}
-                if delta.content:
-                    yield {"type": "text", "text": delta.content}
+        import time
+        import httpx
+        import openai
+
+        max_retries = 10
+        base_wait = 2
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = self.client.chat.completions.create(**call_kwargs)
+                
+                if attempt > 1:
+                    import json
+                    yield {"type": "retry_status", "text": json.dumps({"success": True})}
+
+                for chunk in response:
+                    if chunk.choices and len(chunk.choices) > 0:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                            yield {"type": "thinking", "text": delta.reasoning_content}
+                        if delta.content:
+                            yield {"type": "text", "text": delta.content}
+                
+                return
+
+            except (
+                openai.APIConnectionError, 
+                openai.RateLimitError, 
+                openai.APITimeoutError, 
+                openai.InternalServerError,
+                httpx.NetworkError, 
+                httpx.TimeoutException,
+                ConnectionError
+            ) as e:
+                if attempt == max_retries:
+                    import json
+                    yield {"type": "retry_status", "text": json.dumps({"error": str(e).split('\n')[0][:80], "failed": True})}
+                    raise e
+                
+                wait_time = min(base_wait * (2 ** (attempt - 1)), 30)
+                error_msg = str(e).split('\n')[0][:80]
+                
+                # 在后端终端打印详细报错，方便开发者排查问题（UI 会在重试成功后自动清理气泡）
+                print(f"[API Retry Warning] Attempt {attempt}/{max_retries} failed. Retrying in {wait_time}s. Error: {str(e)}")
+                
+                import json
+                payload = json.dumps({
+                    "error": error_msg,
+                    "attempt": attempt,
+                    "max_retries": max_retries,
+                    "wait_time": wait_time
+                })
+                yield {"type": "retry_status", "text": payload}
+                time.sleep(wait_time)
+
 
 # --- 新增：AgentExecutor 应用层 ---
 class AgentExecutor:
@@ -294,6 +341,11 @@ I need to find where 'login' is mentioned in the src folder.
 
             for chunk in self.llm_client.stream_completion(current_messages, **kwargs):
                 chunk_type = chunk.get("type", "text")  # "thinking" 或 "text"
+                
+                if chunk_type not in ["text", "thinking"]:
+                    yield chunk
+                    continue
+                    
                 text = chunk.get("text", "")
 
                 # 对 thinking 和 text 通道应用完全相同的拦截器状态机
