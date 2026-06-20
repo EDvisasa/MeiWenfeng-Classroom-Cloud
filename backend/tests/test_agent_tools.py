@@ -82,5 +82,72 @@ def test_tool_registry_contains_expected_tools():
     """Verify that tools are properly registered and retrievable."""
     assert "read_file" in TOOL_REGISTRY
     assert "execute_bash" in TOOL_REGISTRY
+    assert "replace_file_content" in TOOL_REGISTRY
     assert isinstance(TOOL_REGISTRY["read_file"], ReadFileTool)
     assert isinstance(TOOL_REGISTRY["execute_bash"], BashTool)
+
+from backend.services.agent_tools import ReplaceFileContentTool
+
+def test_replace_file_content_tool_success(tmp_path):
+    """Test that ReplaceFileContentTool successfully replaces content inside the sandbox."""
+    tool = ReplaceFileContentTool()
+    
+    # Mock the sandbox directory dynamically to the tmp_path for testing
+    # We will override the execute method's sandbox_dir calculation just for this test
+    # A cleaner way is to patch the os.path.dirname in the tool, but we can also just use the real sandbox dir
+    
+    # Actually, since the sandbox is hardcoded to project_root/docs/sandbox,
+    # let's create a temporary file in the REAL docs/sandbox to test it safely.
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    sandbox_dir = os.path.abspath(os.path.join(project_root, "docs", "sandbox"))
+    os.makedirs(sandbox_dir, exist_ok=True)
+    
+    test_file = os.path.join(sandbox_dir, "test_temp_replace.py")
+    with open(test_file, "w", encoding="utf-8") as f:
+        f.write("def func():\n    return 'old'\n")
+        
+    try:
+        result = tool.execute({
+            "path": test_file,
+            "old_content": "return 'old'",
+            "new_content": "return 'new'"
+        })
+        
+        assert "[Success]" in result
+        with open(test_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        assert "return 'new'" in content
+        assert "return 'old'" not in content
+    finally:
+        if os.path.exists(test_file):
+            os.remove(test_file)
+
+def test_replace_file_content_tool_blocks_outside_sandbox():
+    """Test that ReplaceFileContentTool blocks edits outside the docs/sandbox directory."""
+    tool = ReplaceFileContentTool()
+    
+    # Try to edit a file outside sandbox, e.g., the test file itself
+    test_file = os.path.abspath(__file__)
+    
+    result = tool.execute({
+        "path": test_file,
+        "old_content": "def test_tool_registry",
+        "new_content": "def hacked_tool_registry"
+    })
+    
+    assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
+
+def test_replace_file_content_tool_blocks_directory_prefix_bypass():
+    """Test that ReplaceFileContentTool blocks directory prefix bypass (e.g., docs/sandbox_hacked)."""
+    tool = ReplaceFileContentTool()
+    
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    hacked_sandbox_dir = os.path.abspath(os.path.join(project_root, "docs", "sandbox_hacked"))
+    
+    result = tool.execute({
+        "path": os.path.join(hacked_sandbox_dir, "test.py"),
+        "old_content": "old",
+        "new_content": "new"
+    })
+    
+    assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result

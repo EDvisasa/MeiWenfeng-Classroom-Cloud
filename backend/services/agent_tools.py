@@ -174,11 +174,66 @@ class GrepSearchTool(AgentTool):
             
         return "\n".join(results)
 
+class ReplaceFileContentTool(AgentTool):
+    name = "replace_file_content"
+    description = "Surgically replace a block of text in a specific file. Restricted to the docs/sandbox directory."
+
+    def execute(self, params: dict) -> str:
+        path = params.get("path", "")
+        old_content = params.get("old_content", "")
+        new_content = params.get("new_content", "")
+        
+        if not path or not old_content or new_content is None:
+            return "[Error] path, old_content, and new_content are required."
+            
+        # Security Guardrail: Sandbox Restriction
+        # Use realpath to resolve symbolic links (symlink bypass prevention)
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        sandbox_dir = os.path.realpath(os.path.join(project_root, "docs", "sandbox"))
+        target_path = os.path.realpath(path)
+        
+        # Use commonpath for mathematically safe boundary checking (handles all OS path quirks)
+        try:
+            if os.path.commonpath([sandbox_dir, target_path]) != sandbox_dir:
+                return f"[Error] GUARDRAIL BLOCKED: Sandbox boundary violation. You are only allowed to modify files within {sandbox_dir}."
+            # Additionally, prevent modifying the sandbox directory itself
+            if target_path == sandbox_dir:
+                return f"[Error] GUARDRAIL BLOCKED: Cannot modify the sandbox directory itself."
+        except ValueError:
+            # commonpath raises ValueError if paths are on different drives in Windows
+            return f"[Error] GUARDRAIL BLOCKED: Sandbox boundary violation (different drive)."
+            
+        if not os.path.exists(target_path):
+            return f"[Error] File not found: {target_path}"
+            
+        if not os.path.isfile(target_path):
+            return f"[Error] Path is not a file: {target_path}"
+            
+        try:
+            with open(target_path, 'r', encoding='utf-8') as f:
+                content = f.read()
+                
+            occurrences = content.count(old_content)
+            if occurrences == 0:
+                return "[Error] old_content not found in the file. Please make sure the old_content exactly matches the existing text, including whitespace and line endings."
+            elif occurrences > 1:
+                return f"[Error] old_content found {occurrences} times in the file. The replacement must be unique to avoid unintended changes."
+                
+            new_file_content = content.replace(old_content, new_content)
+            
+            with open(target_path, 'w', encoding='utf-8') as f:
+                f.write(new_file_content)
+                
+            return f"[Success] Replaced content in {target_path}"
+        except Exception as e:
+            return f"[Error] Failed to replace content: {str(e)}"
+
 # Register tools
 TOOL_REGISTRY = {
     BashTool.name: BashTool(),
     ReadFileTool.name: ReadFileTool(),
-    GrepSearchTool.name: GrepSearchTool()
+    GrepSearchTool.name: GrepSearchTool(),
+    ReplaceFileContentTool.name: ReplaceFileContentTool()
 }
 
 
@@ -319,6 +374,20 @@ I need to find where 'login' is mentioned in the src folder.
 <call_tool name="grep_search">
 <dir_path>C:/path/to/src</dir_path>
 <query>login</query>
+</call_tool>
+</tool_batch>
+
+OR to surgically replace code in a sandbox file:
+<thought>
+I need to update the sandbox test file to increase difficulty.
+</thought>
+<tool_batch>
+<call_tool name="replace_file_content">
+<path>C:/.../docs/sandbox/test.py</path>
+<old_content>def test():
+    pass</old_content>
+<new_content>def test():
+    raise NotImplementedError("Fix this!")</new_content>
 </call_tool>
 </tool_batch>
 </tool_use_guidelines>
