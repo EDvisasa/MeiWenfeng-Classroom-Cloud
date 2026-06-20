@@ -313,15 +313,16 @@ def _handle_update_persona() -> StreamingResponse:
             api_key = model_info["api_key"]
             base_url = model_info["base_url"]
             model_name = model_info["name"]
-            model_id_api = os.getenv("AIRP_MODEL_NAME", "gpt-4o-mini")
-            if "qwen" in model_name.lower(): model_id_api = "qwen3.6-35b"
-            elif "gemma" in model_name.lower(): model_id_api = "gemma-9b"
-            elif "deepseek" in model_name.lower(): model_id_api = "deepseek-chat"
-            if ("deepseek" in model_name.lower() or model_info["protocol"] == "openai") and "本地" not in model_name:
-                env_key = os.getenv("AIRP_MODEL_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
-                env_url = os.getenv("AIRP_MODEL_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL")
-                if env_key: api_key = env_key
-                if env_url: base_url = env_url
+            selected_model_id = model_info.get("selected_model_id")
+            if selected_model_id:
+                model_id_api = selected_model_id
+            else:
+                model_id_api = os.getenv("AIRP_MODEL_NAME", "gpt-4o-mini")
+                if "qwen" in model_name.lower(): model_id_api = "qwen3.6-35b"
+                elif "gemma" in model_name.lower(): model_id_api = "gemma-9b"
+                elif "deepseek" in model_name.lower(): model_id_api = "deepseek-chat"
+            if base_url:
+                base_url = base_url.replace("://localhost:", "://127.0.0.1:")
             client = OpenAI(api_key=api_key or "no-key-required", base_url=base_url)
             response = client.chat.completions.create(
                 model=model_id_api,
