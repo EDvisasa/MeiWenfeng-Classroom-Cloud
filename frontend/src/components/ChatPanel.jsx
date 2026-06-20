@@ -90,6 +90,48 @@ const ThinkingBlock = ({ block, idx }) => {
   );
 };
 
+const RetryBlock = ({ block, idx }) => {
+  const isRunning = block.status === 'running';
+  const [isExpanded, setIsExpanded] = React.useState(isRunning);
+
+  React.useEffect(() => {
+    setIsExpanded(isRunning);
+  }, [isRunning]);
+
+  return (
+    <div key={`retry_${idx}`} className="claude-tool-block" style={{ border: '1px solid var(--border-color)', borderRadius: '8px', padding: '8px 12px', backgroundColor: 'var(--bg-panel)' }}>
+      <div className="claude-tool-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: 'pointer' }} onClick={() => setIsExpanded(!isExpanded)}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
+          <div className={`claude-tool-status-dot ${isRunning ? 'running' : block.status}`} style={{ backgroundColor: block.status === 'failed' ? 'var(--text-error, #f87171)' : undefined }}></div>
+          <span className="claude-tool-name">
+             {isRunning ? 'Reconnecting...' : (block.status === 'failed' ? 'Connection failed' : 'Connected')}
+          </span>
+        </div>
+        <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+          {isExpanded ? (
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z" /></svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z" /></svg>
+          )}
+        </div>
+      </div>
+      {isExpanded && block.error_msg && (
+        <div className="claude-tool-io">
+           <div className="claude-tool-io-row" style={{ borderBottom: 'none', flexDirection: 'row', alignItems: 'flex-start' }}>
+             <span className="claude-tool-io-label" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>LOG</span>
+             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, wordBreak: 'break-word' }}>
+               <span className="claude-tool-io-content" style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{block.error_msg}</span>
+               {isRunning && block.retry_info && (
+                 <span className="claude-tool-io-content" style={{ color: 'var(--text-secondary)' }}>{block.retry_info}</span>
+               )}
+             </div>
+           </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function ChatPanel({
   messages,
   models,
@@ -223,6 +265,8 @@ export default function ChatPanel({
         return <ThinkingBlock key={`thought_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'tool') {
         return <ToolBlock key={`tool_${idx}`} block={block} idx={idx} />;
+      } else if (block.type === 'retry') {
+        return <RetryBlock key={`retry_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'text') {
         return <div key={`text_${idx}`} className="text-block">{renderItalics(block.text, idx)}</div>;
       }
@@ -406,6 +450,7 @@ export default function ChatPanel({
                 {isUser ? (
                   <>
                     <div className="sender-group">
+                      {msg.timestamp && <span className="message-timestamp">{typeof msg.timestamp === 'string' && msg.timestamp.length > 16 ? msg.timestamp.substring(0, 16).replace('T', ' ') : msg.timestamp}</span>}
                       <span className="sender-name">你</span>
                     </div>
                     <div
@@ -443,7 +488,10 @@ export default function ChatPanel({
                         </svg>
                       )}
                     </div>
-                    <span className="sender-name">媚吻锋</span>
+                    <div className="sender-group">
+                      <span className="sender-name">媚吻锋</span>
+                      {msg.timestamp && <span className="message-timestamp">{typeof msg.timestamp === 'string' && msg.timestamp.length > 16 ? msg.timestamp.substring(0, 16).replace('T', ' ') : msg.timestamp}</span>}
+                    </div>
                   </>
                 )}
               </div>
@@ -464,23 +512,30 @@ export default function ChatPanel({
                   </div>
                 </div>
               ) : (
-                <div className="message-bubble">
-                  {msg.blocks && msg.blocks.length > 0 ? (
-                    renderNormalizedBlocks(parseAndMergeBlocks(msg.blocks))
-                  ) : (
-                    <div className="message-content">
-                      {renderNormalizedBlocks(parseAndMergeBlocks(msg.content))}
+                <>
+                  <div className="message-bubble">
+                    {msg.blocks && msg.blocks.length > 0 ? (
+                      renderNormalizedBlocks(parseAndMergeBlocks(msg.blocks).filter(b => b.type !== 'retry'))
+                    ) : (
+                      <div className="message-content">
+                        {renderNormalizedBlocks(parseAndMergeBlocks(msg.content))}
+                      </div>
+                    )}
+                    {msg.streaming && <span className="typing-cursor" />}
+                    {isUser && (
+                      <button className="edit-msg-btn" onClick={handleStartEdit} title="编辑并重发">
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M11.5 1a.5.5 0 0 1 .354.146l2 2A.5.5 0 0 1 14 3.5v.793L4.5 13.793 1 15l1.207-3.5L11.5 1zm-1.207 2.5L8.5 1.707 2 8.207V9.5h1.293L11.5 1.5zm1.914 0l.793-.793-1.207-1.207-.793.793 1.207 1.207z" />
+                        </svg>
+                      </button>
+                    )}
+                  </div>
+                  {msg.blocks && msg.blocks.some(b => b.type === 'retry') && (
+                    <div style={{ marginTop: '8px' }}>
+                      {renderNormalizedBlocks(parseAndMergeBlocks(msg.blocks).filter(b => b.type === 'retry'))}
                     </div>
                   )}
-                  {msg.streaming && <span className="typing-cursor" />}
-                  {isUser && (
-                    <button className="edit-msg-btn" onClick={handleStartEdit} title="编辑并重发">
-                      <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M11.5 1a.5.5 0 0 1 .354.146l2 2A.5.5 0 0 1 14 3.5v.793L4.5 13.793 1 15l1.207-3.5L11.5 1zm-1.207 2.5L8.5 1.707 2 8.207V9.5h1.293L11.5 1.5zm1.914 0l.793-.793-1.207-1.207-.793.793 1.207 1.207z" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
+                </>
               )}
 
             </div>

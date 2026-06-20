@@ -539,8 +539,16 @@ body {
 
 .sender-group {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   gap: 8px;
+}
+
+.message-timestamp {
+  font-size: 11px;
+  color: var(--text-secondary);
+  opacity: 0.6;
+  font-weight: 400;
+  letter-spacing: 0.2px;
 }
 
 .avatar {

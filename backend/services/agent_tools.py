@@ -204,14 +204,61 @@ class OpenAILLMClient:
         if "max_tokens" in kwargs and kwargs["max_tokens"] > 0:
             call_kwargs["max_tokens"] = kwargs["max_tokens"]
 
-        response = self.client.chat.completions.create(**call_kwargs)
-        for chunk in response:
-            if chunk.choices and len(chunk.choices) > 0:
-                delta = chunk.choices[0].delta
-                if hasattr(delta, "reasoning_content") and delta.reasoning_content:
-                    yield {"type": "thinking", "text": delta.reasoning_content}
-                if delta.content:
-                    yield {"type": "text", "text": delta.content}
+        import time
+        import httpx
+        import openai
+
+        max_retries = 10
+        base_wait = 2
+
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = self.client.chat.completions.create(**call_kwargs)
+                
+                if attempt > 1:
+                    import json
+                    yield {"type": "retry_status", "text": json.dumps({"success": True})}
+
+                for chunk in response:
+                    if chunk.choices and len(chunk.choices) > 0:
+                        delta = chunk.choices[0].delta
+                        if hasattr(delta, "reasoning_content") and delta.reasoning_content:
+                            yield {"type": "thinking", "text": delta.reasoning_content}
+                        if delta.content:
+                            yield {"type": "text", "text": delta.content}
+                
+                return
+
+            except (
+                openai.APIConnectionError, 
+                openai.RateLimitError, 
+                openai.APITimeoutError, 
+                openai.InternalServerError,
+                httpx.NetworkError, 
+                httpx.TimeoutException,
+                ConnectionError
+            ) as e:
+                if attempt == max_retries:
+                    import json
+                    yield {"type": "retry_status", "text": json.dumps({"error": str(e).split('\n')[0][:80], "failed": True})}
+                    raise e
+                
+                wait_time = min(base_wait * (2 ** (attempt - 1)), 30)
+                error_msg = str(e).split('\n')[0][:80]
+                
+                # 在后端终端打印详细报错，方便开发者排查问题（UI 会在重试成功后自动清理气泡）
+                print(f"[API Retry Warning] Attempt {attempt}/{max_retries} failed. Retrying in {wait_time}s. Error: {str(e)}")
+                
+                import json
+                payload = json.dumps({
+                    "error": error_msg,
+                    "attempt": attempt,
+                    "max_retries": max_retries,
+                    "wait_time": wait_time
+                })
+                yield {"type": "retry_status", "text": payload}
+                time.sleep(wait_time)
+
 
 # --- 新增：AgentExecutor 应用层 ---
 class AgentExecutor:
@@ -246,7 +293,8 @@ CRITICAL RULES:
 5. ERROR RECOVERY: If the system execution result contains an error, analyze it in your next <thought> block and try a different command. Do NOT bother the user with technical errors.
 6. USE SPECIFIC TOOLS: You MUST use `read_file` to read files. NEVER use `cat` or `type` via `execute_bash`.
 7. ENFORCE SEARCH TOOL: To search for a specific string or keywords across files in a directory, you MUST use the `grep_search` tool. You are ABSOLUTELY FORBIDDEN from using `execute_bash` (like findstr, grep, or custom python scripts) to search files.
-8. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
+8. TIME PERCEPTION: You already have the exact, up-to-date real-world time in the `<current_time>` block of your system prompt. Do NOT use `execute_bash` or any code to check the current time or date. Rely entirely on the injected time.
+9. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
 
 TOOL EXECUTION FORMAT:
 <thought>
@@ -294,6 +342,11 @@ I need to find where 'login' is mentioned in the src folder.
 
             for chunk in self.llm_client.stream_completion(current_messages, **kwargs):
                 chunk_type = chunk.get("type", "text")  # "thinking" 或 "text"
+                
+                if chunk_type not in ["text", "thinking"]:
+                    yield chunk
+                    continue
+                    
                 text = chunk.get("text", "")
 
                 # 对 thinking 和 text 通道应用完全相同的拦截器状态机

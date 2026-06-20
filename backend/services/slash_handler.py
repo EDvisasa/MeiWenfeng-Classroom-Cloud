@@ -160,7 +160,9 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
         if not last_user_msg or not clean_text:
             return
         try:
-            memory_content = f"【对话记录】\n用户：{last_user_msg}\n媚吻锋：{clean_text}"
+            from datetime import datetime
+            time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            memory_content = f"【对话记录 ({time_str})】\n用户：{last_user_msg}\n媚吻锋：{clean_text}"
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
@@ -293,7 +295,7 @@ def _handle_update_persona() -> StreamingResponse:
         except Exception as e:
             yield f"data: {json_escape(f'[系统更新] 检测源目录失败: {e}')}\n\n"
         if not latest_file:
-            yield f"data: {json_escape('[系统更新] 错误：未找到原版人设卡片，更新终止。')}\n\n"
+            yield f"data: {json_escape(f'[系统更新] 错误：在目录 {external_dir} 中未找到匹配的原版人设卡片，更新终止。')}\n\n"
             return
         yield f"data: {json_escape(f'[系统更新] 发现最新原版人设：{os.path.basename(latest_file)}，正在读取并写入本地缓存...')}\n\n"
         try:

@@ -15,6 +15,12 @@ const COMMANDS = [
   { cmd: '/plan', desc: '根据当前进度，重新调整课程大纲' }
 ];
 
+const _getNowStr = () => {
+  const now = new Date();
+  return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')} ${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+};
+
+
 
 const TIPS_LIST = [
   "可以在对话框输入 / 开头的指令来触发特殊事件哦~",
@@ -112,7 +118,8 @@ export default function App() {
       messages: [
         {
           role: 'assistant',
-          content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”'
+          content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”',
+          timestamp: _getNowStr()
         }
       ]
     };
@@ -147,7 +154,8 @@ export default function App() {
         messages: [
           {
             role: 'assistant',
-            content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”'
+            content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”',
+            timestamp: _getNowStr()
           }
         ]
       };
@@ -408,7 +416,8 @@ export default function App() {
               messages: [
                 {
                   role: 'assistant',
-                  content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”'
+                  content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”',
+                  timestamp: _getNowStr()
                 }
               ]
             };
@@ -969,7 +978,7 @@ export default function App() {
   // 快速执行斜杠指令（供快捷按钮调用）
   const executeSlashCommand = async (cmdText) => {
     if (isStreaming) return;
-    const nextMessages = [...messages, { role: 'user', content: cmdText }];
+    const nextMessages = [...messages, { role: 'user', content: cmdText, timestamp: _getNowStr() }];
     setMessages(nextMessages);
     await triggerAIResponse(nextMessages);
   };
@@ -982,7 +991,7 @@ export default function App() {
     setInputText('');
     setShowCommandList(false);
 
-    const nextMessages = [...messages, { role: 'user', content: userText }];
+    const nextMessages = [...messages, { role: 'user', content: userText, timestamp: _getNowStr() }];
     setMessages(nextMessages);
     await triggerAIResponse(nextMessages);
   };
@@ -1027,7 +1036,7 @@ export default function App() {
       const decoder = new TextDecoder('utf-8');
       let done = false;
 
-      setMessages(prev => [...prev, { role: 'assistant', blocks: [], streaming: true }]);
+      setMessages(prev => [...prev, { role: 'assistant', blocks: [], streaming: true, timestamp: _getNowStr() }]);
 
       let currentBlocks = [];
 
@@ -1068,6 +1077,51 @@ export default function App() {
                     currentBlocks.push({ type: 'thinking', text: parsed.text || '', status: 'running' });
                   } else {
                     lastBlock.text += (parsed.text || '');
+                  }
+                } else if (parsed.type === 'retry_status') {
+                  currentBlocks.forEach(b => { if (b.type === 'thinking') b.status = 'done'; });
+                  
+                  let lastBlock = currentBlocks[currentBlocks.length - 1];
+                  
+                  // If we are starting a retry (either no retry block exists, or the last block is not a running retry)
+                  if (!lastBlock || lastBlock.type !== 'retry' || lastBlock.status === 'done') {
+                    // Do not clear the partial blocks yet so they remain visible during reconnection!
+                    currentBlocks.push({ type: 'retry', status: 'running', error_msg: '', retry_info: '' });
+                    lastBlock = currentBlocks[currentBlocks.length - 1];
+                  }
+                  
+                  if (parsed.text) {
+                    try {
+                      const data = JSON.parse(parsed.text);
+                      if (data.success) {
+                        lastBlock.status = 'done';
+                        
+                        // Now that we have successfully reconnected and are about to start a fresh stream,
+                        // clear the partial blocks that came BEFORE this retry block in the current attempt.
+                        const retryIndex = currentBlocks.lastIndexOf(lastBlock);
+                        if (retryIndex > 0) {
+                            let keepUntilIndex = retryIndex - 1;
+                            while (keepUntilIndex >= 0 && currentBlocks[keepUntilIndex].type !== 'tool' && currentBlocks[keepUntilIndex].type !== 'retry') {
+                                keepUntilIndex--;
+                            }
+                            if (keepUntilIndex + 1 < retryIndex) {
+                                currentBlocks.splice(keepUntilIndex + 1, retryIndex - 1 - keepUntilIndex);
+                            }
+                        }
+                      } else if (data.failed) {
+                        lastBlock.status = 'failed';
+                        lastBlock.error_msg = data.error;
+                      } else {
+                        lastBlock.status = 'running';
+                        lastBlock.error_msg = data.error;
+                        lastBlock.retry_info = `Retrying in ${data.wait_time}s · attempt ${data.attempt}/${data.max_retries}`;
+                      }
+                    } catch(e) {
+                      lastBlock.status = 'running';
+                      lastBlock.error_msg = parsed.text;
+                    }
+                  } else {
+                    lastBlock.status = 'done';
                   }
                 } else if (parsed.type === 'tool_start') {
                   currentBlocks.forEach(b => { if (b.type === 'thinking') b.status = 'done'; });
