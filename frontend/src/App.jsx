@@ -359,7 +359,10 @@ export default function App() {
 
   // 真实本地文件系统挂载路径和选定状态
   const [rootPath, setRootPath] = useState('D:/MeiWenfeng-Classroom');
-  const [selectedFilePath, setSelectedFilePath] = useState('');
+  const [selectedFilePath, setSelectedFilePath] = React.useState(null);
+  
+  // BashTool HITL state
+  const [pendingApproval, setPendingApproval] = React.useState(null);
   const [selectedFileContent, setSelectedFileContent] = useState('');
 
   // 斜杠命令自动补全
@@ -1126,6 +1129,14 @@ export default function App() {
                 } else if (parsed.type === 'tool_start') {
                   currentBlocks.forEach(b => { if (b.type === 'thinking') b.status = 'done'; });
                   currentBlocks.push({ type: 'tool', tool_name: parsed.tool_name, command: parsed.command, output: '', status: 'running' });
+                  
+                  if (parsed.approval_id) {
+                    setPendingApproval({
+                      approval_id: parsed.approval_id,
+                      tool_name: parsed.tool_name,
+                      command: parsed.command
+                    });
+                  }
                 } else if (parsed.type === 'tool_output') {
                   let lastBlock = currentBlocks[currentBlocks.length - 1];
                   if (lastBlock && lastBlock.type === 'tool') {
@@ -1416,6 +1427,8 @@ export default function App() {
             showSessionList={showSessionList}
             setShowSessionList={setShowSessionList}
             selectedFilePath={selectedFilePath}
+            pendingApproval={pendingApproval}
+            setPendingApproval={setPendingApproval}
           />
 
           {/* 右侧面板：导师人设与课程大纲 */}

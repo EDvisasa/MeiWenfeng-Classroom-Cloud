@@ -8,9 +8,10 @@ from backend.services.character_state import CharacterStateManager
 class TestCharacterStateManager(unittest.TestCase):
     def setUp(self):
         # Create an in-memory SQLite database for testing using shared cache
-        # so multiple connections can access the same DB
-        self.db_uri = "file::memory:?cache=shared"
-        self.conn = sqlite3.connect(self.db_uri, uri=True)
+        # Use a unique ID for each test to prevent test pollution and locking across tests
+        import uuid
+        self.db_uri = f"file:memdb_{uuid.uuid4().hex}?mode=memory&cache=shared"
+        self.conn = sqlite3.connect(self.db_uri, uri=True, timeout=10.0)
         self.conn.row_factory = sqlite3.Row
         cursor = self.conn.cursor()
 
@@ -29,7 +30,7 @@ class TestCharacterStateManager(unittest.TestCase):
 
         # Patch get_db_connection to return a new connection to the shared DB
         def mock_get_db():
-            conn = sqlite3.connect(self.db_uri, uri=True)
+            conn = sqlite3.connect(self.db_uri, uri=True, timeout=10.0)
             conn.row_factory = sqlite3.Row
             return conn
 
@@ -130,6 +131,31 @@ class TestCharacterStateManager(unittest.TestCase):
 
         with self.assertRaises(CharacterStateError):
             CharacterStateManager.modify_state(affection_delta=10)
+
+    def test_concurrent_updates(self):
+        """Test that concurrent updates do not cause race conditions (data loss)."""
+        # Ensure initial state is 0 for affection
+        cursor = self.conn.cursor()
+        cursor.execute("INSERT OR REPLACE INTO affection (id, value, social_status, social_skills, refractory_period, last_updated) VALUES (1, 0, 50, 50, 0, datetime('now'))")
+        self.conn.commit()
+
+        import threading
+
+        def worker():
+            CharacterStateManager.modify_state(affection_delta=10)
+
+        threads = []
+        # Spawn 10 threads, each adding 10. Total should be 100.
+        for _ in range(10):
+            t = threading.Thread(target=worker)
+            threads.append(t)
+            t.start()
+
+        for t in threads:
+            t.join()
+
+        final_state = CharacterStateManager.get_state()
+        self.assertEqual(final_state.affection, 100)
 
 if __name__ == '__main__':
     unittest.main()

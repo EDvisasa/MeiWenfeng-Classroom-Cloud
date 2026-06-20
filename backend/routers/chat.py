@@ -258,3 +258,18 @@ def send_message(payload: ChatRequest):
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+class ToolApprovalRequest(BaseModel):
+    approval_id: str
+    action: str  # "approve" or "reject"
+
+@router.post("/approve_tool")
+async def approve_tool(request: ToolApprovalRequest):
+    from backend.services.agent_tools import PENDING_APPROVALS
+    if request.approval_id not in PENDING_APPROVALS:
+        return {"status": "error", "message": "Approval ID not found or already processed."}
+    
+    if request.action not in ["approve", "reject"]:
+        return {"status": "error", "message": "Invalid action."}
+        
+    PENDING_APPROVALS[request.approval_id] = request.action
+    return {"status": "success", "message": f"Tool execution {request.action}d."}

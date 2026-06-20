@@ -151,3 +151,45 @@ def test_replace_file_content_tool_blocks_directory_prefix_bypass():
     })
     
     assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
+
+from backend.services.agent_tools import CreateFileTool
+
+def test_create_file_tool_success(tmp_path):
+    """Test that CreateFileTool successfully creates a file inside the sandbox."""
+    tool = CreateFileTool()
+    
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    sandbox_dir = os.path.abspath(os.path.join(project_root, "docs", "sandbox"))
+    os.makedirs(sandbox_dir, exist_ok=True)
+    
+    test_file = os.path.join(sandbox_dir, "test_new_create.py")
+    if os.path.exists(test_file):
+        os.remove(test_file)
+        
+    try:
+        result = tool.execute({
+            "path": test_file,
+            "content": "print('hello world')"
+        })
+        
+        assert "[Success]" in result
+        with open(test_file, "r", encoding="utf-8") as f:
+            content = f.read()
+        assert content == "print('hello world')"
+    finally:
+        if os.path.exists(test_file):
+            os.remove(test_file)
+
+def test_create_file_tool_blocks_outside_sandbox():
+    """Test that CreateFileTool blocks file creation outside the sandbox."""
+    tool = CreateFileTool()
+    
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+    hacked_file = os.path.join(project_root, "backend", "test_hacked_create.py")
+    
+    result = tool.execute({
+        "path": hacked_file,
+        "content": "hacked"
+    })
+    
+    assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
