@@ -22,6 +22,7 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 class Message(BaseModel):
     role: str
     content: str = ""
+    timestamp: str = None
 
 class ChatRequest(BaseModel):
     messages: List[Message]
@@ -102,6 +103,9 @@ def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str)
         if rag_context:
             system_prompt += f"【附加背景知识库检索结果（作为世界观或长程记忆参考）】\n{rag_context}\n\n"
         system_prompt += "（请结合以上近期日记和背景知识进行回答，保证时间线和记忆的连贯性）"
+
+    from datetime import datetime
+    system_prompt += f"\n\n<current_time>\n当前用户系统真实时间是：{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n</current_time>"
 
     return system_prompt, kb_count, mem_count
 

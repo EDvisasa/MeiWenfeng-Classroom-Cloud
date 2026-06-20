@@ -12,6 +12,7 @@ router = APIRouter(prefix="/api/chat", tags=["memory", "sessions"])
 class Message(BaseModel):
     role: str
     content: str = ""
+    timestamp: str = None
 
 class SessionSavePayload(BaseModel):
     id: str
@@ -68,7 +69,7 @@ def get_sessions():
         
         for sess in sessions:
             cursor.execute(
-                "SELECT role, content FROM chat_messages WHERE session_id = ? ORDER BY id ASC", 
+                "SELECT role, content, timestamp FROM chat_messages WHERE session_id = ? ORDER BY id ASC", 
                 (sess["id"],)
             )
             sess["messages"] = [dict(row) for row in cursor.fetchall()]
@@ -97,10 +98,16 @@ def save_session(payload: SessionSavePayload):
         
         # 3. 批量插入新消息
         for msg in payload.messages:
-            cursor.execute(
-                "INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)",
-                (payload.id, msg.role, msg.content)
-            )
+            if msg.timestamp:
+                cursor.execute(
+                    "INSERT INTO chat_messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
+                    (payload.id, msg.role, msg.content, msg.timestamp)
+                )
+            else:
+                cursor.execute(
+                    "INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)",
+                    (payload.id, msg.role, msg.content)
+                )
             
         conn.commit()
         conn.close()

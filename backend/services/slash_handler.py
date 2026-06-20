@@ -160,7 +160,9 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
         if not last_user_msg or not clean_text:
             return
         try:
-            memory_content = f"【对话记录】\n用户：{last_user_msg}\n媚吻锋：{clean_text}"
+            from datetime import datetime
+            time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            memory_content = f"【对话记录 ({time_str})】\n用户：{last_user_msg}\n媚吻锋：{clean_text}"
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(

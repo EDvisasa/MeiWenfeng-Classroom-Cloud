@@ -293,7 +293,8 @@ CRITICAL RULES:
 5. ERROR RECOVERY: If the system execution result contains an error, analyze it in your next <thought> block and try a different command. Do NOT bother the user with technical errors.
 6. USE SPECIFIC TOOLS: You MUST use `read_file` to read files. NEVER use `cat` or `type` via `execute_bash`.
 7. ENFORCE SEARCH TOOL: To search for a specific string or keywords across files in a directory, you MUST use the `grep_search` tool. You are ABSOLUTELY FORBIDDEN from using `execute_bash` (like findstr, grep, or custom python scripts) to search files.
-8. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
+8. TIME PERCEPTION: You already have the exact, up-to-date real-world time in the `<current_time>` block of your system prompt. Do NOT use `execute_bash` or any code to check the current time or date. Rely entirely on the injected time.
+9. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
 
 TOOL EXECUTION FORMAT:
 <thought>

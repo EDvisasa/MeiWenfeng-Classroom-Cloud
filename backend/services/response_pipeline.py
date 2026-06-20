@@ -252,7 +252,9 @@ class ResponsePipeline:
             return
 
         try:
-            memory_content = f"【对话记录】\n用户：{self.original_user_msg}\n媚吻锋：{clean_text}"
+            from datetime import datetime
+            time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            memory_content = f"【对话记录 ({time_str})】\n用户：{self.original_user_msg}\n媚吻锋：{clean_text}"
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(

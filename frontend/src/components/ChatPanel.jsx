@@ -450,6 +450,7 @@ export default function ChatPanel({
                 {isUser ? (
                   <>
                     <div className="sender-group">
+                      {msg.timestamp && <span className="message-timestamp">{typeof msg.timestamp === 'string' && msg.timestamp.length > 16 ? msg.timestamp.substring(0, 16).replace('T', ' ') : msg.timestamp}</span>}
                       <span className="sender-name">你</span>
                     </div>
                     <div
@@ -487,7 +488,10 @@ export default function ChatPanel({
                         </svg>
                       )}
                     </div>
-                    <span className="sender-name">媚吻锋</span>
+                    <div className="sender-group">
+                      <span className="sender-name">媚吻锋</span>
+                      {msg.timestamp && <span className="message-timestamp">{typeof msg.timestamp === 'string' && msg.timestamp.length > 16 ? msg.timestamp.substring(0, 16).replace('T', ' ') : msg.timestamp}</span>}
+                    </div>
                   </>
                 )}
               </div>
