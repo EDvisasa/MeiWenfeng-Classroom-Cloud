@@ -100,6 +100,24 @@ CRITICAL RULES FOR THE QUIZ (Quiz 刁钻):
 }}
 </quiz>
 </system_directive>"""
+    elif clean_cmd == "/lesson_continue":
+        system_injection = f"""<system_directive>
+Event: The user just submitted an answer to your previous quiz.
+User's Ultimate Mission: {user_mission}
+Current Topic: {topic_name}
+{file_context}
+
+Action Required: 
+1. Evaluate their answer based on the `<submit_quiz_result>` tag.
+2. Provide a detailed explanation, correcting any misconceptions.
+3. Keep the mentor persona. Be encouraging or playfully strict depending on whether they got it right.
+4. Continue the lesson on the Current Topic.
+
+Output Format:
+1. If you need to explain a complex concept deeply, you MUST embed an explainer using this exact XML format: `<explainer title="Filename.md"># Markdown Content...</explainer>`.
+2. If you introduce a new term, embed it using: `<glossary term="TermName">Concise Definition</glossary>`.
+3. If you want to throw another pop quiz to check their understanding of the *new* explanation, use the `<quiz type="multiple_choice">` tag again.
+</system_directive>"""
     elif clean_cmd == "/submit":
         system_injection = f"""<system_directive mode="socratic_strict_mentor">
 Event: The user triggered the `/submit` command, indicating they are ready for assessment.

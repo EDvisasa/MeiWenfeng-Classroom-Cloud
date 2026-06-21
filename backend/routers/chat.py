@@ -156,9 +156,13 @@ def send_message(payload: ChatRequest):
         from backend.services.slash_handler import handle_mission_interrogation
         return handle_mission_interrogation(last_user_msg, cleaned_messages, payload.persona_type, dict(draft))
 
-    # 3. 拦截斜杠指令
+    # 3. 拦截斜杠指令或特殊的测验提交
     if clean_msg.startswith('/') or clean_msg in ("/update_persona",):
         return handle_slash_command(clean_msg, payload, last_user_msg, cleaned_messages)
+        
+    if "<submit_quiz_result" in clean_msg:
+        # 拦截测验提交，将其映射为一个隐式的 slash command，以确保系统提示词注入
+        return handle_slash_command("/lesson_continue", payload, last_user_msg, cleaned_messages)
 
     # 处理 @current_file
     if "@current_file" in last_user_msg and payload.current_file_path:
