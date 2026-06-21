@@ -7,7 +7,7 @@ import MissionProposalCard from './MissionProposalCard';
 import QuizBlock from './QuizBlock';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { vscDarkPlus, prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
   const [timeLeft, setTimeLeft] = React.useState(60);
@@ -255,6 +255,7 @@ const RetryBlock = ({ block, idx }) => {
 };
 
 export default function ChatPanel({
+  theme,
   messages,
   models,
   activeModel,
@@ -414,9 +415,10 @@ export default function ChatPanel({
     // 覆盖代码块渲染，支持语法高亮
     code({node, inline, className, children, ...props}) {
       const match = /language-(\w+)/.exec(className || '');
+      const syntaxStyle = theme === 'light' ? prism : vscDarkPlus;
       return !inline && match ? (
         <SyntaxHighlighter
-          style={vscDarkPlus}
+          style={syntaxStyle}
           language={match[1]}
           PreTag="div"
           customStyle={{ borderRadius: '6px', margin: '1em 0' }}
