@@ -93,9 +93,10 @@ cd MeiWenfeng-Classroom
 ### 🤖 Agentic 工具流与管道架构 (New!)
 彻底告别将网络请求、工具执行和副作用拦截揉捏在一起的“上帝函数”。系统现已升级为智能体系统架构：
 - **底座协议层 (`LLMClientProtocol`)**：纯粹的物理层流式通信。
-- **应用执行层 (`AgentExecutor`)**：包裹底层协议，负责状态机驱动的多轮思考 (`<thought>`) 与本地工具 (`execute_bash`, `read_file`, `grep_search`) 调用循环。内建严密的 AST 级防注入护栏，有效拦截恶意 Shell 命令和路径穿越攻击。
+- **应用执行层 (`AgentExecutor`)**：包裹底层协议，负责状态机驱动的多轮思考 (`<thought>`) 与本地工具 (`execute_bash`, `read_file`, `grep_search`, `replace_file_content`) 调用循环。
+- **动态并发与防注入拦截 (HITL)**：内建严密的 AST 级防注入护栏，有效物理拦截恶意 Shell 命令和路径穿越攻击（结合持续的自动化回归防御）。针对高危动作（如写入磁盘），通过前端原生交互机制 `BashApprovalCard` 实施 Human-in-the-loop (HITL) 拦截，同时在路由层强化 Pydantic Payload Validation，防止一切形式的前端异常导致聊天流瘫痪。
 - **响应拦截层 (`ResponsePipeline`)**：字符级状态机实时拦截 XML 副作用标签（如 `<glossary>`, `[SYSTEM_PASS]`），同时保障向前端输送绝对纯净的 SSE 文本流，避免打字机卡顿或标签泄漏。
-- **大文件 OOM 防护**：通过 `@文件` 语法读取本地文件时，自动截断超大文件（限制 20000 字符），并智能引导大模型使用 `grep_search` 或 `read_file` 工具探索剩余内容，彻底杜绝上下文溢出崩溃。
+- **大文件 OOM 防护**：通过 `@文件` 语法读取本地文件时，自动截断超大文件（限制 20000 字符），并智能引导大模型使用专项搜索工具深入探索。
 
 ### 🖥️ 沉浸式双栏布局与智能 UI
 - **动态 Token 环形指示器**：实时计算底层隐藏上下文（系统设定/RAG/记忆）与当前对话的 Token 消耗总和，接近模型上限时自动变色预警。
