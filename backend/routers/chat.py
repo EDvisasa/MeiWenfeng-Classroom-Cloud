@@ -3,7 +3,7 @@ import json
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional
 
 from backend.database import get_db_connection
 from backend.services.character_state import CharacterStateManager, CharacterStateError
@@ -21,15 +21,15 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 class Message(BaseModel):
     role: str
-    content: str = ""
-    timestamp: str = None
+    content: Optional[str] = ""
+    timestamp: Optional[str] = None
 
 class ChatRequest(BaseModel):
     messages: List[Message]
-    persona_type: str = "simplified"
-    current_file_path: str = ""
-    cursor_line: int = 0
-    custom_max_tokens: int = 8192
+    persona_type: Optional[str] = "simplified"
+    current_file_path: Optional[str] = ""
+    cursor_line: Optional[int] = 0
+    custom_max_tokens: Optional[int] = 8192
 
 def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str):
     # 2. 从数据库加载好感度和动态属性，用于拼接 System Prompt
