@@ -7,12 +7,14 @@ import CropModal from './components/CropModal';
 import DatabaseViewer from './components/DatabaseViewer';
 
 const COMMANDS = [
+  { cmd: '/set_mission', desc: '设定或更改宏大学习目标（触发严苛审问）' },
+  { cmd: '/cancel_mission', desc: '退出当前的目标设定状态' },
   { cmd: '/lesson', desc: '开始新的课时，进入授课模式' },
   { cmd: '/submit', desc: '进行课题考核，AI会对你进行提问' },
   { cmd: '/reward', desc: '获取好感奖励，触发狐妖娘溺爱互动' },
   { cmd: '/summarize', desc: '压缩并保存当前记忆，释放上下文' },
   { cmd: '/prepare', desc: '将当前选定的讲义文件上传同步至RAGFlow知识库' },
-  { cmd: '/plan', desc: '根据当前进度，重新调整课程大纲' }
+  { cmd: '/update_persona', desc: '根据最新记忆迭代并精简系统人设' }
 ];
 
 const _getNowStr = () => {
@@ -987,14 +989,18 @@ export default function App() {
   };
 
   // 发送对话消息
-  const sendMessage = async () => {
-    if (!inputText.trim() || isStreaming) return;
+  const sendMessage = async (customMessage) => {
+    const isCustom = typeof customMessage === 'string';
+    const textToSend = isCustom ? customMessage : inputText.trim();
+    
+    if (!textToSend || isStreaming) return;
 
-    const userText = inputText.trim();
-    setInputText('');
-    setShowCommandList(false);
+    if (!isCustom) {
+      setInputText('');
+      setShowCommandList(false);
+    }
 
-    const nextMessages = [...messages, { role: 'user', content: userText, timestamp: _getNowStr() }];
+    const nextMessages = [...messages, { role: 'user', content: textToSend, timestamp: _getNowStr() }];
     setMessages(nextMessages);
     await triggerAIResponse(nextMessages);
   };

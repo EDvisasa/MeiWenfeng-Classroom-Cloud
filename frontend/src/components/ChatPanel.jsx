@@ -3,6 +3,7 @@ import { encode } from 'gpt-tokenizer';
 import { API_BASE } from '../config';
 import { parseAndMergeBlocks } from '../utils/blockParser';
 import { AlertTriangle, Check, X } from 'lucide-react';
+import MissionProposalCard from './MissionProposalCard';
 
 const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
   const [timeLeft, setTimeLeft] = React.useState(60);
@@ -287,6 +288,22 @@ export default function ChatPanel({
   const [showShortcuts, setShowShortcuts] = React.useState(false);
   const [editingIndex, setEditingIndex] = React.useState(null);
   const [editContent, setEditContent] = React.useState('');
+
+  const pendingMission = React.useMemo(() => {
+    if (!messages || messages.length === 0) return null;
+    const lastMsg = messages[messages.length - 1];
+    if (lastMsg.role !== 'assistant') return null;
+    
+    let blocks = [];
+    if (Array.isArray(lastMsg.blocks)) {
+        blocks = parseAndMergeBlocks(lastMsg.blocks);
+    } else if (lastMsg.content) {
+        blocks = parseAndMergeBlocks(lastMsg.content);
+    }
+    
+    const missionBlock = blocks.find(b => b.type === 'mission_proposal');
+    return missionBlock ? missionBlock.data : null;
+  }, [messages]);
 
   const handleApprovalSubmit = async (action) => {
     if (!pendingApproval) return;
@@ -744,6 +761,19 @@ export default function ChatPanel({
             pendingApproval={pendingApproval}
             onApprove={() => handleApprovalSubmit('approve')}
             onReject={() => handleApprovalSubmit('reject')}
+          />
+
+          <MissionProposalCard
+            proposalData={pendingMission}
+            onConfirm={(data) => {
+              const escapeQuotes = (str) => (str || '').replace(/"/g, '&quot;');
+              const msg = `好的老婆，我确认学习目标！<finalize_mission goal="${escapeQuotes(data.goal)}" time="${escapeQuotes(data.time)}" constraints="${escapeQuotes(data.constraints)}" skill="${escapeQuotes(data.skill)}" />`;
+              if (sendMessage) sendMessage(msg);
+            }}
+            onReject={(feedback, data) => {
+              const msg = `对这个目标草案不太满意：${feedback}`;
+              if (sendMessage) sendMessage(msg);
+            }}
           />
 
           {/* 显示当前跟踪的激活文件 (给用户的视觉反馈) */}

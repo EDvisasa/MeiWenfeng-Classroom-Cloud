@@ -45,7 +45,11 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
 
     # === 5. /set_mission ===
     if clean_cmd.startswith("/set_mission"):
-        return _handle_set_mission(clean_cmd)
+        return _handle_set_mission(clean_cmd, payload, last_user_msg, cleaned_messages)
+
+    # === 6. /cancel_mission ===
+    if clean_cmd == "/cancel_mission":
+        return _handle_cancel_mission()
 
     # 从数据库获取用户的宏大目标 (Mission)
     user_mission = "未知目标"
@@ -79,7 +83,22 @@ Current Topic: {topic_name}
 {file_context}
 
 Action Required: Immediately enter your mentor persona. Proactively start today's lesson focused on the Current Topic.
-Output Format: If the concept is complex, you MUST secretly embed an explainer in your response using this exact XML format: `<explainer title="Filename.md"># Markdown Content...</explainer>`. This will automatically generate a physical jade slip (document) for the user.
+Output Format: 
+1. The theory explanation part MUST be extremely easy to understand (Reference 极简). Use living analogies, short paragraphs, and simple language.
+2. If the concept is complex, you MUST embed an explainer in your response using this exact XML format: `<explainer title="Filename.md"># Markdown Content...</explainer>`.
+3. ALWAYS conclude your lesson segment with a single interactive question to check the user's understanding, using the exact XML format below.
+CRITICAL RULES FOR THE QUIZ (Quiz 刁钻):
+- The quiz MUST be tricky and test deep understanding, not just surface facts.
+- ALL options MUST be exactly the same length in words/characters. You must artificially pad or truncate them so they look identical in length. Do NOT let the longest option be the correct answer!
+- Do not give away the correct answer through formatting.
+<quiz type="multiple_choice">
+{{
+  "question": "Your tricky question here?",
+  "options": ["Option A (same length)", "Option B (same length)", "Option C (same length)"],
+  "correct_index": 1,
+  "explanation": "Explanation for the correct answer."
+}}
+</quiz>
 </system_directive>"""
     elif clean_cmd == "/submit":
         system_injection = f"""<system_directive mode="socratic_strict_mentor">
@@ -98,6 +117,7 @@ User's Ultimate Mission: {user_mission}
    - First, praise them and explicitly ask: "干得漂亮！你准备好迎接下一阶挑战了吗？" (Or something similar in your persona's tone).
    - ONLY AFTER the user explicitly replies "yes/ready" in their next message, you MUST use the `<call_tool name="replace_file_content">` tool (to modify existing files) or `<call_tool name="create_file">` tool (to create new files) to surgically evolve their current sandbox code (typically in `docs/sandbox/`) to introduce a new bug or increase the difficulty (Desirable Difficulty / Interleaving).
    - Provide a brief "学情洞察" (Learning Insight) summarizing their newly acquired ZPD edge so the background memory script can log it.
+6. INTERACTIVE QUIZ: You may occasionally use the `<quiz type="multiple_choice">` tag to throw a pop quiz at the user. The frontend will render it as a UI component. The JSON inside must have "question", "options" (array), "correct_index" (int), and "explanation".
 </critical_rules>
 </system_directive>"""
     elif clean_cmd == "/plan":
@@ -364,25 +384,120 @@ def _handle_update_persona() -> StreamingResponse:
         yield f"data: {json_escape(character_acknowledgement)}\n\n"
     return StreamingResponse(generator(), media_type="text/event-stream")
 
-def _handle_set_mission(clean_cmd: str) -> StreamingResponse:
-    mission_text = clean_cmd.replace("/set_mission", "").strip()
+def _handle_cancel_mission() -> StreamingResponse:
     def raw_generator():
-        if not mission_text:
-            yield "[系统提示] 目标内容不能为空，格式为：/设定目标 我的目标是打败魔尊"
-            return
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT id FROM user_mission WHERE id = 1")
-            if not cursor.fetchone():
-                cursor.execute("INSERT INTO user_mission (id, mission_text) VALUES (1, ?)", (mission_text,))
-            else:
-                cursor.execute("UPDATE user_mission SET mission_text = ?, last_updated = datetime('now') WHERE id = 1", (mission_text,))
+            cursor.execute("UPDATE mission_draft SET is_active = 0 WHERE is_active = 1")
             conn.commit()
             conn.close()
-            yield f"[系统提示] 宏大目标已铭记于心：【{mission_text}】。接下来的所有授课和考核都将以此为最高导向！"
+            yield "[系统提示] 任务设定已取消。您可以自由提问或重新使用 /set_mission。"
         except Exception as e:
-            yield f"[系统报错] 目标设定失败: {e}"
+            yield f"[系统报错] 取消失败: {e}"
             
     pipeline = ResponsePipeline()
     return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
+
+def _handle_set_mission(clean_cmd: str, payload: Any, last_user_msg: str, cleaned_messages: List[Dict[str, str]]) -> StreamingResponse:
+    mission_text = clean_cmd.replace("/set_mission", "").strip()
+    
+    # 1. Start the draft in DB
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT id FROM mission_draft WHERE id = 1")
+        if not cursor.fetchone():
+            cursor.execute("INSERT INTO mission_draft (id, goal, is_active) VALUES (1, ?, 1)", (mission_text,))
+        else:
+            cursor.execute("UPDATE mission_draft SET goal = ?, daily_time_budget = NULL, hard_constraints = NULL, current_skill_level = NULL, is_active = 1, last_updated = datetime('now') WHERE id = 1", (mission_text,))
+        conn.commit()
+        
+        cursor.execute("SELECT * FROM mission_draft WHERE id = 1")
+        draft = dict(cursor.fetchone())
+        conn.close()
+    except Exception as e:
+        def raw_generator():
+            yield f"[系统报错] 目标设定初始化失败: {e}"
+        return StreamingResponse(ResponsePipeline().process_stream(raw_generator()), media_type="text/event-stream")
+
+    return handle_mission_interrogation(last_user_msg, cleaned_messages, getattr(payload, 'persona_type', 'simplified'), draft)
+
+
+def handle_mission_interrogation(last_user_msg: str, cleaned_messages: List[Dict[str, str]], persona_type: str, draft: dict) -> StreamingResponse:
+    """
+    The Interrogation Loop (Hard Block). 
+    We inject a strict system prompt to force the LLM to extract the missing slots or give a micro-quiz.
+    """
+    # 提取已有的槽位状态
+    goal = draft.get('goal') or "未提供"
+    time_budget = draft.get('daily_time_budget') or "未提供"
+    constraints = draft.get('hard_constraints') or "未提供"
+    skill = draft.get('current_skill_level') or "未提供"
+
+    system_injection = f"""<system_directive mode="interrogation">
+Event: The user is currently in the /set_mission Hard Block mode. You are interrogating them to establish strict learning constraints.
+Current Draft Status:
+- Goal (目标): {goal}
+- Daily Time Budget (每日时间预算): {time_budget}
+- Hard Constraints (硬性约束, e.g. no videos, zero budget): {constraints}
+- Current Skill Level (当前水平自评): {skill}
+
+<critical_rules>
+1. YOUR SOLE PURPOSE is to fill the missing slots above. Reject any unrelated small talk or questions.
+2. Ask questions naturally in your persona. Do not just output a form. Ask 1 or 2 missing things at a time.
+3. If the user claims a certain "Current Skill Level", you MUST instantly throw a Micro-Quiz to verify it. Do NOT trust self-assessments.
+4. If ALL slots are sufficiently filled and verified by you, you MUST output this exact XML tag to propose the mission contract to the user. This will render an interactive UI for them:
+   <mission_proposal goal="their refined goal" time="time budget" constraints="constraints" skill="verified skill level" />
+5. If the user replies with `<finalize_mission ... />` (meaning they signed the contract UI), you MUST echo exactly the SAME `<finalize_mission goal="..." time="..." constraints="..." skill="..." />` tag in your response to trigger the backend system hook, along with a congratulatory wrap-up.
+</critical_rules>
+</system_directive>"""
+
+    # 当 LLM 输出 <finalize_mission ...> 时，拦截器会抓取并在后端执行实际保存
+    class FinalizeMissionHandler:
+        def handle(self, attrs: dict, content: str):
+            final_goal = attrs.get('goal', goal)
+            final_time = attrs.get('time', time_budget)
+            final_constraints = attrs.get('constraints', constraints)
+            final_skill = attrs.get('skill', skill)
+            
+            mission_markdown = f"# Mission Objective\n**Goal**: {final_goal}\n**Time Budget**: {final_time}\n**Constraints**: {final_constraints}\n**Verified Skill Level**: {final_skill}\n"
+            
+            try:
+                conn = get_db_connection()
+                cursor = conn.cursor()
+                # 1. 保存到 user_mission
+                cursor.execute("SELECT id FROM user_mission WHERE id = 1")
+                if not cursor.fetchone():
+                    cursor.execute("INSERT INTO user_mission (id, mission_text) VALUES (1, ?)", (mission_markdown,))
+                else:
+                    # 记录 Mission Drift 到 LDR
+                    cursor.execute("SELECT mission_text FROM user_mission WHERE id = 1")
+                    old_mission = cursor.fetchone()[0]
+                    cursor.execute(
+                        "INSERT INTO learning_decision_records (topic, evidence, implications) VALUES (?, ?, ?)",
+                        ("Mission Drift", f"Old Mission: {old_mission}", f"New Mission: {mission_markdown}")
+                    )
+                    cursor.execute("UPDATE user_mission SET mission_text = ?, last_updated = datetime('now') WHERE id = 1", (mission_markdown,))
+                
+                # 2. 解除阻塞
+                cursor.execute("UPDATE mission_draft SET is_active = 0, goal=?, daily_time_budget=?, hard_constraints=?, current_skill_level=? WHERE id = 1",
+                               (final_goal, final_time, final_constraints, final_skill))
+                conn.commit()
+                conn.close()
+                
+                # 3. 物理文件镜像
+                import os
+                base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+                mission_file = os.path.join(base_root, "MISSION.md")
+                with open(mission_file, "w", encoding="utf-8") as f:
+                    f.write(mission_markdown)
+                    
+                logger.info(f"任务设立完成并已写入 MISSION.md。强力阻塞已解除。")
+            except Exception as e:
+                logger.error(f"写入 Mission 失败: {e}")
+
+    # 注册拦截动作
+    action_registry.register("finalize_mission", FinalizeMissionHandler())
+
+    return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection)
