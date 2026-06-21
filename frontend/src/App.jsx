@@ -1403,6 +1403,7 @@ export default function App() {
           {/* 左侧面板：原本是文件树，现已被抛弃，将直接潜入 VS Code 原生生态 */}
           {/* 中间面板：核心对话区 */}
           <ChatPanel
+            theme={theme}
             isVsCode={isVsCode}
             messages={messages}
             models={models}
