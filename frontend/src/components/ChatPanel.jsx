@@ -14,7 +14,7 @@ const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
 
   React.useEffect(() => {
     if (!pendingApproval) return;
-    
+
     setTimeLeft(60);
     const timer = setInterval(() => {
       setTimeLeft(prev => {
@@ -59,7 +59,7 @@ const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
           {timeLeft}s
         </div>
       </div>
-      
+
       <div style={{
         background: 'var(--bg-secondary, #f8fafc)',
         padding: '10px 12px',
@@ -129,9 +129,9 @@ const ToolBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
   const friendlyName = block.tool_name === 'execute_bash' ? 'Bash'
     : block.tool_name === 'read_file' ? 'Read'
-    : block.tool_name === 'grep_search' ? 'Grep'
-    : block.tool_name === 'default_api:run_command' ? 'Bash'
-      : block.tool_name;
+      : block.tool_name === 'grep_search' ? 'Grep'
+        : block.tool_name === 'default_api:run_command' ? 'Bash'
+          : block.tool_name;
 
   const [isExpanded, setIsExpanded] = React.useState(false);
   const THRESHOLD = 30;
@@ -212,6 +212,52 @@ const ThinkingBlock = ({ block, idx }) => {
   );
 };
 
+const ExplainerBlock = ({ block, idx, markdownComponents }) => {
+  const [isExpanded, setIsExpanded] = React.useState(true);
+  // Strip emojis from title for a cleaner elegant look
+  const cleanTitle = (block.title || '').replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}]/gu, '').trim();
+
+  return (
+    <div key={`exp_${idx}`} style={{ margin: '28px 0', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+      <div
+        onClick={() => setIsExpanded(!isExpanded)}
+        style={{ background: 'var(--bg-secondary)', padding: '10px 14px', fontSize: '14px', fontWeight: 'bold', borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-primary)', cursor: 'pointer', transition: 'background 0.2s ease' }}
+        onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+        onMouseOut={(e) => e.currentTarget.style.background = 'var(--bg-secondary)'}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+          <span style={{ letterSpacing: '0.5px' }}>{cleanTitle}</span>
+        </div>
+        <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
+          {isExpanded ? (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z" /></svg>
+          ) : (
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M1.3 5.7a1 1 0 011.4-1.4L8 9.58l5.3-5.3a1 1 0 011.4 1.4l-6 6a1 1 0 01-1.4 0l-6-6z" /></svg>
+          )}
+        </div>
+      </div>
+      {isExpanded && (
+        <div style={{ padding: '16px', background: 'var(--bg-panel)', fontSize: '14px', lineHeight: '1.7', color: 'var(--text-primary)' }}>
+          <div className="text-block explainer-content-wrapper"><ReactMarkdown components={markdownComponents}>{block.text}</ReactMarkdown></div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+const GlossaryBlock = ({ block, idx }) => {
+  return (
+    <div key={`glos_${idx}`} style={{ margin: '12px 0', padding: '12px 16px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.25)', borderRadius: '8px', fontSize: '13.5px', display: 'flex', alignItems: 'flex-start', gap: '10px', boxShadow: '0 1px 4px rgba(16, 185, 129, 0.05)' }}>
+      <span style={{ marginTop: '2px' }}><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></span>
+      <div>
+        <span style={{ fontWeight: 'bold', color: '#0d9488', marginRight: '8px', letterSpacing: '0.3px' }}>{block.term}</span>
+        <span style={{ color: 'var(--text-primary)', lineHeight: '1.6' }}>{block.text}</span>
+      </div>
+    </div>
+  );
+};
+
 const RetryBlock = ({ block, idx }) => {
   const isRunning = block.status === 'running';
   const [isExpanded, setIsExpanded] = React.useState(isRunning);
@@ -226,7 +272,7 @@ const RetryBlock = ({ block, idx }) => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--text-secondary)' }}>
           <div className={`claude-tool-status-dot ${isRunning ? 'running' : block.status}`} style={{ backgroundColor: block.status === 'failed' ? 'var(--text-error, #f87171)' : undefined }}></div>
           <span className="claude-tool-name">
-             {isRunning ? 'Reconnecting...' : (block.status === 'failed' ? 'Connection failed' : 'Connected')}
+            {isRunning ? 'Reconnecting...' : (block.status === 'failed' ? 'Connection failed' : 'Connected')}
           </span>
         </div>
         <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
@@ -239,15 +285,15 @@ const RetryBlock = ({ block, idx }) => {
       </div>
       {isExpanded && block.error_msg && (
         <div className="claude-tool-io">
-           <div className="claude-tool-io-row" style={{ borderBottom: 'none', flexDirection: 'row', alignItems: 'flex-start' }}>
-             <span className="claude-tool-io-label" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>LOG</span>
-             <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, wordBreak: 'break-word' }}>
-               <span className="claude-tool-io-content" style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{block.error_msg}</span>
-               {isRunning && block.retry_info && (
-                 <span className="claude-tool-io-content" style={{ color: 'var(--text-secondary)' }}>{block.retry_info}</span>
-               )}
-             </div>
-           </div>
+          <div className="claude-tool-io-row" style={{ borderBottom: 'none', flexDirection: 'row', alignItems: 'flex-start' }}>
+            <span className="claude-tool-io-label" style={{ color: 'var(--text-secondary)', borderColor: 'var(--border-color)' }}>LOG</span>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px', flex: 1, wordBreak: 'break-word' }}>
+              <span className="claude-tool-io-content" style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{block.error_msg}</span>
+              {isRunning && block.retry_info && (
+                <span className="claude-tool-io-content" style={{ color: 'var(--text-secondary)' }}>{block.retry_info}</span>
+              )}
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -298,21 +344,21 @@ export default function ChatPanel({
     if (!messages || messages.length === 0) return null;
     const lastMsg = messages[messages.length - 1];
     if (lastMsg.role !== 'assistant') return null;
-    
+
     let blocks = [];
     if (Array.isArray(lastMsg.blocks)) {
-        blocks = parseAndMergeBlocks(lastMsg.blocks);
+      blocks = parseAndMergeBlocks(lastMsg.blocks);
     } else if (lastMsg.content) {
-        blocks = parseAndMergeBlocks(lastMsg.content);
+      blocks = parseAndMergeBlocks(lastMsg.content);
     }
-    
+
     const missionBlock = blocks.find(b => b.type === 'mission_proposal');
     return missionBlock ? missionBlock.data : null;
   }, [messages]);
 
   const handleApprovalSubmit = async (action) => {
     if (!pendingApproval) return;
-    
+
     try {
       const res = await fetch(`${API_BASE}/api/chat/approve_tool`, {
         method: 'POST',
@@ -360,7 +406,7 @@ export default function ChatPanel({
         console.error('Failed to fetch system tokens:', e);
       }
     };
-    
+
     // 我们在会话改变或新消息发出后，以及切换具有不同最大 Token 数的模型时，静默刷新底层 Token 占用
     fetchSystemTokens();
   }, [messages.length, activeSessionId, selectedFilePath, activeModel, maxTokens]);
@@ -369,15 +415,15 @@ export default function ChatPanel({
   React.useEffect(() => {
     try {
       let count = encode(inputText).length;
-      
+
       // 简单近似计算：累加当前会话内的文本长度
       const recentMsgs = messages.slice(-20);
       for (const msg of recentMsgs) {
         if (typeof msg.content === 'string') {
           count += encode(msg.content).length;
         } else if (Array.isArray(msg.blocks)) {
-           const txt = msg.blocks.filter(b => b.type === 'text').map(b => b.text).join('\n');
-           count += encode(txt).length;
+          const txt = msg.blocks.filter(b => b.type === 'text').map(b => b.text).join('\n');
+          count += encode(txt).length;
         }
       }
       setDynamicTokens(count);
@@ -411,9 +457,9 @@ export default function ChatPanel({
   // 自定义 Markdown 渲染组件
   const MarkdownComponents = {
     // 覆盖斜体渲染，保持粉色动作文本效果
-    em: ({node, ...props}) => <span className="action-text" {...props} />,
+    em: ({ node, ...props }) => <span className="action-text" {...props} />,
     // 覆盖代码块渲染，支持语法高亮
-    code({node, inline, className, children, ...props}) {
+    code({ node, inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || '');
       const syntaxStyle = theme === 'light' ? prism : vscDarkPlus;
       return !inline && match ? (
@@ -445,8 +491,8 @@ export default function ChatPanel({
       } else if (block.type === 'text') {
         return <div key={`text_${idx}`} className="text-block"><ReactMarkdown components={MarkdownComponents}>{block.text}</ReactMarkdown></div>;
       } else if (block.type === 'quiz') {
-        return <QuizBlock 
-          key={`quiz_${idx}`} 
+        return <QuizBlock
+          key={`quiz_${idx}`}
           data={block.data}
           onQuizSubmit={(result) => {
             if (sendMessage) {
@@ -457,27 +503,9 @@ export default function ChatPanel({
           }}
         />;
       } else if (block.type === 'explainer') {
-        return (
-          <div key={`exp_${idx}`} style={{ margin: '16px 0', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
-            <div style={{ background: 'var(--bg-secondary)', padding: '8px 12px', fontSize: '13px', fontWeight: 'bold', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-primary)' }}>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-              {block.title}
-            </div>
-            <div style={{ padding: '12px', background: 'var(--bg-panel)', fontSize: '13px', lineHeight: '1.6', color: 'var(--text-primary)' }}>
-              <div className="text-block"><ReactMarkdown components={MarkdownComponents}>{block.text}</ReactMarkdown></div>
-            </div>
-          </div>
-        );
+        return <ExplainerBlock key={`exp_${idx}`} block={block} idx={idx} markdownComponents={MarkdownComponents} />;
       } else if (block.type === 'glossary') {
-        return (
-          <div key={`glos_${idx}`} style={{ margin: '12px 0', padding: '10px 14px', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '6px', fontSize: '13px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
-            <span style={{ marginTop: '2px' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></span>
-            <div>
-              <span style={{ fontWeight: 'bold', color: '#10b981', marginRight: '6px' }}>{block.term}</span>
-              <span style={{ color: 'var(--text-primary)', lineHeight: '1.5' }}>{block.text}</span>
-            </div>
-          </div>
-        );
+        return <GlossaryBlock key={`glos_${idx}`} block={block} idx={idx} />;
       }
       return null;
     });
@@ -557,7 +585,7 @@ export default function ChatPanel({
             if (msg.type === 'decay_prompt') {
               const state = decayStates[index] || 'prompt'; // 'prompt', 'loading', 'done', 'hidden'
               if (state === 'hidden') return null;
-              
+
               return (
                 <div key={index} className="system-info-msg" style={{ alignSelf: 'center', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--accent-pink)', borderRadius: '6px', padding: '10px 14px', fontSize: '12px', color: 'var(--text-primary)', margin: '12px 0', maxWidth: '90%', textAlign: 'center', boxShadow: '0 2px 8px rgba(244, 114, 182, 0.15)' }}>
                   {state === 'prompt' && (
@@ -565,17 +593,17 @@ export default function ChatPanel({
                       <div style={{ marginBottom: '10px', fontWeight: 'bold' }}>💡 {msg.content}</div>
                       <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
                         <button onClick={async () => {
-                          setDecayStates(prev => ({...prev, [index]: 'loading'}));
+                          setDecayStates(prev => ({ ...prev, [index]: 'loading' }));
                           try {
                             const res = await fetch(`${API_BASE}/api/chat/force_decay`, { method: 'POST' });
-                            if (res.ok) setDecayStates(prev => ({...prev, [index]: 'done'}));
-                            else setDecayStates(prev => ({...prev, [index]: 'prompt'}));
-                          } catch(e) {
-                            setDecayStates(prev => ({...prev, [index]: 'prompt'}));
+                            if (res.ok) setDecayStates(prev => ({ ...prev, [index]: 'done' }));
+                            else setDecayStates(prev => ({ ...prev, [index]: 'prompt' }));
+                          } catch (e) {
+                            setDecayStates(prev => ({ ...prev, [index]: 'prompt' }));
                           }
                         }} style={{ padding: '6px 14px', background: 'var(--accent-pink)', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>立即整理</button>
                         <button onClick={() => {
-                          setDecayStates(prev => ({...prev, [index]: 'hidden'}));
+                          setDecayStates(prev => ({ ...prev, [index]: 'hidden' }));
                         }} style={{ padding: '6px 14px', background: 'var(--bg-secondary)', color: 'var(--text-primary)', border: '1px solid var(--border-color)', borderRadius: '4px', cursor: 'pointer' }}>暂不整理</button>
                       </div>
                     </>
@@ -811,7 +839,7 @@ export default function ChatPanel({
         {/* 整体输入区容器：确保卡片浮在 Tracking 栏和输入框的上方 */}
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
           {/* 瞬态拦截审批卡片 */}
-          <BashApprovalCard 
+          <BashApprovalCard
             pendingApproval={pendingApproval}
             onApprove={() => handleApprovalSubmit('approve')}
             onReject={() => handleApprovalSubmit('reject')}
@@ -854,140 +882,140 @@ export default function ChatPanel({
 
           {/* 卡片式输入框 */}
           <div className="input-wrapper" style={{ borderTopLeftRadius: isVsCode && selectedFilePath ? '0' : '8px', borderTopRightRadius: isVsCode && selectedFilePath ? '0' : '8px' }}>
-          {/* 行1：文字输入区 */}
-          <textarea
-            ref={inputRef}
-            className="chat-input"
-            placeholder="Chat with tutor..."
-            value={inputText}
-            onChange={handleInputChange}
-            onKeyDown={handleKeyDown}
-            rows={1}
-          />
+            {/* 行1：文字输入区 */}
+            <textarea
+              ref={inputRef}
+              className="chat-input"
+              placeholder="Chat with tutor..."
+              value={inputText}
+              onChange={handleInputChange}
+              onKeyDown={handleKeyDown}
+              rows={1}
+            />
 
-          {/* 行2：工具栏 */}
-          <div className="input-toolbar">
-            {/* 左侧：快捷指令按钮 */}
-            <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
-              <button
-                className="shortcuts-trigger-btn"
-                onClick={() => setShowShortcuts(!showShortcuts)}
-                title="快捷工具"
-              >
-                <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z" />
-                </svg>
-              </button>
+            {/* 行2：工具栏 */}
+            <div className="input-toolbar">
+              {/* 左侧：快捷指令按钮 */}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
+                <button
+                  className="shortcuts-trigger-btn"
+                  onClick={() => setShowShortcuts(!showShortcuts)}
+                  title="快捷工具"
+                >
+                  <svg width="20" height="20" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z" />
+                  </svg>
+                </button>
 
-              {/* 环形 Token 指示器 */}
-              <div 
-                className="token-ring-indicator" 
-                title={`Token 用量: ${totalTokens} / ${maxTokens}\n包含隐藏上下文 (系统设定/RAG/记忆): ${baseSystemTokens}\n当前对话: ${dynamicTokens}`}
-                style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
-                  width: '24px', 
-                  height: '24px',
-                  cursor: 'help'
-                }}
-              >
-                <svg width="18" height="18" viewBox="0 0 18 18">
-                  <circle 
-                    cx="9" cy="9" r={radius} 
-                    fill="none" 
-                    stroke="var(--border-color)" 
-                    strokeWidth="2.5" 
-                  />
-                  <circle 
-                    cx="9" cy="9" r={radius} 
-                    fill="none" 
-                    stroke={tokenColor} 
-                    strokeWidth="2.5" 
-                    strokeDasharray={circumference} 
-                    strokeDashoffset={strokeDashoffset} 
-                    strokeLinecap="round"
-                    style={{ transition: 'stroke-dashoffset 0.3s ease, stroke 0.3s ease', transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
-                  />
-                </svg>
-              </div>
-
-              {showShortcuts && (
+                {/* 环形 Token 指示器 */}
                 <div
-                  className="shortcuts-popover"
+                  className="token-ring-indicator"
+                  title={`Token 用量: ${totalTokens} / ${maxTokens}\n包含隐藏上下文 (系统设定/RAG/记忆): ${baseSystemTokens}\n当前对话: ${dynamicTokens}`}
                   style={{
-                    position: 'absolute',
-                    bottom: '100%',
-                    marginBottom: '8px',
-                    left: 0,
-                    background: 'var(--bg-panel)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '8px',
-                    padding: '8px',
                     display: 'flex',
-                    flexDirection: 'column',
-                    gap: '4px',
-                    boxShadow: 'var(--shadow-lg)',
-                    zIndex: 9999,
-                    width: '140px'
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: '24px',
+                    height: '24px',
+                    cursor: 'help'
                   }}
                 >
-                  {[
-                    { cmd: '/lesson', label: '/lesson' },
-                    { cmd: '/submit', label: '/submit' },
-                    { cmd: '/reward', label: '/reward' },
-                    { cmd: '/summarize', label: '/summarize' },
-                    { cmd: '/prepare', label: '/prepare' },
-                    { cmd: '/update_persona', label: '/update_persona' },
-                  ].map(item => (
-                    <div
-                      key={item.cmd}
-                      onClick={() => {
-                        executeSlashCommand(item.cmd);
-                        setShowShortcuts(false);
-                      }}
-                      style={{
-                        padding: '6px 12px',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        borderRadius: '4px',
-                        transition: 'background 0.2s',
-                        color: 'var(--text-primary)'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-                      onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                    >
-                      {item.label}
-                    </div>
-                  ))}
+                  <svg width="18" height="18" viewBox="0 0 18 18">
+                    <circle
+                      cx="9" cy="9" r={radius}
+                      fill="none"
+                      stroke="var(--border-color)"
+                      strokeWidth="2.5"
+                    />
+                    <circle
+                      cx="9" cy="9" r={radius}
+                      fill="none"
+                      stroke={tokenColor}
+                      strokeWidth="2.5"
+                      strokeDasharray={circumference}
+                      strokeDashoffset={strokeDashoffset}
+                      strokeLinecap="round"
+                      style={{ transition: 'stroke-dashoffset 0.3s ease, stroke 0.3s ease', transform: 'rotate(-90deg)', transformOrigin: '50% 50%' }}
+                    />
+                  </svg>
                 </div>
+
+                {showShortcuts && (
+                  <div
+                    className="shortcuts-popover"
+                    style={{
+                      position: 'absolute',
+                      bottom: '100%',
+                      marginBottom: '8px',
+                      left: 0,
+                      background: 'var(--bg-panel)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '8px',
+                      padding: '8px',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                      boxShadow: 'var(--shadow-lg)',
+                      zIndex: 9999,
+                      width: '140px'
+                    }}
+                  >
+                    {[
+                      { cmd: '/lesson', label: '/lesson' },
+                      { cmd: '/submit', label: '/submit' },
+                      { cmd: '/reward', label: '/reward' },
+                      { cmd: '/summarize', label: '/summarize' },
+                      { cmd: '/prepare', label: '/prepare' },
+                      { cmd: '/update_persona', label: '/update_persona' },
+                    ].map(item => (
+                      <div
+                        key={item.cmd}
+                        onClick={() => {
+                          executeSlashCommand(item.cmd);
+                          setShowShortcuts(false);
+                        }}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          cursor: 'pointer',
+                          borderRadius: '4px',
+                          transition: 'background 0.2s',
+                          color: 'var(--text-primary)'
+                        }}
+                        onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                      >
+                        {item.label}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 右侧：发送/停止按钮 */}
+              {isStreaming ? (
+                <button
+                  className="stop-button pulse-stop"
+                  onClick={stopGeneration}
+                  title="停止生成"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                    <rect x="3" y="3" width="10" height="10" rx="2" />
+                  </svg>
+                </button>
+              ) : (
+                <button
+                  className="send-button"
+                  onClick={sendMessage}
+                  disabled={!inputText.trim()}
+                  title="发送消息"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 1l6 6h-5v8H7V7H2l6-6z" />
+                  </svg>
+                </button>
               )}
             </div>
-
-            {/* 右侧：发送/停止按钮 */}
-            {isStreaming ? (
-              <button
-                className="stop-button pulse-stop"
-                onClick={stopGeneration}
-                title="停止生成"
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                  <rect x="3" y="3" width="10" height="10" rx="2" />
-                </svg>
-              </button>
-            ) : (
-              <button
-                className="send-button"
-                onClick={sendMessage}
-                disabled={!inputText.trim()}
-                title="发送消息"
-              >
-                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
-                  <path d="M8 1l6 6h-5v8H7V7H2l6-6z" />
-                </svg>
-              </button>
-            )}
-          </div>
           </div>
         </div>
       </div>

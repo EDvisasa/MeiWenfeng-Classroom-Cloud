@@ -22,11 +22,13 @@ class TagStreamInterceptor:
         self.buffer = ""
         self.in_tag = False
         self.current_tag_name = ""
-        self.intercepted_data = {}  # 存储拦截到的标签数据
+        self.intercepted_data = {}   # 保存所有被拦截的数据，包括多次出现的标签
         self.clean_text_accumulated = "" # 积累最终的纯净文本
 
         # 动态接收需要拦截的标签列表
-        self.target_tags = target_tags or []
+        self.target_tags = set(target_tags) if target_tags else set()
+        self.target_tags.discard("explainer")
+        self.target_tags.discard("glossary")
 
     def _flush_buffer_safe(self) -> str:
         """安全地清空缓冲区并返回纯净文本"""
@@ -215,6 +217,22 @@ class ResponsePipeline:
     def _execute_side_effects(self, clean_text: str):
         """同步执行所有拦截到的标签副作用"""
         data = self.interceptor.intercepted_data
+        
+        # 对于没有被拦截器吞噬、而是流入了前台的标签，我们用正则直接从 clean_text 中提取并执行其副作用
+        import re
+        if self.registry:
+            if "explainer" in self.handlers or "explainer" in self.registry.get_all_tags():
+                for match in re.finditer(r'<explainer\s+title=[\'"]?([^\'"<>]+)[\'"]?>([\s\S]*?)(?:</explainer>|$)', clean_text, re.IGNORECASE):
+                    try:
+                        self.registry.execute("explainer", {"title": match.group(1)}, match.group(2).strip())
+                    except Exception as e:
+                        logger.error(f"Error executing action explainer: {e}")
+            if "glossary" in self.handlers or "glossary" in self.registry.get_all_tags():
+                for match in re.finditer(r'<glossary\s+term=[\'"]?([^\'"<>]+)[\'"]?>([\s\S]*?)(?:</glossary>|$)', clean_text, re.IGNORECASE):
+                    try:
+                        self.registry.execute("glossary", {"term": match.group(1)}, match.group(2).strip())
+                    except Exception as e:
+                        logger.error(f"Error executing action glossary: {e}")
 
         # 处理 [SYSTEM_PASS]
         if data.get("system_pass"):

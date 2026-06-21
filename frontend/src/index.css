@@ -863,9 +863,12 @@ body {
 }
 
 @keyframes stop-pulse {
-  0%, 100% {
+
+  0%,
+  100% {
     opacity: 1;
   }
+
   50% {
     opacity: .5;
   }
@@ -1724,7 +1727,8 @@ body {
 }
 
 .thinking-content.collapsed {
-  max-height: 42px; /* Approx 1 line + padding */
+  max-height: 42px;
+  /* Approx 1 line + padding */
 }
 
 .thinking-content:not(.collapsed) {
@@ -1766,19 +1770,29 @@ body {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background-color: #2ea043; /* Green */
+  background-color: #2ea043;
+  /* Green */
 }
 
 .claude-tool-status-dot.running {
-  background-color: #d29922; /* Yellow */
+  background-color: #d29922;
+  /* Yellow */
   box-shadow: 0 0 5px #d29922;
   animation: pulse 1.5s infinite;
 }
 
 @keyframes pulse {
-  0% { opacity: 0.6; }
-  50% { opacity: 1; }
-  100% { opacity: 0.6; }
+  0% {
+    opacity: 0.6;
+  }
+
+  50% {
+    opacity: 1;
+  }
+
+  100% {
+    opacity: 0.6;
+  }
 }
 
 .claude-tool-name {
@@ -1789,6 +1803,7 @@ body {
 }
 
 .claude-tool-io {
+  margin: 0.5rem 0;
   background-color: var(--bg-secondary);
   border: 1px solid var(--border-color);
   border-radius: 6px;
@@ -1851,6 +1866,7 @@ body {
   word-break: break-all;
   color: var(--text-primary);
 }
+
 /* ==========================================
    Startup Loading Overlay
    ========================================== */
@@ -1901,12 +1917,25 @@ body {
   animation: bounce 1.4s infinite ease-in-out both;
 }
 
-.bouncing-dots div:nth-child(1) { animation-delay: -0.32s; }
-.bouncing-dots div:nth-child(2) { animation-delay: -0.16s; }
+.bouncing-dots div:nth-child(1) {
+  animation-delay: -0.32s;
+}
+
+.bouncing-dots div:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes bounce {
-  0%, 80%, 100% { transform: scale(0); }
-  40% { transform: scale(1); }
+
+  0%,
+  80%,
+  100% {
+    transform: scale(0);
+  }
+
+  40% {
+    transform: scale(1);
+  }
 }
 
 .loading-tip {
@@ -1963,18 +1992,31 @@ body {
   animation: none;
 }
 
-.retry-btn:active svg, .retry-btn.spinning svg {
+.retry-btn:active svg,
+.retry-btn.spinning svg {
   animation: spin 1s linear infinite;
 }
 
 @keyframes spin {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(5px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ==========================================
@@ -1983,7 +2025,7 @@ body {
 .text-block {
   white-space: pre-wrap;
   font-family: "Georgia", "Times New Roman", "STSong", "Songti SC", serif;
-  line-height: 1.85;
+  line-height: 1.7;
   font-size: 15.5px;
   padding: 0 8px;
   color: var(--text-primary);
@@ -1991,10 +2033,11 @@ body {
 }
 
 .text-block p {
-  margin-bottom: 1.5rem;
+  margin-bottom: 0.1rem;
 }
 
-.text-block ul, .text-block ol {
+.text-block ul,
+.text-block ol {
   margin-bottom: 1.5rem;
   padding-left: 24px;
 }
@@ -2012,7 +2055,10 @@ body {
   color: var(--text-secondary);
 }
 
-.text-block h1, .text-block h2, .text-block h3, .text-block h4 {
+.text-block h1,
+.text-block h2,
+.text-block h3,
+.text-block h4 {
   font-family: var(--font-sans);
   margin-top: 2rem;
   margin-bottom: 1rem;
@@ -2020,10 +2066,92 @@ body {
   font-weight: 600;
 }
 
-.text-block h1 { font-size: 1.6em; }
-.text-block h2 { font-size: 1.4em; }
-.text-block h3 { font-size: 1.2em; }
+.text-block h1 {
+  font-size: 1.6em;
+}
+
+.text-block h2 {
+  font-size: 1.4em;
+}
+
+.text-block h3 {
+  font-size: 1.2em;
+}
 
 .text-block pre {
   margin-bottom: 1.5rem;
+}
+
+/* ==========================================
+   Tufte Academic Typography Refinements for Explainer Cards
+   ========================================== */
+.explainer-content-wrapper.text-block {
+  line-height: 1.7 !important;
+  font-size: 15px !important;
+  color: var(--text-primary);
+  /* CRITICAL: Overriding pre-wrap to fix mysterious gaps. ReactMarkdown outputs \n between blocks, pre-wrap renders them as huge gaps! */
+  white-space: normal !important;
+  /* Modern sans-serif for body to ensure legibility */
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif !important;
+}
+
+/* Prevent the first heading from pushing down the top of the card */
+.explainer-content-wrapper.text-block>*:first-child {
+  margin-top: 0 !important;
+}
+
+.explainer-content-wrapper.text-block h1,
+.explainer-content-wrapper.text-block h2,
+.explainer-content-wrapper.text-block h3 {
+  margin-top: 2.8rem !important;
+  /* Huge gap above headings for section separation */
+  margin-bottom: 0 !important;
+  /* Force ZERO gap below heading */
+  font-weight: 600 !important;
+  border-bottom: 1px solid rgba(128, 128, 128, 0.15) !important;
+  padding-bottom: 6px !important;
+  /* Elegant paper heading font: prioritize beautiful brushed serifs or classic serifs */
+  font-family: "Noto Serif SC", "Source Han Serif SC", "KaiTi", "楷体", "STKaiti", "Georgia", serif !important;
+  letter-spacing: 0.5px;
+}
+
+/* If AI generates an HR by accident, neutralize it so it doesn't cause a gap */
+.explainer-content-wrapper.text-block hr {
+  margin: 0 !important;
+  display: none !important;
+}
+
+.explainer-content-wrapper.text-block p {
+  margin-top: 0.8rem !important;
+  margin-bottom: 0.8rem !important;
+  text-align: justify !important;
+}
+
+/* Eliminate empty paragraphs which often cause huge mysterious gaps in ReactMarkdown */
+.explainer-content-wrapper.text-block p:empty,
+.explainer-content-wrapper.text-block p:has(br:only-child) {
+  display: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+}
+
+/* Fix Markdown "Loose List" excessive spacing */
+.explainer-content-wrapper.text-block li>p {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+  display: inline;
+}
+
+.explainer-content-wrapper.text-block ul,
+.explainer-content-wrapper.text-block ol {
+  margin-top: 0 !important;
+  /* Force ZERO gap above list */
+  margin-bottom: 1rem !important;
+  padding-left: 20px !important;
+}
+
+.explainer-content-wrapper.text-block li {
+  margin-top: 0.3rem !important;
+  margin-bottom: 0.3rem !important;
+  line-height: 1.7 !important;
 }
