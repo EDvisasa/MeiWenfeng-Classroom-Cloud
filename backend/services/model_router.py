@@ -65,7 +65,12 @@ def stream_chat(
         model_id_api = "deepseek/deepseek-chat" if "deepseek" in model_name.lower() else "gemini/gemini-3.1-pro-preview"
 
     # 构造请求 messages，系统提示词放在首位
-    formatted_messages = [{"role": "system", "content": system_prompt}] + messages
+    formatted_messages = [{"role": "system", "content": system_prompt}]
+    for msg in messages:
+        if len(formatted_messages) > 0 and formatted_messages[-1]["role"] == msg["role"]:
+            formatted_messages[-1]["content"] += "\n\n" + msg["content"]
+        else:
+            formatted_messages.append({"role": msg["role"], "content": msg["content"]})
 
     logger.info(f"Routing chat through LiteLLM Gateway for: {model_name} (URL: {base_url}, ID: {model_id_api})")
 
