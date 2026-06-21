@@ -1976,3 +1976,53 @@ body {
   from { opacity: 0; transform: translateY(5px); }
   to { opacity: 1; transform: translateY(0); }
 }
+
+/* ==========================================
+   Hybrid Aesthetic: Tufte Typography for Text Blocks
+   ========================================== */
+.text-block {
+  font-family: "Georgia", "Times New Roman", "STSong", "Songti SC", serif;
+  line-height: 1.85;
+  font-size: 15.5px;
+  padding: 0 8px;
+  color: var(--text-primary);
+  letter-spacing: 0.01em;
+}
+
+.text-block p {
+  margin-bottom: 1.5rem;
+}
+
+.text-block ul, .text-block ol {
+  margin-bottom: 1.5rem;
+  padding-left: 24px;
+}
+
+.text-block li {
+  margin-bottom: 0.6rem;
+}
+
+.text-block blockquote {
+  margin: 1.6rem 0;
+  padding: 12px 20px;
+  border-left: 3px solid var(--accent-pink);
+  background: rgba(244, 114, 182, 0.04);
+  font-style: italic;
+  color: var(--text-secondary);
+}
+
+.text-block h1, .text-block h2, .text-block h3, .text-block h4 {
+  font-family: var(--font-sans);
+  margin-top: 2rem;
+  margin-bottom: 1rem;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.text-block h1 { font-size: 1.6em; }
+.text-block h2 { font-size: 1.4em; }
+.text-block h3 { font-size: 1.2em; }
+
+.text-block pre {
+  margin-bottom: 1.5rem;
+}

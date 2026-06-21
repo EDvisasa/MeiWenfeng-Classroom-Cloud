@@ -143,6 +143,32 @@ def init_db():
     );
     """)
 
+    # 任务设定的临时审问表 (Hard Block Interceptor)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS mission_draft (
+        id INTEGER PRIMARY KEY DEFAULT 1,
+        goal TEXT,
+        daily_time_budget TEXT,
+        hard_constraints TEXT,
+        current_skill_level TEXT,
+        is_active INTEGER DEFAULT 0,
+        last_updated DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 学习决策记录 LDR (Hybrid Storage)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS learning_decision_records (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        topic TEXT,
+        evidence TEXT,
+        implications TEXT,
+        superseded_by INTEGER,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY(superseded_by) REFERENCES learning_decision_records(id)
+    );
+    """)
+
     # 专属修仙辞典 Glossary (Matt Pocock 理念)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS glossary (

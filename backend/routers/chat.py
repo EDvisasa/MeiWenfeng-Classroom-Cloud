@@ -135,8 +135,28 @@ def send_message(payload: ChatRequest):
     formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content} for msg in payload.messages]
     cleaned_messages = [{"role": m["role"], "content": m["content"]} for m in formatted_messages]
 
-    # 拦截斜杠指令
+    # 2. 检查是否处于 mission_draft 阻塞状态 (Hard Block)
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM mission_draft WHERE is_active = 1 LIMIT 1")
+        draft = cursor.fetchone()
+        conn.close()
+    except Exception as e:
+        logger.error(f"Failed to check mission_draft: {e}")
+        draft = None
+
     clean_msg = last_user_msg.strip()
+    clean_msg_lower = clean_msg.lower()
+
+    if draft and clean_msg_lower == "/cancel_mission":
+        return handle_slash_command(clean_msg, payload, last_user_msg, cleaned_messages)
+
+    if draft and not clean_msg_lower.startswith("/cancel_mission"):
+        from backend.services.slash_handler import handle_mission_interrogation
+        return handle_mission_interrogation(last_user_msg, cleaned_messages, payload.persona_type, dict(draft))
+
+    # 3. 拦截斜杠指令
     if clean_msg.startswith('/') or clean_msg in ("/update_persona",):
         return handle_slash_command(clean_msg, payload, last_user_msg, cleaned_messages)
 
