@@ -427,7 +427,7 @@ export default function ChatPanel({
           {String(children).replace(/\n$/, '')}
         </SyntaxHighlighter>
       ) : (
-        <code className={className} style={{ background: 'rgba(255,255,255,0.1)', padding: '2px 4px', borderRadius: '4px', color: '#ff79c6' }} {...props}>
+        <code className={className} style={{ background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-primary)', fontFamily: 'Consolas, Monaco, monospace', fontSize: '0.9em' }} {...props}>
           {children}
         </code>
       );
