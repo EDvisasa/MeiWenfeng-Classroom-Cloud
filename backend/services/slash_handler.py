@@ -85,8 +85,7 @@ Current Topic: {topic_name}
 Action Required: Immediately enter your mentor persona. Proactively start today's lesson focused on the Current Topic.
 Output Format: 
 1. The theory explanation part MUST be extremely easy to understand (Reference 极简). Use living analogies, short paragraphs, and simple language.
-2. If the concept is complex, you MUST embed an explainer in your response using this exact XML format: `<explainer title="Filename.md"># Markdown Content...</explainer>`.
-3. ALWAYS conclude your lesson segment with a single interactive question to check the user's understanding, using the exact XML format below.
+2. ALWAYS conclude your lesson segment with a single interactive question to check the user's understanding, using the exact XML format below.
 CRITICAL RULES FOR THE QUIZ (Quiz 刁钻):
 - The quiz MUST be tricky and test deep understanding, not just surface facts.
 - ALL options MUST be exactly the same length in words/characters. You must artificially pad or truncate them so they look identical in length. Do NOT let the longest option be the correct answer!
@@ -114,9 +113,7 @@ Action Required:
 4. Continue the lesson on the Current Topic.
 
 Output Format:
-1. If you need to explain a complex concept deeply, you MUST embed an explainer using this exact XML format: `<explainer title="Filename.md"># Markdown Content...</explainer>`.
-2. If you introduce a new term, embed it using: `<glossary term="TermName">Concise Definition</glossary>`.
-3. If you want to throw another pop quiz to check their understanding of the *new* explanation, use the `<quiz type="multiple_choice">` tag again.
+1. If you want to throw another pop quiz to check their understanding of the *new* explanation, use the `<quiz type="multiple_choice">` tag again.
 </system_directive>"""
     elif clean_cmd == "/submit":
         system_injection = f"""<system_directive mode="socratic_strict_mentor">
@@ -129,13 +126,12 @@ User's Ultimate Mission: {user_mission}
 1. NEVER GIVE DIRECT ANSWERS.
 2. Ask questions that are just slightly beyond the user's current understanding (Zone of Proximal Development).
 3. Identify ambiguous areas in the user's logic and pursue them with follow-up questions.
-4. GLOSSARY EXTRACTION: When you are certain the user has understood a complex new term, embed it using: `<glossary term="TermName">Concise Definition</glossary>`.
-5. PASS CONDITION (EVOLVING SANDBOX): 
+4. PASS CONDITION (EVOLVING SANDBOX): 
    - If the user perfectly masters the current topic/code challenge, do NOT just say "pass".
    - First, praise them and explicitly ask: "干得漂亮！你准备好迎接下一阶挑战了吗？" (Or something similar in your persona's tone).
    - ONLY AFTER the user explicitly replies "yes/ready" in their next message, you MUST use the `<call_tool name="replace_file_content">` tool (to modify existing files) or `<call_tool name="create_file">` tool (to create new files) to surgically evolve their current sandbox code (typically in `docs/sandbox/`) to introduce a new bug or increase the difficulty (Desirable Difficulty / Interleaving).
    - Provide a brief "学情洞察" (Learning Insight) summarizing their newly acquired ZPD edge so the background memory script can log it.
-6. INTERACTIVE QUIZ: You may occasionally use the `<quiz type="multiple_choice">` tag to throw a pop quiz at the user. The frontend will render it as a UI component. The JSON inside must have "question", "options" (array), "correct_index" (int), and "explanation".
+5. INTERACTIVE QUIZ: You may occasionally use the `<quiz type="multiple_choice">` tag to throw a pop quiz at the user. The frontend will render it as a UI component. The JSON inside must have "question", "options" (array), "correct_index" (int), and "explanation".
 </critical_rules>
 </system_directive>"""
     elif clean_cmd == "/plan":
