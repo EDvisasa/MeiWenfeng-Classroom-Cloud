@@ -4,6 +4,7 @@ import { API_BASE } from '../config';
 import { parseAndMergeBlocks } from '../utils/blockParser';
 import { AlertTriangle, Check, X } from 'lucide-react';
 import MissionProposalCard from './MissionProposalCard';
+import QuizBlock from './QuizBlock';
 
 const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
   const [timeLeft, setTimeLeft] = React.useState(60);
@@ -424,6 +425,40 @@ export default function ChatPanel({
         return <RetryBlock key={`retry_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'text') {
         return <div key={`text_${idx}`} className="text-block">{renderItalics(block.text, idx)}</div>;
+      } else if (block.type === 'quiz') {
+        return <QuizBlock 
+          key={`quiz_${idx}`} 
+          data={block.data}
+          onQuizSubmit={(result) => {
+            if (sendMessage) {
+              const escapeQuotes = (str) => (str || '').replace(/"/g, '&quot;');
+              const msg = `我选了：${result.selectedOption}\n<submit_quiz_result is_correct="${result.isCorrect}" selected="${escapeQuotes(result.selectedOption)}" />`;
+              sendMessage(msg);
+            }
+          }}
+        />;
+      } else if (block.type === 'explainer') {
+        return (
+          <div key={`exp_${idx}`} style={{ margin: '16px 0', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--bg-secondary)', padding: '8px 12px', fontSize: '13px', fontWeight: 'bold', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--text-primary)' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+              {block.title}
+            </div>
+            <div style={{ padding: '12px', background: 'var(--bg-panel)', fontSize: '13px', whiteSpace: 'pre-wrap', lineHeight: '1.6', color: 'var(--text-primary)' }}>
+              {block.text}
+            </div>
+          </div>
+        );
+      } else if (block.type === 'glossary') {
+        return (
+          <div key={`glos_${idx}`} style={{ margin: '12px 0', padding: '10px 14px', background: 'rgba(16, 185, 129, 0.05)', border: '1px solid rgba(16, 185, 129, 0.2)', borderRadius: '6px', fontSize: '13px', display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+            <span style={{ marginTop: '2px' }}><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg></span>
+            <div>
+              <span style={{ fontWeight: 'bold', color: '#10b981', marginRight: '6px' }}>{block.term}</span>
+              <span style={{ color: 'var(--text-primary)', lineHeight: '1.5' }}>{block.text}</span>
+            </div>
+          </div>
+        );
       }
       return null;
     });

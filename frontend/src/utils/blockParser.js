@@ -14,6 +14,8 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
       const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/g;
       const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
       const missionRegex = /<mission_proposal([^>]*?)\/?>/g;
+      const explainerRegex = /<explainer\s+title="([^"]+)">([\s\S]*?)(?:<\/explainer>|$)/g;
+      const glossaryRegex = /<glossary\s+term="([^"]+)">([\s\S]*?)(?:<\/glossary>|$)/g;
       
       // We need to extract both quiz, mission_proposal and thought tags. Since they might be interleaved or one after another,
       // a robust way is to split by both, but since currently only text has thoughts, we can just extract quizzes and missions first.
@@ -66,6 +68,52 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
         segments.push(...finalSegments);
       }
 
+      // Extract explainer tags from text segments
+      let explainerSegments = [];
+      segments.forEach(seg => {
+        if (seg.isQuiz || seg.isMission) {
+          explainerSegments.push(seg);
+          return;
+        }
+        let text = seg.content;
+        let lastExpIndex = 0;
+        let expMatch;
+        while ((expMatch = explainerRegex.exec(text)) !== null) {
+          if (expMatch.index > lastExpIndex) {
+            explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: text.substring(lastExpIndex, expMatch.index) });
+          }
+          explainerSegments.push({ isExplainer: true, title: expMatch[1], content: expMatch[2].trim() });
+          lastExpIndex = explainerRegex.lastIndex;
+        }
+        if (lastExpIndex < text.length) {
+          explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: text.substring(lastExpIndex) });
+        }
+      });
+      segments = explainerSegments;
+
+      // Extract glossary tags from text segments
+      let glossarySegments = [];
+      segments.forEach(seg => {
+        if (seg.isQuiz || seg.isMission || seg.isExplainer) {
+          glossarySegments.push(seg);
+          return;
+        }
+        let text = seg.content;
+        let lastGlosIndex = 0;
+        let glosMatch;
+        while ((glosMatch = glossaryRegex.exec(text)) !== null) {
+          if (glosMatch.index > lastGlosIndex) {
+            glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: text.substring(lastGlosIndex, glosMatch.index) });
+          }
+          glossarySegments.push({ isGlossary: true, term: glosMatch[1], content: glosMatch[2].trim() });
+          lastGlosIndex = glossaryRegex.lastIndex;
+        }
+        if (lastGlosIndex < text.length) {
+          glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: text.substring(lastGlosIndex) });
+        }
+      });
+      segments = glossarySegments;
+
       segments.forEach(segment => {
         if (segment.isQuiz) {
           try {
@@ -78,6 +126,10 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
           }
         } else if (segment.isMission) {
           normalized.push({ type: 'mission_proposal', data: segment.data, status: 'done' });
+        } else if (segment.isExplainer) {
+          normalized.push({ type: 'explainer', title: segment.title, text: segment.content, status: 'done' });
+        } else if (segment.isGlossary) {
+          normalized.push({ type: 'glossary', term: segment.term, text: segment.content, status: 'done' });
         } else {
           // Process thought tags within the text segment
           let textSegment = segment.content;
