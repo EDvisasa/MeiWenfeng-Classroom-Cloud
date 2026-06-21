@@ -11,11 +11,19 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
       text = text.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|$)\s*/g, '');
       text = text.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|$)\s*/g, '');
 
-      const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/g;
-      const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/g;
-      const missionRegex = /<mission_proposal([^>]*?)\/?>/g;
-      const explainerRegex = /<explainer\s+title="([^"]+)">([\s\S]*?)(?:<\/explainer>|$)/g;
-      const glossaryRegex = /<glossary\s+term="([^"]+)">([\s\S]*?)(?:<\/glossary>|$)/g;
+      // Strip markdown bold markers that the AI might incorrectly place around our custom block tags
+      text = text.replace(/\*\*\s*<glossary/gi, '<glossary').replace(/<\/glossary>\s*\*\*/gi, '</glossary>');
+      text = text.replace(/\*\*\s*<explainer/gi, '<explainer').replace(/<\/explainer>\s*\*\*/gi, '</explainer>');
+      text = text.replace(/\*\*\s*<quiz/gi, '<quiz').replace(/<\/quiz>\s*\*\*/gi, '</quiz>');
+
+      // Force "盘古之白" (spaces) around inline bold markdown to prevent CommonMark parsing failures with Chinese punctuation
+      text = text.replace(/\*\*([^\n]+?)\*\*/g, ' **$1** ');
+
+      const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/gi;
+      const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/gi;
+      const missionRegex = /<mission_proposal([^>]*?)\/?>/gi;
+      const explainerRegex = /<explainer\s+title=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/explainer>|$)/gi;
+      const glossaryRegex = /<glossary\s+term=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/glossary>|$)/gi;
       
       // We need to extract both quiz, mission_proposal and thought tags. Since they might be interleaved or one after another,
       // a robust way is to split by both, but since currently only text has thoughts, we can just extract quizzes and missions first.
