@@ -1981,6 +1981,7 @@ body {
    Hybrid Aesthetic: Tufte Typography for Text Blocks
    ========================================== */
 .text-block {
+  white-space: pre-wrap;
   font-family: "Georgia", "Times New Roman", "STSong", "Songti SC", serif;
   line-height: 1.85;
   font-size: 15.5px;
