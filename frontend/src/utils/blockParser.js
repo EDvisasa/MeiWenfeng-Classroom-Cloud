@@ -6,7 +6,7 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
   rawBlocks.forEach(b => {
     if (b.type === 'text') {
       let text = b.text || '';
-      text = text.replace(/\s*【此刻内心】[：:]\s*[（(][\s\S]*?[)）]\s*/g, '');
+      text = text.replace(/\s*<inner_thought>[\s\S]*?(?:<\/inner_thought>|$)\s*/g, '');
       text = text.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)\s*/g, '');
       text = text.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|$)\s*/g, '');
       text = text.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|$)\s*/g, '');
