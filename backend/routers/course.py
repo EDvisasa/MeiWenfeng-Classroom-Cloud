@@ -1,12 +1,14 @@
 from fastapi import APIRouter, HTTPException, Body
 from typing import Dict, Any
 from backend.database import get_db_connection
+from backend.services.mission_manager import MissionManager
+from backend.services.materials_manager import MaterialsManager
 
-router = APIRouter(prefix="/api/chat", tags=["course", "status"])
+router = APIRouter(prefix="/api/chat", tags=["course", "status", "materials"])
 
 @router.get("/status")
 def get_status_summary():
-    """获取右侧状态栏所需的课程进度和好感度数据"""
+    """获取右侧状态栏所需的课程进度、Mission状态和好感度数据"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -25,12 +27,15 @@ def get_status_summary():
         active_model = model_row["name"] if model_row else "未设置"
         active_sub_model = model_row["selected_model_id"] if model_row and model_row["selected_model_id"] else None
 
-        # 获取课程大纲
-        cursor.execute("SELECT id, phase, topic, status, score FROM course_progress")
-        course_rows = cursor.fetchall()
-        course_list = [dict(r) for r in course_rows]
-
         conn.close()
+        
+        # 获取 Mission 相关状态
+        active_draft = MissionManager.get_active_draft()
+        user_mission = MissionManager.get_user_mission()
+        
+        # 获取知识树
+        knowledge_tree = MaterialsManager.build_knowledge_tree()
+
         return {
             "affection": affection,
             "social_status": social_status,
@@ -38,11 +43,26 @@ def get_status_summary():
             "refractory_period": refractory_period,
             "active_model": active_model,
             "active_sub_model": active_sub_model,
-            "course_progress": course_list
+            "mission": {
+                "current_mission": user_mission,
+                "is_drafting": active_draft is not None,
+                "draft_details": active_draft
+            },
+            "knowledge_tree": knowledge_tree
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/materials/content")
+def get_material(path: str):
+    """获取具体的 Markdown 文件内容"""
+    try:
+        content = MaterialsManager.get_material_content(path)
+        return {"content": content}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/update_affection")
 def update_affection(payload: Dict[str, Any] = Body(...)):
