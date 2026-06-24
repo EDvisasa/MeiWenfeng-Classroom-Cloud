@@ -55,4 +55,14 @@ describe('parseAndMergeBlocks', () => {
       { type: 'thinking', text: 'Second thought...', status: 'running' }
     ]);
   });
+
+  // Behavior 5
+  it('should strip <inner_thought> completely from the final text', () => {
+    const input = 'Normal text. <inner_thought>This is hidden.</inner_thought> More normal text.';
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      { type: 'text', text: 'Normal text.More normal text.' }
+    ]);
+  });
 });

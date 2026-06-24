@@ -1170,14 +1170,14 @@ export default function App() {
                     lastMsg.blocks = [...currentBlocks];
                     // Keep plain text content for compatibility with older rendering (like the prompt match logic below)
                     let displayContent = currentBlocks.filter(b => b.type === 'text').map(b => b.text).join('');
-                    const thoughtMatchArray = displayContent.match(/【此刻内心】[：:]\s*[（(]([\s\S]*?)[)）]/g);
+                    const thoughtMatchArray = displayContent.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/g);
                     if (thoughtMatchArray && thoughtMatchArray.length > 0) {
                       const lastThought = thoughtMatchArray[thoughtMatchArray.length - 1];
-                      const innerMatch = lastThought.match(/[（(]([\s\S]*?)[)）]/);
+                      const innerMatch = lastThought.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/);
                       if (innerMatch) {
                         setCurrentThought(innerMatch[1].trim());
                       }
-                      displayContent = displayContent.replace(/【此刻内心】[：:]\s*[（(][\s\S]*?[)）]/g, '').trim();
+                      displayContent = displayContent.replace(/\s*<inner_thought>[\s\S]*?(?:<\/inner_thought>|$)\s*/g, '').trim();
                     }
                     lastMsg.content = displayContent;
                   }
