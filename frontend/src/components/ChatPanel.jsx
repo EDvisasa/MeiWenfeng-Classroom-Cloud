@@ -130,8 +130,10 @@ const ToolBlock = ({ block, idx }) => {
   const friendlyName = block.tool_name === 'execute_bash' ? 'Bash'
     : block.tool_name === 'read_file' ? 'Read'
       : block.tool_name === 'grep_search' ? 'Grep'
-        : block.tool_name === 'default_api:run_command' ? 'Bash'
-          : block.tool_name;
+        : block.tool_name === 'web_search' ? 'Web'
+          : block.tool_name === 'read_url_content' ? 'Browser'
+            : block.tool_name === 'default_api:run_command' ? 'Bash'
+              : block.tool_name;
 
   const [isExpanded, setIsExpanded] = React.useState(false);
   const THRESHOLD = 30;
@@ -624,6 +626,54 @@ export default function ChatPanel({
               );
             }
 
+            if (msg.type === 'summarize_progress') {
+              return (
+                <div key={index} className="system-info-msg" style={{ alignSelf: 'center', backgroundColor: 'var(--bg-tertiary)', border: '1px solid var(--accent-pink)', borderRadius: '6px', padding: '10px 14px', fontSize: '12px', color: 'var(--text-primary)', margin: '12px 0', maxWidth: '90%', textAlign: 'center', boxShadow: '0 2px 8px rgba(244, 114, 182, 0.15)' }}>
+                  {msg.state === 'loading' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: 'var(--accent-pink)', fontWeight: 'bold' }}>
+                      <svg style={{ animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                      正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...
+                    </div>
+                  )}
+                  {msg.state === 'done' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: '#10b981', fontWeight: 'bold' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      记忆压缩已完成！新记忆已归档入库。
+                      {msg.stats && <span style={{ fontSize: '11px', marginLeft: '6px', opacity: 0.8 }}>(新增: {msg.stats.inserted}, 更新: {msg.stats.updated})</span>}
+                    </div>
+                  )}
+                  {msg.state === 'error' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: 'var(--danger)', fontWeight: 'bold' }}>
+                      压缩失败: {msg.error}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
+            if (msg.type === 'markdown_doc') {
+              return (
+                <div key={index} className="system-info-msg markdown-doc-msg" style={{
+                  alignSelf: 'stretch',
+                  backgroundColor: 'var(--bg-secondary)',
+                  border: '1px solid var(--accent-pink)',
+                  borderRadius: '6px',
+                  padding: '16px',
+                  margin: '12px 0',
+                  boxShadow: '0 2px 8px rgba(244, 114, 182, 0.15)',
+                  position: 'relative'
+                }}>
+                  <div style={{ position: 'absolute', top: '-10px', left: '16px', background: 'var(--accent-pink)', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 'bold' }}>
+                    📖 本地知识档案
+                  </div>
+                  <div style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
+                    文件路径：{msg.path}
+                  </div>
+                  <ChatBlockParser content={msg.content} theme={theme} isVsCode={isVsCode} />
+                </div>
+              );
+            }
+
             return (
               <div
                 key={index}
@@ -650,6 +700,9 @@ export default function ChatPanel({
                 )}
                 {msg.icon === 'check' && (
                   <svg style={{ color: '#10b981' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                )}
+                {msg.icon === 'draft' && (
+                  <svg style={{ color: '#f59e0b' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                 )}
                 {msg.content}
               </div>

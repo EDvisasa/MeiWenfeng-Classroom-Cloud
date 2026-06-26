@@ -22,10 +22,8 @@ if not exist .venv\Scripts\python.exe (
     echo [Info] Automatically creating virtual environment...
     python -m venv .venv
 )
-if not exist .venv\Scripts\uvicorn.exe (
-    echo [Info] Installing backend dependencies...
-    .venv\Scripts\python.exe -m pip install -r backend/requirements.txt
-)
+echo [Info] Synchronizing backend dependencies...
+.venv\Scripts\python.exe -m pip install -r backend/requirements.txt > nul
 
 rem 3. Check and Setup Node dependencies
 if exist frontend\node_modules goto frontend_ok
