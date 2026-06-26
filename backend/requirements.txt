@@ -8,3 +8,6 @@ chromadb>=0.4.24
 sentence-transformers>=2.6.0
 litellm[proxy]
 tiktoken
+ddgs
+beautifulsoup4
+markdownify

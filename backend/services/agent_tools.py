@@ -158,7 +158,7 @@ class ReadFileTool(AgentTool):
         
         if len(sliced_lines) > 800:
             content = "".join(sliced_lines[:800])
-            return content + f"\n\n[Warning: Output truncated at 800 lines to prevent context overflow. File has {total_lines} lines total.]"
+            return content + f"\n\n[Warning: Output truncated at 800 lines to prevent context overflow. File has {total_lines} lines total. 👉 To read more, call this tool again with <start_line>{s + 800}</start_line>]"
             
         content = "".join(sliced_lines)
         return content
@@ -292,6 +292,129 @@ class CreateFileTool(AgentTool):
         except Exception as e:
             return f"[Error] Failed to create file: {str(e)}"
 
+class WebSearchTool(AgentTool):
+    name = "web_search"
+    description = "Search the web for current information using DDGS (DuckDuckGo)."
+
+    def execute(self, params: dict) -> str:
+        query = params.get("query", "")
+        if not query:
+            return "[Error] query is required."
+            
+        try:
+            try:
+                from duckduckgo_search import DDGS
+            except ImportError:
+                from ddgs import DDGS
+                
+            with DDGS() as ddgs:
+                results = list(ddgs.text(query, max_results=3))
+                
+            if not results:
+                return f"[Result] No web results found for query: {query}"
+                
+            formatted_results = []
+            for idx, res in enumerate(results, 1):
+                title = res.get("title", "No Title")
+                href = res.get("href", "No URL")
+                body = res.get("body", "No Body")
+                formatted_results.append(f"Result {idx}:\nTitle: {title}\nURL: {href}\nSnippet: {body}\n")
+                
+            final_output = "\n".join(formatted_results)
+            # Ensure it doesn't get too long and crash context
+            if len(final_output) > 2000:
+                final_output = final_output[:2000] + "\n...[Truncated]"
+                
+            return final_output
+            
+        except ImportError:
+            return "[Error] ddgs package is not installed. Please run pip install ddgs."
+        except Exception as e:
+            # Duckduckgo-search is prone to rate-limits and network timeouts
+            return f"[Error] Web search failed: {str(e)}. (Consider trying a different query or waiting a bit)."
+
+class ReadUrlContentTool(AgentTool):
+    name = "read_url_content"
+    description = "Fetch URL content and convert it to clean Markdown, optionally specifying start_line and end_line for pagination."
+
+    def execute(self, params: dict) -> str:
+        url = params.get("url", "")
+        if not url:
+            return "[Error] url is required."
+            
+        start_line = params.get("start_line")
+        end_line = params.get("end_line")
+        
+        try:
+            if start_line is not None:
+                start_line = int(start_line)
+            if end_line is not None:
+                end_line = int(end_line)
+        except ValueError:
+            return "[Error] start_line and end_line must be integers."
+            
+        try:
+            import httpx
+            try:
+                from bs4 import BeautifulSoup
+            except ImportError:
+                return "[Error] beautifulsoup4 package is not installed. Please run pip install beautifulsoup4."
+            try:
+                import markdownify
+            except ImportError:
+                return "[Error] markdownify package is not installed. Please run pip install markdownify."
+                
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
+            }
+            
+            # Use a slightly longer timeout for heavy pages
+            with httpx.Client(timeout=15.0, follow_redirects=True) as client:
+                response = client.get(url, headers=headers)
+                response.raise_for_status()
+                html_content = response.text
+                
+            # Clean noise using BeautifulSoup
+            soup = BeautifulSoup(html_content, 'html.parser')
+            for element in soup(["script", "style", "nav", "footer", "header", "aside"]):
+                element.decompose()
+                
+            clean_html = str(soup)
+            
+            # Convert to Markdown
+            md_content = markdownify.markdownify(clean_html, heading_style="ATX").strip()
+            
+            # Split into lines
+            lines = md_content.split('\n')
+            total_lines = len(lines)
+            
+            if total_lines == 0:
+                return f"[Result] URL fetched but no readable content was extracted: {url}"
+                
+            s = 1 if start_line is None else max(1, start_line)
+            e = total_lines if end_line is None else min(total_lines, end_line)
+            
+            if s > total_lines:
+                return f"[Error] start_line ({s}) is beyond the end of content ({total_lines} lines)."
+                
+            if e < s:
+                return f"[Error] end_line ({e}) cannot be before start_line ({s})."
+                
+            sliced_lines = lines[s-1:e]
+            
+            if len(sliced_lines) > 800:
+                content = "\n".join(sliced_lines[:800])
+                return content + f"\n\n[Warning: Webpage content truncated at 800 lines. Total length is {total_lines} lines. 👉 To read more, call this tool again with <start_line>{s + 800}</start_line>]"
+                
+            return "\n".join(sliced_lines)
+            
+        except httpx.HTTPStatusError as e:
+            return f"[Error] HTTP error occurred: {e.response.status_code} - {e.response.reason_phrase}"
+        except httpx.RequestError as e:
+            return f"[Error] Request error occurred: {str(e)}"
+        except Exception as e:
+            return f"[Error] Failed to read URL: {str(e)}"
+
 # Register tools
 TOOL_REGISTRY = {
     "read_file": ReadFileTool(),
@@ -299,6 +422,8 @@ TOOL_REGISTRY = {
     "execute_bash": BashTool(),
     "replace_file_content": ReplaceFileContentTool(),
     "create_file": CreateFileTool(),
+    "web_search": WebSearchTool(),
+    "read_url_content": ReadUrlContentTool(),
 }
 
 
@@ -414,7 +539,8 @@ CRITICAL RULES:
 6. USE SPECIFIC TOOLS: You MUST use `read_file` to read files. NEVER use `cat` or `type` via `execute_bash`.
 7. ENFORCE SEARCH TOOL: To search for a specific string or keywords across files in a directory, you MUST use the `grep_search` tool. You are ABSOLUTELY FORBIDDEN from using `execute_bash` (like findstr, grep, or custom python scripts) to search files.
 8. TIME PERCEPTION: You already have the exact, up-to-date real-world time in the `<current_time>` block of your system prompt. Do NOT use `execute_bash` or any code to check the current time or date. Rely entirely on the injected time.
-9. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
+9. WEB SEARCH: You have access to a `web_search` tool. Use it to look up recent facts, news, or technical documentation. Do not hallucinate facts if you are unsure.
+10. MAINTAIN PERSONA: When you have gathered all necessary information and are ready to reply to the user, you MUST completely drop the XML tags and resume your designated roleplay persona to give the final answer. NEVER expose XML tags or tool outputs to the user in your final reply.
 
 TOOL EXECUTION FORMAT:
 <thought>
@@ -459,6 +585,28 @@ If you need to create an entirely new file from scratch in the sandbox, use:
   <content>entire content of the new file</content>
 </call_tool>
 </tool_batch>
+
+OR to search the web:
+<thought>
+I need to find the latest documentation on React Hooks.
+</thought>
+<tool_batch>
+<call_tool name="web_search">
+  <query>React Hooks latest documentation site:react.dev</query>
+</call_tool>
+</tool_batch>
+
+OR to deeply read a webpage to find specific information (with pagination support!):
+<thought>
+I need to read the content of this URL. I will read the first page now.
+</thought>
+<tool_batch>
+<call_tool name="read_url_content">
+  <url>https://example.com</url>
+  <start_line>1</start_line>
+</call_tool>
+</tool_batch>
+If the result says it was truncated, you MUST call it again with the suggested `start_line` to continue scrolling!
 </tool_use_guidelines>
 """
         current_messages = messages.copy()
@@ -668,5 +816,13 @@ If you need to create an entirely new file from scratch in the sandbox, use:
                 return path
         elif t_name == "grep_search":
             return f"Search '{t_param.get('query', '')}' in {t_param.get('dir_path', '')}"
+        elif t_name == "web_search":
+            return f"Web Search: '{t_param.get('query', '')}'"
+        elif t_name == "read_url_content":
+            url = t_param.get("url", "")
+            start_line = t_param.get("start_line", "")
+            if start_line:
+                return f"Browser: {url} (Line {start_line}+)"
+            return f"Browser: {url}"
         else:
             return t_param.get("command", str(t_param))
