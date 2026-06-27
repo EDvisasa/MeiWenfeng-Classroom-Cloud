@@ -18,10 +18,10 @@ def run_decay_with_progress():
     
     while t.is_alive():
         time.sleep(1)
-        yield "[系统记忆压缩] 正在压缩中...\n\n"
+        yield {"type": "summarize_progress", "state": "loading"}
         
     t.join()
     if "error" in result_container:
-        yield f"[系统记忆压缩] 压缩失败: {result_container['error']}\n\n"
+        yield {"type": "summarize_progress", "state": "error", "error": result_container["error"]}
     else:
-        yield f"[系统记忆压缩] 压缩完成！新记忆已归档入库。处理统计: {json.dumps(result_container.get('stats', {}), ensure_ascii=False)}\n\n"
+        yield {"type": "summarize_progress", "state": "done", "stats": result_container.get("stats", {})}

@@ -146,7 +146,7 @@ def process_memory_decay(phase_a_only=False, phase_b_only=False) -> Dict[str, An
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        stats = {"processed": 0, "levels": {}}
+        stats = {"processed": 0, "levels": {}, "inserted": 0, "updated": 0}
 
         # ==========================
         # Phase A: 即时归档 (Level 0 -> 1)
@@ -190,10 +190,12 @@ def process_memory_decay(phase_a_only=False, phase_b_only=False) -> Dict[str, An
                     # 更新今日旧日记
                     cursor.execute("UPDATE memory_logs SET summary = ? WHERE id = ?", (new_summary, today_level1["id"]))
                     l1_id = today_level1["id"]
+                    stats["updated"] += 1
                 else:
                     # 插入新日记
                     cursor.execute("INSERT INTO memory_logs (content, summary, level, status) VALUES ('', ?, 1, 'active')", (new_summary,))
                     l1_id = cursor.lastrowid
+                    stats["inserted"] += 1
 
                 conn.commit()
 
@@ -269,6 +271,7 @@ def process_memory_decay(phase_a_only=False, phase_b_only=False) -> Dict[str, An
                         VALUES ('', ?, ?, 'active')
                     """, (new_summary, next_level))
                     new_id = cursor.lastrowid
+                    stats["inserted"] += 1
 
                     conn.commit()
 
