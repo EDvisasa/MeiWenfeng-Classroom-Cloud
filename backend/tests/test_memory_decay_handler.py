@@ -38,9 +38,12 @@ def test_memory_decay_handler_handles_phase_a(test_db):
         )
     test_db.commit()
 
-    # Execute handler
-    handler = MemoryDecayHandler()
-    handler.handle({"phase_a_only": True}, "")
+    # Execute handler with mocked LLM summary generation and RAG sync
+    fake_summary = "【时间跨度】：12:00 ~ 12:01\n【面向对象】：测试\n【详细纪要】：这是一个自动化测试的模拟纪要。\n【学情洞察】：无。"
+    with patch("backend.services.memory_decay.generate_summary", return_value=fake_summary), \
+         patch("backend.services.memory_decay.get_rag_client"):
+        handler = MemoryDecayHandler()
+        handler.handle({"phase_a_only": True}, "")
 
     # Verify results
     cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'compressed'")
