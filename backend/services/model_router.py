@@ -64,9 +64,24 @@ def stream_chat(
         # 降级：给个安全的默认值
         model_id_api = "deepseek/deepseek-chat" if "deepseek" in model_name.lower() else "gemini/gemini-3.1-pro-preview"
 
+    # Ensure the first message in the dialog history starts with "user" to prevent strict Jinja templates
+    # (like Qwen / Ornith) from crashing with "No user query found in messages."
+    adjusted_messages = []
+    has_user_first = False
+    for msg in messages:
+        if msg["role"] == "user":
+            has_user_first = True
+            break
+        elif msg["role"] == "assistant":
+            break
+
+    if not has_user_first and len(messages) > 0 and messages[0]["role"] == "assistant":
+        adjusted_messages.append({"role": "user", "content": "你好"})
+    adjusted_messages.extend(messages)
+
     # 构造请求 messages，系统提示词放在首位
     formatted_messages = [{"role": "system", "content": system_prompt}]
-    for msg in messages:
+    for msg in adjusted_messages:
         if len(formatted_messages) > 0 and formatted_messages[-1]["role"] == msg["role"]:
             formatted_messages[-1]["content"] += "\n\n" + msg["content"]
         else:
