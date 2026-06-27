@@ -2,8 +2,8 @@ import pytest
 from backend.services.response_pipeline import TagStreamInterceptor
 
 def test_interceptor_basic_extraction():
-    interceptor = TagStreamInterceptor(target_tags=["glossary"])
-    text = "This is a test. <glossary>Quantum Computing</glossary> more text <glossary term=\"Qubit\">A qubit</glossary> end."
+    interceptor = TagStreamInterceptor(target_tags=["custom_tag"])
+    text = "This is a test. <custom_tag>Quantum Computing</custom_tag> more text <custom_tag term=\"Qubit\">A qubit</custom_tag> end."
     output = ""
     for char in text:
         for chunk in interceptor.process_chunk(char):
@@ -12,11 +12,11 @@ def test_interceptor_basic_extraction():
         output += chunk.get("text", "") if isinstance(chunk, dict) else chunk
     
     assert output == "This is a test.  more text  end."
-    assert "glossary" in interceptor.intercepted_data
-    assert len(interceptor.intercepted_data["glossary"]) == 2
-    assert interceptor.intercepted_data["glossary"][0]["content"] == "Quantum Computing"
-    assert interceptor.intercepted_data["glossary"][1]["attrs"] == {"term": "Qubit"}
-    assert interceptor.intercepted_data["glossary"][1]["content"] == "A qubit"
+    assert "custom_tag" in interceptor.intercepted_data
+    assert len(interceptor.intercepted_data["custom_tag"]) == 2
+    assert interceptor.intercepted_data["custom_tag"][0]["content"] == "Quantum Computing"
+    assert interceptor.intercepted_data["custom_tag"][1]["attrs"] == {"term": "Qubit"}
+    assert interceptor.intercepted_data["custom_tag"][1]["content"] == "A qubit"
 
 def test_interceptor_with_agent_executor_chunks():
     tags = ['system_pass', 'glossary', 'new_course', 'explainer', 'property_update']
