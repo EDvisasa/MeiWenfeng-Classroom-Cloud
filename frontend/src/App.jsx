@@ -1,5 +1,6 @@
 import { API_BASE } from './config';
 import React, { useState, useEffect, useRef } from 'react';
+import { dispatchSystemCommand } from './services/commandDispatcher';
 import FileTree from './components/FileTree';
 import ChatPanel from './components/ChatPanel';
 import StatusPanel from './components/StatusPanel';
@@ -10,6 +11,7 @@ const COMMANDS = [
   { cmd: '/set_mission', desc: '设定或更改宏大学习目标（触发严苛审问）' },
   { cmd: '/cancel_mission', desc: '退出当前的目标设定状态' },
   { cmd: '/lesson', desc: '开始新的课时，进入授课模式' },
+  { cmd: '/plan', desc: '生成或更新接下来的具体课程大纲' },
   { cmd: '/submit', desc: '进行课题考核，AI会对你进行提问' },
   { cmd: '/reward', desc: '获取好感奖励，触发狐妖娘溺爱互动' },
   { cmd: '/summarize', desc: '压缩并保存当前记忆，释放上下文' },
@@ -317,6 +319,10 @@ export default function App() {
   const [affection, setAffection] = useState(100);
   const [personaType, setPersonaType] = useState(localStorage.getItem('persona_type') || 'simplified');
 
+  // Mission & Knowledge Tree states
+  const [mission, setMission] = useState({ current_mission: "未知目标", is_drafting: false, draft_details: null });
+  const [knowledgeTree, setKnowledgeTree] = useState([]);
+
   // 酒馆式 API 设置和字体弹窗状态
   const [activeRightTab, setActiveRightTab] = useState('status');
   const [selectedConfigId, setSelectedConfigId] = useState(1);
@@ -560,6 +566,8 @@ export default function App() {
         setActiveModel(data.active_model);
         setActiveSubModel(data.active_sub_model || '');
         setCourseProgress(data.course_progress || []);
+        if (data.mission) setMission(data.mission);
+        if (data.knowledge_tree) setKnowledgeTree(data.knowledge_tree);
       }
     } catch (e) {
       console.error('Failed to fetch status:', e);
@@ -983,9 +991,7 @@ export default function App() {
   // 快速执行斜杠指令（供快捷按钮调用）
   const executeSlashCommand = async (cmdText) => {
     if (isStreaming) return;
-    const nextMessages = [...messages, { role: 'user', content: cmdText, timestamp: _getNowStr() }];
-    setMessages(nextMessages);
-    await triggerAIResponse(nextMessages);
+    await sendMessage(cmdText);
   };
 
   // 发送对话消息
@@ -999,6 +1005,13 @@ export default function App() {
       setInputText('');
       setShowCommandList(false);
     }
+
+    const handled = await dispatchSystemCommand(textToSend, {
+        setMessages,
+        API_BASE,
+        getNowStr: _getNowStr
+    });
+    if (handled) return;
 
     const nextMessages = [...messages, { role: 'user', content: textToSend, timestamp: _getNowStr() }];
     setMessages(nextMessages);
@@ -1063,14 +1076,20 @@ export default function App() {
                 if (jsonStr === '[DONE]' || !jsonStr) continue;
                 const parsed = JSON.parse(jsonStr);
 
-                if (parsed.type === 'system_hint') {
+                if (parsed.type === 'system_hint' || parsed.type === 'draft_warning') {
                   setMessages(prev => {
                     const updated = [...prev];
                     const last = updated.pop();
-                    updated.push({ role: 'system_info', content: parsed.text, icon: parsed.icon });
+                    let icon = parsed.icon;
+                    if (parsed.type === 'draft_warning') icon = 'draft';
+                    updated.push({ role: 'system_info', content: parsed.text, icon: icon });
                     updated.push(last);
                     return updated;
                   });
+                  // Trigger status refresh immediately to update UI locks/unlocks
+                  if (parsed.type === 'draft_warning' || (parsed.type === 'system_hint' && parsed.icon === 'check')) {
+                    fetchStatus();
+                  }
                   continue;
                 }
 
@@ -1215,6 +1234,13 @@ export default function App() {
             return newMsg;
           }
           return msg;
+        }).filter(msg => {
+          if (msg.role === 'assistant' && !msg.streaming) {
+             const hasContent = msg.content && msg.content.trim().length > 0;
+             const hasBlocks = msg.blocks && msg.blocks.length > 0;
+             if (!hasContent && !hasBlocks) return false;
+          }
+          return true;
         });
       });
 
@@ -1450,7 +1476,24 @@ export default function App() {
                 activeModel={activeModel}
                 handleModelChange={handleModelChange}
                 activeSubModel={activeSubModel}
-                courseProgress={courseProgress}
+                mission={mission}
+                knowledgeTree={knowledgeTree}
+                onFileClick={async (path) => {
+                  try {
+                    const res = await fetch(`${API_BASE}/api/chat/materials/content?path=${encodeURIComponent(path)}`);
+                    if (res.ok) {
+                      const data = await res.json();
+                      setMessages(prev => [
+                        ...prev,
+                        { role: 'system_info', type: 'markdown_doc', content: data.content, path: path }
+                      ]);
+                    } else {
+                      alert("拉取文件失败");
+                    }
+                  } catch(e) {
+                    alert("网络异常");
+                  }
+                }}
               />
             )}
 

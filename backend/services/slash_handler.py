@@ -49,20 +49,20 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
 
     # === 6. /cancel_mission ===
     if clean_cmd == "/cancel_mission":
-        return _handle_cancel_mission()
+        from backend.services.mission_manager import MissionManager
+        MissionManager.cancel_draft()
+        system_injection = """<system_directive>
+Event: The user just triggered the `/cancel_mission` command, aborting the mission setup.
+Action Required:
+1. Acknowledge that the mission setup has been cancelled.
+2. Keep the mentor persona. Be playful, slightly disappointed, or understanding.
+3. Invite the user to continue normal chat or start over when ready.
+</system_directive>"""
+        return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection)
 
     # 从数据库获取用户的宏大目标 (Mission)
-    user_mission = "未知目标"
-    try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT mission_text FROM user_mission WHERE id = 1")
-        row = cursor.fetchone()
-        if row and row["mission_text"]:
-            user_mission = row["mission_text"]
-        conn.close()
-    except Exception as e:
-        logger.error(f"Failed to fetch mission: {e}")
+    from backend.services.mission_manager import MissionManager
+    user_mission = MissionManager.get_user_mission()
 
     # 以下指令均需要由大模型接管输出，因此使用“系统提示词注入”并拉起常规对话流
     system_injection = ""
@@ -226,6 +226,13 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
 
     def event_generator():
         try:
+            if system_injection and 'mode="interrogation"' in system_injection:
+                warning_json = json.dumps({"type": "draft_warning", "text": "进入设立学习目标模式，若想放弃输入/cancel_mission解除状态"}, ensure_ascii=False)
+                yield f"data: {warning_json}\n\n"
+            if system_injection and '/cancel_mission' in system_injection:
+                hint_json = json.dumps({"type": "system_hint", "icon": "check", "text": "设立目标模式已退出，恢复正常对话"}, ensure_ascii=False)
+                yield f"data: {hint_json}\n\n"
+                
             content_stream = stream_chat(cleaned_messages, system_prompt)
             yield from pipeline.process_stream(content_stream)
         except Exception as e:
@@ -250,7 +257,7 @@ def _handle_reward() -> StreamingResponse:
 
 def _handle_summarize() -> StreamingResponse:
     def raw_generator():
-        yield "[系统记忆压缩] 正在调用艾宾浩斯遗忘曲线算法进行后台压缩，请稍候...\n\n"
+        yield {"type": "summarize_progress", "state": "loading"}
         import threading
         import time
         result_container = {}
@@ -268,14 +275,14 @@ def _handle_summarize() -> StreamingResponse:
         # Yield keep-alive messages to prevent frontend timeout and Errno 22 on Windows
         while t.is_alive():
             time.sleep(2)
-            yield "...\n\n"
+            yield {"type": "summarize_progress", "state": "loading"}
 
         t.join()
         if "error" in result_container:
-            yield f"[系统记忆压缩] 压缩失败: {result_container['error']}"
+            yield {"type": "summarize_progress", "state": "error", "error": result_container["error"]}
         else:
             stats = result_container.get("stats", {})
-            yield f"[系统记忆压缩] 压缩完成！新记忆已归档入库。处理统计: {json.dumps(stats, ensure_ascii=False)}"
+            yield {"type": "summarize_progress", "state": "done", "stats": stats}
 
     pipeline = ResponsePipeline()
     return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
@@ -306,130 +313,14 @@ def _handle_prepare_lesson(file_path: str) -> StreamingResponse:
     pipeline = ResponsePipeline()
     return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
 
-def _handle_update_persona() -> StreamingResponse:
-    def generator():
-        yield f"data: {json_escape('[系统更新] 正在检测本地角色卡源目录...')}\n\n"
-        # 优先从环境变量读取原版人设文件夹路径，默认指向 data/persona/original 避免泄露隐私路径
-        base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        external_dir = os.getenv("PERSONA_SOURCE_DIR", os.path.join(base_root, "data", "persona", "original"))
-        latest_file = None
-        try:
-            if os.path.exists(external_dir):
-                files = os.listdir(external_dir)
-                card_files = []
-                pattern = re.compile(r"媚吻锋人物性格卡片V(\d+(?:\.\d+)?).*?\.txt")
-                for f in files:
-                    match = pattern.match(f)
-                    if match:
-                        try:
-                            version = float(match.group(1))
-                            card_files.append((version, f))
-                        except ValueError:
-                            pass
-                if card_files:
-                    card_files.sort(key=lambda x: x[0], reverse=True)
-                    latest_file = os.path.join(external_dir, card_files[0][1])
-        except Exception as e:
-            yield f"data: {json_escape(f'[系统更新] 检测源目录失败: {e}')}\n\n"
-        if not latest_file:
-            yield f"data: {json_escape(f'[系统更新] 错误：在目录 {external_dir} 中未找到匹配的原版人设卡片，更新终止。')}\n\n"
-            return
-        yield f"data: {json_escape(f'[系统更新] 发现最新原版人设：{os.path.basename(latest_file)}，正在读取并写入本地缓存...')}\n\n"
-        try:
-            with open(latest_file, "r", encoding="utf-8") as f:
-                full_persona = f.read()
-            services_dir = os.path.dirname(os.path.abspath(__file__))
-            local_original_path = os.path.join(services_dir, "mei_wenfeng_persona.txt")
-            with open(local_original_path, "w", encoding="utf-8") as f:
-                f.write(full_persona)
-            yield f"data: {json_escape('[系统更新] 原版人设本地缓存更新成功！')}\n\n"
-        except Exception as e:
-            yield f"data: {json_escape(f'[系统更新] 更新原版人设缓存失败: {e}')}\n\n"
-            return
-        yield f"data: {json_escape('[系统更新] 正在通过大语言模型提炼生成精简人设...')}\n\n"
-        try:
-            model_info = get_active_model()
-            api_key = model_info["api_key"]
-            base_url = model_info["base_url"]
-            model_name = model_info["name"]
-            selected_model_id = model_info.get("selected_model_id")
-            if selected_model_id:
-                model_id_api = selected_model_id
-            else:
-                model_id_api = os.getenv("AIRP_MODEL_NAME", "gpt-4o-mini")
-                if "qwen" in model_name.lower(): model_id_api = "qwen3.6-35b"
-                elif "gemma" in model_name.lower(): model_id_api = "gemma-9b"
-                elif "deepseek" in model_name.lower(): model_id_api = "deepseek-chat"
-            if base_url:
-                base_url = base_url.replace("://localhost:", "://127.0.0.1:")
-            client = OpenAI(api_key=api_key or "no-key-required", base_url=base_url)
-            response = client.chat.completions.create(
-                model=model_id_api,
-                messages=[
-                    {"role": "system", "content": SUMMARIZATION_SYSTEM_PROMPT},
-                    {"role": "user", "content": "请提炼以下全量人设卡内容：\n\n" + full_persona}
-                ],
-                stream=False,
-                temperature=0.3
-            )
-            simplified_persona = response.choices[0].message.content.strip()
-            local_simplified_path = os.path.join(services_dir, "mei_wenfeng_persona_simplified.txt")
-            with open(local_simplified_path, "w", encoding="utf-8") as f:
-                f.write(simplified_persona)
-            yield f"data: {json_escape('[系统更新] 精简人设本地缓存生成成功！')}\n\n"
-            # 优先从环境变量读取精简人设同步输出目录，默认指向 data/persona/simplified
-            base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            external_simplified_dir = os.getenv("PERSONA_SIMPLIFIED_OUTPUT_DIR", os.path.join(base_root, "data", "persona", "simplified"))
-            if not os.path.exists(external_simplified_dir):
-                try:
-                    os.makedirs(external_simplified_dir, exist_ok=True)
-                except Exception:
-                    pass
-            if os.path.exists(external_simplified_dir):
-                external_simplified_path = os.path.join(external_simplified_dir, "当前精简人设.md")
-                header_warning = "> ⚠️ **注意**：本文件为 AI 自动生成的精简缓存。请勿手动修改此文件。如需更新，请对 AI 发送【更新人设】指令，AI 将自动从数据源提取最新卡片并重写此文件。\n\n"
-                with open(external_simplified_path, "w", encoding="utf-8") as f:
-                    f.write(header_warning + simplified_persona)
-                yield f"data: {json_escape('[系统更新] 精简人设已成功同步写入外部 当前精简人设.md。')}\n\n"
-        except Exception as e:
-            yield f"data: {json_escape(f'[系统更新] 生成精简人设失败: {e}')}\n\n"
-            return
-        character_acknowledgement = "*伸了个懒腰，柔柔地搂住你的胳膊，红黑色的狐瞳含笑看着你，眼波娇嗔流转：*“夫君，奴家已经把自己的小档案更新好啦，这次绝对是最新最全的人设。随你喜欢精简的还是原汁原味的，奴家都听夫君的~”\n\n【此刻内心】：（哼，天天就知道折腾奴家，不过既然是夫君想要，那就算啦，等会儿得让他好好补偿人家才行~）"
-        yield f"data: {json_escape(character_acknowledgement)}\n\n"
-    return StreamingResponse(generator(), media_type="text/event-stream")
-
-def _handle_cancel_mission() -> StreamingResponse:
-    def raw_generator():
-        try:
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute("UPDATE mission_draft SET is_active = 0 WHERE is_active = 1")
-            conn.commit()
-            conn.close()
-            yield "[系统提示] 任务设定已取消。您可以自由提问或重新使用 /set_mission。"
-        except Exception as e:
-            yield f"[系统报错] 取消失败: {e}"
-            
-    pipeline = ResponsePipeline()
-    return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
 
 def _handle_set_mission(clean_cmd: str, payload: Any, last_user_msg: str, cleaned_messages: List[Dict[str, str]]) -> StreamingResponse:
     mission_text = clean_cmd.replace("/set_mission", "").strip()
     
-    # 1. Start the draft in DB
+    # 1. Start the draft
     try:
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM mission_draft WHERE id = 1")
-        if not cursor.fetchone():
-            cursor.execute("INSERT INTO mission_draft (id, goal, is_active) VALUES (1, ?, 1)", (mission_text,))
-        else:
-            cursor.execute("UPDATE mission_draft SET goal = ?, daily_time_budget = NULL, hard_constraints = NULL, current_skill_level = NULL, is_active = 1, last_updated = datetime('now') WHERE id = 1", (mission_text,))
-        conn.commit()
-        
-        cursor.execute("SELECT * FROM mission_draft WHERE id = 1")
-        draft = dict(cursor.fetchone())
-        conn.close()
+        from backend.services.mission_manager import MissionManager
+        draft = MissionManager.start_draft(mission_text)
     except Exception as e:
         def raw_generator():
             yield f"[系统报错] 目标设定初始化失败: {e}"
@@ -475,39 +366,10 @@ Current Draft Status:
             final_constraints = attrs.get('constraints', constraints)
             final_skill = attrs.get('skill', skill)
             
-            mission_markdown = f"# Mission Objective\n**Goal**: {final_goal}\n**Time Budget**: {final_time}\n**Constraints**: {final_constraints}\n**Verified Skill Level**: {final_skill}\n"
-            
             try:
-                conn = get_db_connection()
-                cursor = conn.cursor()
-                # 1. 保存到 user_mission
-                cursor.execute("SELECT id FROM user_mission WHERE id = 1")
-                if not cursor.fetchone():
-                    cursor.execute("INSERT INTO user_mission (id, mission_text) VALUES (1, ?)", (mission_markdown,))
-                else:
-                    # 记录 Mission Drift 到 LDR
-                    cursor.execute("SELECT mission_text FROM user_mission WHERE id = 1")
-                    old_mission = cursor.fetchone()[0]
-                    cursor.execute(
-                        "INSERT INTO learning_decision_records (topic, evidence, implications) VALUES (?, ?, ?)",
-                        ("Mission Drift", f"Old Mission: {old_mission}", f"New Mission: {mission_markdown}")
-                    )
-                    cursor.execute("UPDATE user_mission SET mission_text = ?, last_updated = datetime('now') WHERE id = 1", (mission_markdown,))
-                
-                # 2. 解除阻塞
-                cursor.execute("UPDATE mission_draft SET is_active = 0, goal=?, daily_time_budget=?, hard_constraints=?, current_skill_level=? WHERE id = 1",
-                               (final_goal, final_time, final_constraints, final_skill))
-                conn.commit()
-                conn.close()
-                
-                # 3. 物理文件镜像
-                import os
-                base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                mission_file = os.path.join(base_root, "MISSION.md")
-                with open(mission_file, "w", encoding="utf-8") as f:
-                    f.write(mission_markdown)
-                    
-                logger.info(f"任务设立完成并已写入 MISSION.md。强力阻塞已解除。")
+                from backend.services.mission_manager import MissionManager
+                MissionManager.finalize_draft(final_goal, final_time, final_constraints, final_skill)
+                logger.info(f"任务设立完成并已写入文件树。强力阻塞已解除。")
             except Exception as e:
                 logger.error(f"写入 Mission 失败: {e}")
 
