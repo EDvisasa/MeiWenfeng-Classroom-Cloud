@@ -65,4 +65,14 @@ describe('parseAndMergeBlocks', () => {
       { type: 'text', text: 'Normal text.More normal text.' }
     ]);
   });
+
+  // Behavior 6
+  it('should strip side-effect tags like <property_update> and [SYSTEM_PASS] completely from the final text', () => {
+    const input = 'Here is text. <property_update affection_delta="1" /> [SYSTEM_PASS] <new_course phase="1" topic="test"></new_course>';
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      { type: 'text', text: 'Here is text.' }
+    ]);
+  });
 });

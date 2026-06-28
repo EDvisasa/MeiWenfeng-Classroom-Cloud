@@ -92,6 +92,14 @@
                     在 <code>memory_decay.py</code> 中设立四级时间阈值（<code>-2 days</code>、<code>-7 days</code>、<code>-30 days</code>、<code>-365 days</code>）。触发时通过大模型以第三方客观视角归纳为：【时间跨度】、【面向对象】、【详细纪要】、【学情洞察】4 个固定字段，并通过全局锁 <code>_decay_lock</code> 保障并发安全。
                 </p>
             </div>
+            <div class="border-l-4 border-teal-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 长短程记忆格式隔离与瘦身优化 (Memory Formatting & Noise Reduction)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    将 <code>&lt;thought&gt;</code> 与 <code>&lt;inner_thought&gt;</code> 的存储策略在长短程记忆中进行解耦：<br>
+                    1. <b>短程对话 (chat_messages)</b>：前端完整保留格式标签，随近期对话上下文发给模型，充当 Few-shot 样本，强制维持人设与输出格式的稳定性。<br>
+                    2. <b>长程记忆 (memory_logs/RAG)</b>：后端 <code>ResponsePipeline</code> 写入日志与向量库前，强制拦截并用正则剔除所有底层推理标签，保证存入向量数据库的仅为高浓度信息，避免心理活动占据庞大的 Token。
+                </p>
+            </div>
         </div>
 
         <!-- Before vs After Topological Diagram -->

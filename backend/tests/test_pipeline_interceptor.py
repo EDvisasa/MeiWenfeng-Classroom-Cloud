@@ -43,10 +43,10 @@ def test_pipeline_interception():
         elif isinstance(res, dict):
             out += res.get("text", "")
 
-    # 验证是否正确拦截并清除了输出
+    # 验证是否正确拦截且依然输出（数据穿透）
     assert "咱们的‘修仙大计’，正式成契啦~”" in out
-    assert "<finalize_mission" not in out
-    assert "<property_update" not in out
+    assert "<finalize_mission" in out
+    assert "<property_update" in out
 
     # 验证 Handler 是否被正确调用
     assert h1.called is True

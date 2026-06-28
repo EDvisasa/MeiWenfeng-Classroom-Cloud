@@ -189,6 +189,16 @@ export default function App() {
     await triggerAIResponse(nextMessages);
   };
 
+  const handleEditAiMessage = (index, newContent) => {
+    if (isStreaming) return;
+
+    // 仅更新该条 AI 消息的内容
+    const nextMessages = [...messages];
+    nextMessages[index] = { ...nextMessages[index], content: newContent };
+
+    setMessages(nextMessages);
+  };
+
   // 内心独白
   const [currentThought, setCurrentThought] = useState('暂时没有想法...');
 
@@ -1187,8 +1197,14 @@ export default function App() {
                   const lastMsg = updated[updated.length - 1];
                   if (lastMsg.role === 'assistant') {
                     lastMsg.blocks = [...currentBlocks];
-                    // Keep plain text content for compatibility with older rendering (like the prompt match logic below)
-                    let displayContent = currentBlocks.filter(b => b.type === 'text').map(b => b.text).join('');
+                    // Keep plain text content completely raw for editing and full visibility.
+                    // Also convert native 'thinking' blocks (reasoning_content) back into <thought> tags so they are not lost in the edit box.
+                    let displayContent = currentBlocks.filter(b => b.type === 'text' || b.type === 'thinking').map(b => {
+                      if (b.type === 'thinking') {
+                        return `<thought>\n${b.text.trim()}\n</thought>\n`;
+                      }
+                      return b.text;
+                    }).join('');
                     const thoughtMatchArray = displayContent.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/g);
                     if (thoughtMatchArray && thoughtMatchArray.length > 0) {
                       const lastThought = thoughtMatchArray[thoughtMatchArray.length - 1];
@@ -1196,7 +1212,9 @@ export default function App() {
                       if (innerMatch) {
                         setCurrentThought(innerMatch[1].trim());
                       }
-                      displayContent = displayContent.replace(/\s*<inner_thought>[\s\S]*?(?:<\/inner_thought>|$)\s*/g, '').trim();
+                      // DO NOT strip it from displayContent here! 
+                      // blockParser.js handles hiding tags for normal chat bubbles.
+                      // We want msg.content to be 100% raw for the edit box.
                     }
                     lastMsg.content = displayContent;
                   }
@@ -1452,6 +1470,7 @@ export default function App() {
             executeSlashCommand={executeSlashCommand}
             chatEndRef={chatEndRef}
             onEditAndResend={handleEditAndResend}
+            onEditAiMessage={handleEditAiMessage}
             sessions={sessions}
             activeSessionId={activeSessionId}
             onNewSession={handleNewSession}

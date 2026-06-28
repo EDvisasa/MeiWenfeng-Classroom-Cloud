@@ -67,7 +67,9 @@ class TagStreamInterceptor:
                 if self.buffer.startswith("["):
                     if self.buffer == "[SYSTEM_PASS]":
                         self.intercepted_data["system_pass"] = True
-                        self.buffer = "" # 拦截成功，清空缓冲
+                        safe_text = self._flush_buffer_safe()
+                        if safe_text:
+                            yield {"type": "text", "text": safe_text} if is_dict else safe_text
                     elif not "[SYSTEM_PASS]".startswith(self.buffer):
                         # 不是目标标签，释放缓冲
                         safe_text = self._flush_buffer_safe()
@@ -85,7 +87,9 @@ class TagStreamInterceptor:
 
                             if single_match and single_match.group(1) in self.target_tags:
                                 self._store_tag(single_match.group(1), single_match.group(2), "")
-                                self.buffer = "" # 拦截成功
+                                safe_text = self._flush_buffer_safe()
+                                if safe_text:
+                                    yield {"type": "text", "text": safe_text} if is_dict else safe_text
                             elif start_match and start_match.group(1) in self.target_tags:
                                 self.in_tag = True
                                 self.current_tag_name = start_match.group(1)
@@ -101,7 +105,9 @@ class TagStreamInterceptor:
                                 tag_match = re.search(rf'<({self.current_tag_name})([^>]*)>([\s\S]*?)</\1>$', self.buffer)
                                 if tag_match:
                                     self._store_tag(tag_match.group(1), tag_match.group(2), tag_match.group(3))
-                                    self.buffer = "" # 拦截成功
+                                    safe_text = self._flush_buffer_safe()
+                                    if safe_text:
+                                        yield {"type": "text", "text": safe_text} if is_dict else safe_text
                                     self.in_tag = False
                                     self.current_tag_name = ""
                                 else:
@@ -271,8 +277,16 @@ class ResponsePipeline:
 
         try:
             from datetime import datetime
+            import re
+            
+            # 清理长程记忆：剔除所有心理活动和思考标签，节约向量数据库和摘要时的上下文Token
+            memory_clean_text = clean_text
+            memory_clean_text = re.sub(r'<inner_thought>[\s\S]*?(?:</inner_thought>|$)', '', memory_clean_text, flags=re.IGNORECASE)
+            memory_clean_text = re.sub(r'<thought>[\s\S]*?(?:</thought>|$)', '', memory_clean_text, flags=re.IGNORECASE)
+            memory_clean_text = memory_clean_text.strip()
+            
             time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            memory_content = f"【对话记录 ({time_str})】\n用户：{self.original_user_msg}\n媚吻锋：{clean_text}"
+            memory_content = f"【对话记录 ({time_str})】\n用户：{self.original_user_msg}\n媚吻锋：{memory_clean_text}"
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
@@ -295,6 +309,6 @@ class ResponsePipeline:
 
             # 存入 RAG 向量库
             rag_client = get_rag_client()
-            rag_client.save_memory(self.original_user_msg, clean_text, level=0)
+            rag_client.save_memory(self.original_user_msg, memory_clean_text, level=0)
         except Exception as e:
             logger.error(f"Failed to save memory in pipeline: {e}")

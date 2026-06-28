@@ -324,6 +324,7 @@ export default function ChatPanel({
   executeSlashCommand,
   chatEndRef,
   onEditAndResend,
+  onEditAiMessage,
   isVsCode,
   sessions,
   activeSessionId,
@@ -726,8 +727,10 @@ export default function ChatPanel({
           };
 
           const handleConfirmEdit = () => {
-            if (onEditAndResend && editContent.trim()) {
+            if (isUser && onEditAndResend && editContent.trim()) {
               onEditAndResend(index, editContent.trim());
+            } else if (!isUser && onEditAiMessage && editContent.trim()) {
+              onEditAiMessage(index, editContent.trim());
             }
             handleCancelEdit();
           };
@@ -787,17 +790,19 @@ export default function ChatPanel({
               </div>
 
               {/* Message Bubble */}
-              {isUser && isEditing && editingIndex === index ? (
+              {isEditing && editingIndex === index ? (
                 <div className="message-bubble editing">
                   <textarea
                     className="edit-textarea"
                     value={editContent}
                     onChange={(e) => setEditContent(e.target.value)}
-                    rows={3}
+                    rows={10}
                     autoFocus
                   />
                   <div className="edit-actions">
-                    <button className="edit-confirm-btn" onClick={handleConfirmEdit}>重新发送</button>
+                    <button className="edit-confirm-btn" onClick={handleConfirmEdit}>
+                      {isUser ? '重新发送' : '保存修改'}
+                    </button>
                     <button className="edit-cancel-btn" onClick={handleCancelEdit}>取消</button>
                   </div>
                 </div>
@@ -812,8 +817,14 @@ export default function ChatPanel({
                       </div>
                     )}
                     {(isStreaming && msg.streaming && !pendingApproval) && <span className="typing-cursor" />}
-                    {isUser && (
+                    {isUser ? (
                       <button className="edit-msg-btn" onClick={handleStartEdit} title="编辑并重发">
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M11.5 1a.5.5 0 0 1 .354.146l2 2A.5.5 0 0 1 14 3.5v.793L4.5 13.793 1 15l1.207-3.5L11.5 1zm-1.207 2.5L8.5 1.707 2 8.207V9.5h1.293L11.5 1.5zm1.914 0l.793-.793-1.207-1.207-.793.793 1.207 1.207z" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <button className="edit-msg-btn" onClick={handleStartEdit} title="查看并编辑原始流">
                         <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
                           <path d="M11.5 1a.5.5 0 0 1 .354.146l2 2A.5.5 0 0 1 14 3.5v.793L4.5 13.793 1 15l1.207-3.5L11.5 1zm-1.207 2.5L8.5 1.707 2 8.207V9.5h1.293L11.5 1.5zm1.914 0l.793-.793-1.207-1.207-.793.793 1.207 1.207z" />
                         </svg>

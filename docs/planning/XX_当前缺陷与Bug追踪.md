@@ -17,9 +17,9 @@
   - 检查后端拉取文件内容的 API（如 `GET /api/files/...`）返回的数据结构是否符合前端预期。
   - 修复前必须先查看浏览器的 Developer Console 报错堆栈以精准定位崩溃点。
 
-### 3. 本地小模型思考过程格式泄露（未遵循 XML 规范）
+### 3. [正在测试] 本地小模型思考过程格式泄露（未遵循 XML 规范）
 - **现象描述**：在与本地小模型（如 `ornith-1.0-9b`）对话时，模型未能正确使用 `prompts.py` 中规定的 `<inner_thought>` 或 `<thought>` 等 XML 标签来包裹内心独白。相反，模型直接输出了纯文本 `Thinking` 并紧接英文思考链（例如 `Thinking\nThe user is playfully...`），导致后端的 `ResponsePipeline` 无法基于 XML 规则进行有效拦截，直接将思考过程暴露给了用户界面。
-- **调查方向**：
-  - 排查 `backend/services/prompts.py` 中的系统指令，评估当前提示词对于参数量较小、指令跟随能力较弱的本地模型是否过于苛刻。
-  - 检查后端的流式拦截器（`ResponsePipeline` 或相关适配层）是否需要增加针对本地小模型特有 CoT（思维链）前缀（如 `Thinking`、`<think>`）的正则或状态机兼容剥离机制。
-  - 分析是否是因为模型底座自带的推理过程（如类似 DeepSeek R1 架构自带的思考流）通过 LiteLLM 网关直传导致，需要研究对应的网关层剥离方案。
+- **解决方案 (2026-06-28)**：
+  - **零侵入架构决策**：坚持“大模型主动适配系统”原则，不修改本地任何 Python 路由逻辑。
+  - **落地手段 (Assistant Prefill)**：在 `C:\Users\EDvisa\.lmstudio\config-presets\Classroom-Agent.preset.json` 中为其定制了专属 ChatML 强制模板。通过在 `messages` 渲染流的末尾强制注入 `<|im_start|>assistant\n<inner_thought>\n`，在物理层面上劫持了模型的首个 Token 生成，迫使其必须在 XML 标签内完成思考闭环，完美适配了后端的 `TagStreamInterceptor`。
+- **当前状态**：方案已实装，当前正在长期测试其在连续多轮复杂对话中是否会出现格式抖动或回退。
