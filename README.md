@@ -10,7 +10,7 @@
 
 - ✅ **流式对话渲染** - 内嵌角色设定，自动渲染灰色斜体动作描写
 - ✅ **动态记忆衰减** - 本地 ChromaDB 支持，自动提取核心并按遗忘曲线衰减
-- ✅ **沉浸式双栏布局** - 专为 VS Code 生态深度重构：专注核心对话区与右侧导师状态面板
+- ✅ **沉浸式双栏布局** - 专为 VS Code 生态深度适配：聚焦中间核心对话区与右侧导师状态面板
 - ✅ **多模型无缝切换** - 完全支持 DeepSeek 以及本地 Ollama (如 gemma-9b)，架构已预留 Claude/Gemini 接入空间
 - ✅ **内网跨屏访问** - 动态 API 寻址与 IP 白名单防黑设计，支持手机端无缝使用
 
@@ -29,17 +29,29 @@ MeiWenfeng-Classroom/
 │   └── classroom.db          # 结构化数据库 (好感度/课程进度/系统配置)
 ├── frontend/                 # React 前端
 │   ├── src/
-│   │   ├── components/       # UI 组件 (FileTree/ChatPanel/StatusPanel 等)
+│   │   ├── components/       # UI 组件 (ChatPanel/StatusPanel/DatabaseViewer 等)
 │   │   ├── config.js         # 全局动态 API 寻址配置
 │   │   ├── App.jsx           # 主程序入口
 │   │   └── index.css         # 深色主题与样式系统
 │   ├── vite.config.js        # Vite 构建配置 (绑定 0.0.0.0)
 │   └── index.html            # 页面入口
-├── docs/                     # 项目文档与架构分析报告
-│   ├── analysis/             # 技术分析与 Bug 诊断报告 (HTML)
-│   ├── architecture/         # 架构设计与审查报告
-│   ├── planning/             # 任务进展与项目实施计划
-│   └── 开发与测试指南.md     # 自动化测试与端到端用例参考
+├── data/                     # 用户私密学习资产与角色互动配置
+│   ├── materials/            # 分级隔离教学物料库 (底座架构安全范围)
+│   │   ├── References/       # 理论讲义卡片物理存储区 (需通过 /prepare 手动同步至 RAG 向量库)
+│   │   ├── Sandbox/          # AI 授课与自动化编辑的唯一物理操作沙盒
+│   │   ├── Lessons/          # 课堂生成的具体课时讲义记录
+│   │   ├── Settings/         # 全局学习目标与系统边界配置文件存放区
+│   │   └── LDRs/             # 课程规划漂移追踪记录 (Learning Drift Records)
+│   └── persona/              # 角色扮演人设系统专属配置
+│       └── simplified/       # 动态迭代与提炼后的精简人设设定
+├── docs/                     # 项目工程研发与架构决策文档
+│   ├── architecture/         # 系统架构决策记录 (ADRs，全量单文件 HTML)
+│   ├── planning/             # 任务进展与项目规划 (00_总纲 / 01_任务清单 等)
+│   ├── reports/              # 分析与测试报告收纳中心
+│   ├── 00_文档规范与命名总纲.md # 【最高纲领】双系统架构隔离与文件命名铁律
+│   └── 01_开发与测试指南.md  # 自动化测试体系与端到端用例参考
+├── CONTEXT.md                # 领域核心概念与系统架构术语字典
+├── MISSION.md                # 全局长期学习目标与核心任务指标配置
 ├── start.bat                 # Windows 一键启动脚本
 ├── start.sh                  # Linux/Mac 一键启动脚本
 ├── .env.example              # 环境变量参考模板
@@ -134,18 +146,19 @@ cd MeiWenfeng-Classroom
 | `/summarize` | 主动压缩记忆，触发衰减算法整合并存入 SQLite |
 | `/prepare` | 将当前选中的讲义同步至本地向量知识库 |
 | `/plan` | 读取历史进度，对课程大纲的未来路径进行自动重规划 |
-| `/set_mission` | 设定最终的宏大教学目标（用法：`/set_mission [目标]`） |
+| `/set_mission` | 确立全局的长期学习目标与任务指标（用法：`/set_mission [目标]`） |
 | `/update_persona` | 从源目录更新全量人设并自动提炼为精简人设 |
 
 ---
 
 ## 📚 开发者指引 (给 AI 的备注)
 
-当你后续接手此工程进行二次开发时，请首先查阅 `docs/` 目录下的相关文档：
-- **`docs/开发与测试指南.md`**：包含本项目的自动化测试体系说明，以及常用的端到端测试用例参考。
+当你后续接手此工程进行二次开发时，请首先恪守 `docs/` 目录下的最高纲领与规范：
+- **`docs/00_文档规范与命名总纲.md`**：【最高纲领】严格遵循文档分级存储规范与文件命名铁律，时刻遵守“**角色扮演系统 vs 严肃教学底座系统**”的双领域用词物理隔离法则。
+- **`docs/01_开发与测试指南.md`**：包含本项目的自动化测试体系说明，以及常用的端到端测试用例参考。
+- **`docs/planning/00_开发计划总纲.md`**：如果需要做大型系统重构或了解项目底层的阶段性目标与架构选型，请以此为终极蓝本。
 - **`docs/planning/01_当前开发任务.md`**：获取项目当前冲刺阶段（Sprint）切实可执行的开发任务清单。
-- **`docs/planning/00_开发计划总纲.md`**：如果需要做大型系统重构或调整阶段性核心目标，请以此为蓝本。
-- **`docs/analysis/`** 与 **`docs/architecture/`**：包含过往的架构审查、Bug 诊断与深度重构报告。
+- **`docs/reports/`** 与 **`docs/architecture/`**：包含架构决策记录（ADR 单文件 HTML）与历史分析测试报告。
 
 ---
 

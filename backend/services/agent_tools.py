@@ -205,7 +205,7 @@ class GrepSearchTool(AgentTool):
 
 class ReplaceFileContentTool(AgentTool):
     name = "replace_file_content"
-    description = "Surgically replace a block of text in a specific file. Restricted to the docs/sandbox directory."
+    description = "Surgically replace a block of text in a specific file. Restricted to the data/materials/Sandbox directory."
 
     def execute(self, params: dict) -> str:
         path = params.get("path", "")
@@ -218,7 +218,7 @@ class ReplaceFileContentTool(AgentTool):
         # Security Guardrail: Sandbox Restriction
         # Use realpath to resolve symbolic links (symlink bypass prevention)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        sandbox_dir = os.path.realpath(os.path.join(project_root, "docs", "sandbox"))
+        sandbox_dir = os.path.realpath(os.path.join(project_root, "data", "materials", "Sandbox"))
         target_path = os.path.realpath(path)
         
         # Use commonpath for mathematically safe boundary checking (handles all OS path quirks)
@@ -259,7 +259,7 @@ class ReplaceFileContentTool(AgentTool):
 
 class CreateFileTool(AgentTool):
     name = "create_file"
-    description = "Create a brand new file with the specified content. Restricted to the docs/sandbox directory."
+    description = "Create a brand new file with the specified content. Restricted to the data/materials/Sandbox directory."
 
     def execute(self, params: dict) -> str:
         path = params.get("path", "")
@@ -270,7 +270,7 @@ class CreateFileTool(AgentTool):
             
         # Security Guardrail: Sandbox Restriction
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        sandbox_dir = os.path.realpath(os.path.join(project_root, "docs", "sandbox"))
+        sandbox_dir = os.path.realpath(os.path.join(project_root, "data", "materials", "Sandbox"))
         target_path = os.path.realpath(path)
         
         try:

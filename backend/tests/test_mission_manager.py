@@ -51,7 +51,7 @@ def test_cancel_draft_clears_active_state():
     assert MissionManager.get_active_draft() is None
 
 def test_finalize_draft_updates_user_mission_and_writes_files(tmp_path):
-    """测试行为 3：神圣契约的签订（终极集成测试）。"""
+    """测试行为 3：全局学习目标与配置参数的终审落地（集成验证）。"""
     # Arrange
     MissionManager.start_draft("Initial Goal")
     final_goal = "Master React Hooks"

@@ -51,8 +51,8 @@ describe('StatusPanel Behavior Tests', () => {
     };
     render(<StatusPanel {...draftProps} />);
 
-    // 断言封印遮罩渲染
-    expect(screen.getByText(/任务设立中，知识库被封印/)).toBeInTheDocument();
+    // 断言锁定遮罩渲染
+    expect(screen.getByText(/目标拟定中，知识库已锁定/)).toBeInTheDocument();
 
     // 点击文件，断言回调不被触发
     const fileNode = screen.getByText('测试文档.md');

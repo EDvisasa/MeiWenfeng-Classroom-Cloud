@@ -46,5 +46,12 @@ frontend/build/
 vscode-extension/out/
 vscode-extension/dist/
 
-# 用户静态资源与上传数据
-data/
+# ----------------------------------------------------------------------
+# 用户隐私与学习数据隔离 (Classroom Privacy & User Learning Data)
+# ----------------------------------------------------------------------
+# 课上产生的所有学习物料、理论讲义(References)、试错作业(Sandbox)、记录(LDRs)均保存在 data/materials/ 下
+# 属个人私密学习资产，严禁提交或同步至云端（保留人设卡片等初始配置）
+data/materials/**
+!data/materials/
+!data/materials/*/
+!data/materials/*/README.md

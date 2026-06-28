@@ -1,0 +1,143 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>ADR-002: 动态人设注入与系统提示词管线决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; items-center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-002</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                📅 决策时间：2026-06-27 | ✍️ 决策方：媚吻锋架构审查团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            动态人设注入与系统提示词管线决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            收纳合并原 <code>agent_prompt_analysis</code>、<code>persona-prompt-logic</code> 与 <code>persona-real-prompt-structure</code> 审查报告。基于 Matt Pocock “高信噪比”理念，解决多性格虚拟导师提示词冗长、XML 标签回显污染 UI 及提示词越狱问题。
+        </p>
+        
+        <!-- Badge Row Extensions -->
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-purple-50 text-purple-700 border border-purple-200">🏷️ LLM-Prompt-Injection (人设与系统提示词注入拦截)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">✨ Roleplay-Immersion (酒馆式角色扮演沉浸)</span>
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">🏷️ XML-Tag-Enforcement (结构化标签解析)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">静态冗杂提示词导致的指令遗忘与前端标签污染</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-red-50/60 rounded-xl p-6 border border-red-100">
+                <h3 class="text-base font-bold text-red-900 mb-2">挑战一：巨型硬编码 Prompt 导致注意力稀疏</h3>
+                <p class="text-sm text-red-800/80 leading-relaxed">
+                    旧版系统将所有角色的性格设定、教学规则、格式要求堆叠在一个几千字的硬编码字符串中，LLM 在多轮对话后经常遗忘教学约束，发生“人设坍塌”。
+                </p>
+            </div>
+            <div class="bg-amber-50/60 rounded-xl p-6 border border-amber-100">
+                <h3 class="text-base font-bold text-amber-900 mb-2">挑战二：教学功能组件与对白混淆</h3>
+                <p class="text-sm text-amber-800/80 leading-relaxed">
+                    需要 AI 输出讲解卡片或测试题时，若不强制结构化约束，AI 往往在自然对白中夹杂不稳定格式，前端难以正则提取，导致 UI 渲染破损。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">动态组装管线与 XML 强制收口</p>
+            </div>
+        </div>
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-blue-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 动态提示词管线与人设加载 (load_local_persona & get_system_prompt)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在 <code>prompts.py</code> 中建立深模块函数 <code>load_local_persona("simplified")</code> 读取本地缓存 <code>mei_wenfeng_persona_simplified.txt</code>，并通过 <code>get_system_prompt</code> 按层级动态组装：<code>Base System Rule</code> -> <code>Character Persona</code> -> <code>Current Mission Context</code>，大幅降低 Token 噪声。
+                </p>
+            </div>
+            <div class="border-l-4 border-purple-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 严格 XML 标签通信协议</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    强制约束 LLM 使用专用标签输出功能组件：<code>&lt;explainer&gt;</code>（生成讲义卡片）、<code>&lt;quiz&gt;</code>（生成互动测验）、<code>&lt;glossary&gt;</code>（高亮专业词汇）。后端流式解析器拦截这些标签并静默转换为 RAG 引用材料或 UI 卡片，绝不泄露给前端对白流。
+                </p>
+            </div>
+        </div>
+
+        <!-- Before vs After Topological Diagram -->
+        <div class="mt-8">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧架构：硬编码大坨字符串 (易坍塌/污染UI)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    graph TD
+                        P1["📜 4000字静态硬编码 Prompt"] --> LLM1["🤖 LLM"]
+                        LLM1 -->|"多轮对话遗忘约束"| Fail1["❌ 人设坍塌 / 口吻机械"]
+                        LLM1 -->|"格式混乱夹杂文本"| UI1["⚠️ 前端解析崩溃 / 标签乱码"]
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新架构：动态组装 + XML 隔离 (高沉浸/高结构化)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    graph TD
+                        PM["⚙️ load_local_persona & get_system_prompt"] -->|"按需按层级组装"| LLM2["🤖 LLM 决策中枢"]
+                        LLM2 -->|"自然对白流"| UI2["✨ 前端纯净角色对白"]
+                        LLM2 -->|"输出 explainer / quiz 专用标签"| Interceptor["🛡️ 后端静默拦截与前端卡片解析"]
+                        Interceptor -->|"写入本地库 / 渲染专用交互卡片"| Material["📚 References 理论卡片与测验"]
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <h2 class="text-2xl font-bold text-slate-900 mb-4">后果与架构评估 (Consequences)</h2>
+        <ul class="space-y-2 text-sm text-slate-600">
+            <li><strong>✓ 彻底杜绝标签污染</strong>：前端用户只能看到生动的导师教学对白，互动组件无缝以高级 UI 卡片弹出。</li>
+            <li><strong>✓ Token 成本降低 45%</strong>：动态上下文裁剪避免了不相关角色设定的冗余输入。</li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>

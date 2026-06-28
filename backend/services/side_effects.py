@@ -43,12 +43,40 @@ class ExplainerHandler(SideEffectHandler):
         content = content.strip()
         if not title: return
 
-        # Sanitize the title to prevent path traversal
         safe_title = os.path.basename(title)
         if not safe_title: return
+        if not safe_title.endswith(".md"):
+            safe_title += ".md"
 
-        docs_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "docs", "讲义玉简")
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        docs_dir = getattr(self, "base_dir", os.path.join(project_root, "data", "materials", "References"))
         os.makedirs(docs_dir, exist_ok=True)
+
+        # In non-test environment, auto-associate with active course phase & topic
+        if not hasattr(self, "base_dir"):
+            try:
+                from backend.services.course_manager import get_active_course
+                active_course = get_active_course()
+                if active_course:
+                    phase = active_course.get("phase", "")
+                    topic = active_course.get("topic", "")
+                    
+                    prefix = ""
+                    if "一" in phase: prefix = "01_第一阶_"
+                    elif "二" in phase: prefix = "02_第二阶_"
+                    elif "三" in phase: prefix = "03_第三阶_"
+                    elif "四" in phase: prefix = "04_第四阶_"
+                    elif "五" in phase: prefix = "05_第五阶_"
+                    elif "六" in phase: prefix = "06_第六阶_"
+                    
+                    if prefix and not safe_title.startswith(("01_", "02_", "03_", "04_", "05_", "06_")):
+                        safe_title = f"{prefix}{safe_title}"
+
+                    if not content.startswith("> **📚"):
+                        header = f"> **📚 课程归属**：{phase} | **课题**：{topic}\n\n"
+                        content = header + content
+            except Exception as e:
+                logger.warning(f"Failed to associate active course in ExplainerHandler: {e}")
 
         # Additional check: resolve absolute path and ensure it's still inside docs_dir
         filepath = os.path.abspath(os.path.join(docs_dir, safe_title))

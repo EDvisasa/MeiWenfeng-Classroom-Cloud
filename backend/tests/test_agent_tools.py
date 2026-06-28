@@ -97,9 +97,9 @@ def test_replace_file_content_tool_success(tmp_path):
     # A cleaner way is to patch the os.path.dirname in the tool, but we can also just use the real sandbox dir
     
     # Actually, since the sandbox is hardcoded to project_root/docs/sandbox,
-    # let's create a temporary file in the REAL docs/sandbox to test it safely.
+    # let's create a temporary file in the REAL data/materials/Sandbox to test it safely.
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    sandbox_dir = os.path.abspath(os.path.join(project_root, "docs", "sandbox"))
+    sandbox_dir = os.path.abspath(os.path.join(project_root, "data", "materials", "Sandbox"))
     os.makedirs(sandbox_dir, exist_ok=True)
     
     test_file = os.path.join(sandbox_dir, "test_temp_replace.py")
@@ -123,7 +123,7 @@ def test_replace_file_content_tool_success(tmp_path):
             os.remove(test_file)
 
 def test_replace_file_content_tool_blocks_outside_sandbox():
-    """Test that ReplaceFileContentTool blocks edits outside the docs/sandbox directory."""
+    """Test that ReplaceFileContentTool blocks edits outside the data/materials/Sandbox directory."""
     tool = ReplaceFileContentTool()
     
     # Try to edit a file outside sandbox, e.g., the test file itself
@@ -138,11 +138,11 @@ def test_replace_file_content_tool_blocks_outside_sandbox():
     assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
 
 def test_replace_file_content_tool_blocks_directory_prefix_bypass():
-    """Test that ReplaceFileContentTool blocks directory prefix bypass (e.g., docs/sandbox_hacked)."""
+    """Test that ReplaceFileContentTool blocks directory prefix bypass (e.g., data/materials/Sandbox_hacked)."""
     tool = ReplaceFileContentTool()
     
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    hacked_sandbox_dir = os.path.abspath(os.path.join(project_root, "docs", "sandbox_hacked"))
+    hacked_sandbox_dir = os.path.abspath(os.path.join(project_root, "data", "materials", "Sandbox_hacked"))
     
     result = tool.execute({
         "path": os.path.join(hacked_sandbox_dir, "test.py"),
@@ -159,7 +159,7 @@ def test_create_file_tool_success(tmp_path):
     tool = CreateFileTool()
     
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    sandbox_dir = os.path.abspath(os.path.join(project_root, "docs", "sandbox"))
+    sandbox_dir = os.path.abspath(os.path.join(project_root, "data", "materials", "Sandbox"))
     os.makedirs(sandbox_dir, exist_ok=True)
     
     test_file = os.path.join(sandbox_dir, "test_new_create.py")

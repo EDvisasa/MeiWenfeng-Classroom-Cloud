@@ -1,0 +1,306 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-width=1.0" />
+    <title>架构审查报告 — ADR-000 系统整体架构分层决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs";
+        mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+    </script>
+    <style>
+        .seam { stroke-dasharray: 4 4; }
+        .leak { stroke: #dc2626; }
+        .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+    </style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans selection:bg-emerald-100">
+<main class="max-w-5xl mx-auto px-6 py-12 space-y-12">
+
+    <!-- Header 面板 -->
+    <header class="bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm space-y-6">
+        <div class="flex flex-wrap items-center justify-between gap-4 border-b border-slate-100 pb-6">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider bg-emerald-100 text-emerald-800 border border-emerald-300">
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-xs font-mono text-slate-500 bg-stone-100 px-2.5 py-1 rounded border border-stone-200">ADR-000</span>
+                <span class="text-xs font-mono text-slate-500 bg-stone-100 px-2.5 py-1 rounded border border-stone-200">in-process</span>
+            </div>
+            <div class="text-xs font-mono text-slate-400">2026-06-28 · 智能教学系统架构审查团队</div>
+        </div>
+
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-slate-900">将浅层代码收敛为六大深模块解耦工程</h1>
+            <p class="text-slate-600 mt-2 text-base leading-relaxed">
+                确立自上而下的六层工程拓扑结构 (Hierarchical Layering)，统筹 ADR-001 ~ ADR-007 架构决策记录。通过物理切片屏障与深模块收口，彻底消除跨架构接缝的状态泄漏 (state leakage) 与浅层过度包装 (shallow wrapping)。
+            </p>
+        </div>
+
+        <!-- 紧凑图例 & 专属领域标签 -->
+        <div class="flex flex-wrap items-center justify-between gap-4 pt-2 text-xs text-slate-500 font-mono">
+            <div class="flex flex-wrap items-center gap-4">
+                <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm bg-slate-800 inline-block"></span> 实线框 = 独立模块</span>
+                <span class="inline-flex items-center gap-1.5"><span class="w-6 h-0 border-t-2 border-dashed border-slate-400 inline-block"></span> 虚线 = 架构接缝</span>
+                <span class="inline-flex items-center gap-1.5"><span class="w-4 h-0 border-t-2 border-red-600 inline-block"></span> 红色箭头 = 状态泄漏</span>
+                <span class="inline-flex items-center gap-1.5"><span class="w-3 h-3 rounded-sm deep inline-block"></span> 深色厚框 = 深模块</span>
+            </div>
+            <div class="flex flex-wrap gap-1.5">
+                <span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold border border-blue-200">LLM-Prompt-Injection</span>
+                <span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold border border-emerald-200">RAG-Vector-Indexed</span>
+                <span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold border border-purple-200">ZPD-Adaptive</span>
+                <span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold border border-amber-200">DB-Transaction</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Section 0: Core Philosophy & Bounded Contexts -->
+    <section class="bg-gradient-to-br from-slate-900 to-indigo-950 rounded-2xl border border-slate-800 p-8 shadow-md text-white space-y-6">
+        <div class="flex items-center gap-3 border-b border-slate-800 pb-4">
+            <div class="w-8 h-8 rounded-lg bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 font-bold text-sm">0</div>
+            <h2 class="text-lg font-bold tracking-tight">核心架构哲学与限界上下文物理隔离 (Domain Bounded Contexts)</h2>
+        </div>
+        <p class="text-sm text-slate-300 leading-relaxed">
+            本工程由两个本质不同、高度解耦的核心子系统交织而成。在底层源码、API 规范、系统日志与架构文档中，严禁用词与职责混淆，必须严格恪守领域驱动设计 (DDD) 的物理界限：
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            <div class="bg-slate-800/60 border border-slate-700/80 rounded-xl p-5 space-y-3">
+                <div class="flex items-center gap-2 text-indigo-400 font-bold text-sm">
+                    <span>🎭</span> 角色扮演系统 (Roleplay Persona System)
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    <strong>专属领域</strong>：虚拟人物模拟器、情感互动与对话语境映射。<br/>
+                    <strong>合法合规用词</strong>：允许且推荐使用人设模拟器专属参数，如 <code class="text-indigo-300">CSM 状态机</code>、<code class="text-indigo-300">好感度 (affection)</code>、<code class="text-indigo-300">阶位 (social_status)</code>、<code class="text-indigo-300">性格提示词</code> 等。
+                </p>
+            </div>
+            <div class="bg-slate-800/60 border border-slate-700/80 rounded-xl p-5 space-y-3">
+                <div class="flex items-center gap-2 text-emerald-400 font-bold text-sm">
+                    <span>💻</span> 严肃教学与底座系统 (Serious Teaching & Core Architecture)
+                </div>
+                <p class="text-xs text-slate-300 leading-relaxed">
+                    <strong>专属领域</strong>：教学大纲调度、讲义文件落地、流式通信管线与异步 I/O 事务。<br/>
+                    <strong>合法合规用词</strong>：必须严格使用现代、准确、高效、凝练的技术软件工程术语（如 <code class="text-emerald-300">讲义 Markdown 文件持久化</code>、<code class="text-emerald-300">SSE 流式生成</code>、<code class="text-emerald-300">架构决策记录</code>）。<strong>严禁</strong>在此领域混入国风修仙或小说叙事词汇。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl border border-slate-200/80 p-8 shadow-sm space-y-6">
+        <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+            <div class="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center text-red-600 font-bold text-sm">1</div>
+            <h2 class="text-lg font-bold text-slate-900 tracking-tight">演进背景与浅层泄漏痛点 (Context & Challenges)</h2>
+        </div>
+
+        <div class="space-y-2">
+            <p class="text-sm text-slate-600 leading-relaxed">
+                <strong>核心痛点：</strong>早期的 API 路由与前端组件多为“浅模块 (Shallow Modules)”——接口表面的复杂性几乎等于内部实现的复杂性，导致业务逻辑与裸写 SQL 跨越架构接缝四处泄漏，引发接口阻塞与通信死锁。
+            </p>
+            <p class="text-sm font-mono text-slate-500 bg-stone-50 p-2.5 rounded border border-stone-200">
+                泄漏接缝点：frontend/src/App.jsx · backend/routers/chat.py · backend/services/agent_tools.py
+            </p>
+        </div>
+
+        <!-- 杂志感剖面图：浅层 vs 深模块 -->
+        <div class="p-6 bg-stone-50 rounded-xl border border-stone-200 space-y-4">
+            <div class="text-xs font-mono uppercase tracking-wider text-slate-400">架构剖面对比：浅层泄漏 vs 深模块收口</div>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+                <div class="space-y-2">
+                    <div class="text-xs font-bold text-red-600 mb-1">重构前：浅层过渡包装（状态四处泄漏）</div>
+                    <div class="h-10 border-l-4 border-red-500 bg-white flex items-center px-4 text-xs font-mono text-slate-600 shadow-sm">前端层：流式对白渲染与 XML 标签解析混杂</div>
+                    <div class="h-10 border-l-4 border-red-500 bg-white flex items-center px-4 text-xs font-mono text-slate-600 shadow-sm">路由层：裸写 SQL 与 LLM 同步调用阻塞</div>
+                    <div class="h-10 border-l-4 border-red-500 bg-white flex items-center px-4 text-xs font-mono text-slate-600 shadow-sm">工具层：同步阻塞式网页爬取与无界分页</div>
+                </div>
+                <div class="space-y-2">
+                    <div class="text-xs font-bold text-emerald-700 mb-1">重构后：深模块封装（极简接口，极高杠杆效益）</div>
+                    <div class="h-14 deep rounded-lg flex items-center justify-between px-4 text-xs font-mono text-white shadow">
+                        <span>L1 前端沉浸屏障</span>
+                        <span class="text-[10px] bg-slate-800 px-2 py-1 rounded text-emerald-400">blockParser 切片屏障</span>
+                    </div>
+                    <div class="h-16 deep rounded-lg flex items-center justify-between px-4 text-xs font-mono text-white shadow">
+                        <span>L4 深模块生态与状态机</span>
+                        <span class="text-[10px] bg-slate-800 px-2 py-1 rounded text-emerald-400">_state_lock 事务锁 / 800行硬截断</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl border border-slate-200/80 p-8 shadow-sm space-y-6">
+        <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+            <div class="w-8 h-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 font-bold text-sm">2</div>
+            <h2 class="text-lg font-bold text-slate-900 tracking-tight">决策方案与深度重构 (Decision & Solution)</h2>
+        </div>
+
+        <p class="text-sm text-slate-600 leading-relaxed">
+            <strong>架构对策：</strong>设立严格的自上而下六层边界，让深模块内部吸收极度复杂的业务逻辑；前端切片屏障物理隔离对白与 UI 卡片，后处理响应管线异步解耦重度副作用。
+        </p>
+
+        <!-- 左右对比 Mermaid 流程图 -->
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-2">
+            <!-- Before 列 -->
+            <div class="border border-red-200 rounded-xl p-5 bg-red-50/20 space-y-4 flex flex-col justify-between">
+                <div>
+                    <span class="text-[11px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 bg-red-100 text-red-700 rounded">重构前 · 浅层耦合与泄漏</span>
+                    <p class="text-xs text-slate-500 mt-2 font-mono">裸写 SQL 跨越路由接缝泄漏；同步爬虫阻塞主服务线程。</p>
+                </div>
+                <div class="p-3 bg-white rounded-lg border border-red-100 overflow-x-auto">
+                    <pre class="mermaid text-center">
+%% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+graph TB
+    UI["App.jsx (混合界面)"] --> Router["chat.py 路由端点"]
+    Router -.leak.-> SQL["裸写 SQL 查询"]
+    Router --> LLM["同步请求模型"]
+    LLM -.leak.-> Tool["同步爬取网页"]
+    classDef leak stroke:#dc2626,stroke-width:2px,stroke-dasharray: 4 4;
+    class SQL,Tool leak
+                    </pre>
+                </div>
+            </div>
+
+            <!-- After 列 -->
+            <div class="border border-emerald-300 rounded-xl p-5 bg-emerald-50/10 space-y-4 flex flex-col justify-between shadow-sm">
+                <div>
+                    <span class="text-[11px] font-mono font-bold uppercase tracking-wider px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded">重构后 · 六大深模块收敛</span>
+                    <p class="text-xs text-slate-500 mt-2 font-mono">极简接口表面；主对白极速流式回传；物理切片屏障隔离。</p>
+                </div>
+                <div class="p-3 bg-white rounded-lg border border-emerald-200 overflow-x-auto">
+                    <pre class="mermaid text-center">
+%% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+graph TB
+    subgraph L1 ["L1 前端表现层"]
+        UI["✨ 聊天界面 / 发送消息"]
+        Parser["🛡️ blockParser 切片屏障"]
+    end
+    subgraph L23 ["L2-L3 路由分流与提示词中枢"]
+        Router["🌐 chat.py 统一路由"]
+        Slash["🔀 slash_handler 指令分流"]
+        Prompts["🧠 prompts 动态提示词组装"]
+    end
+    subgraph L45 ["L4-L5 深模块与异步管线"]
+        CSM["🏛️ CSM 角色状态机 (事务锁)"]
+        Stream["🌊 SSE 流式生成引擎"]
+        Pipe["⚡ response_pipeline 异步事件"]
+        SE["✨ 讲义文档持久化 / 记忆衰减"]
+    end
+    UI -->|"HTTP POST /send"| Router
+    Router -.->|"1. 斜杠指令拦截"| Slash
+    Router -->|"2. 普通对白请求"| Prompts
+    Slash -->|"定制语境注入"| Prompts
+    Prompts <-->|"读取角色好感度与阶位"| CSM
+    Prompts -->|"产出完整 Prompt 传入引擎"| Stream
+    Stream -.->|"实时 SSE 文本流截断卡片"| Parser
+    Stream -->|"完结瞬间触发异步事件"| Pipe
+    Pipe -->|"异步解耦后处理操作"| SE
+                    </pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl border border-slate-200/80 p-8 shadow-sm space-y-6">
+        <div class="flex items-center gap-3 border-b border-slate-100 pb-4">
+            <div class="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-sm">3</div>
+            <h2 class="text-lg font-bold text-slate-900 tracking-tight">后果评估与职责收敛 (Consequences & Evaluation)</h2>
+        </div>
+
+        <!-- 极简大师级词条亮点 (≤6字要点) -->
+        <div class="p-6 bg-stone-50 rounded-xl border border-stone-200 space-y-3">
+            <div class="text-xs font-mono uppercase tracking-wider text-slate-400 mb-2">架构升格关键收益</div>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="flex items-start gap-2 text-sm font-semibold text-slate-800">
+                    <span class="text-emerald-600 font-bold">✓</span> 局部性：缺陷锁定单一模块
+                </div>
+                <div class="flex items-start gap-2 text-sm font-semibold text-slate-800">
+                    <span class="text-emerald-600 font-bold">✓</span> 杠杆力：一处接口多处复用
+                </div>
+                <div class="flex items-start gap-2 text-sm font-semibold text-slate-800">
+                    <span class="text-emerald-600 font-bold">✓</span> 收接口：深层吸收浅层包装
+                </div>
+                <div class="flex items-start gap-2 text-sm font-semibold text-slate-800">
+                    <span class="text-emerald-600 font-bold">✓</span> 强接缝：严格隔离状态泄漏
+                </div>
+                <div class="flex items-start gap-2 text-sm font-semibold text-slate-800">
+                    <span class="text-emerald-600 font-bold">✓</span> 事务锁：彻底消除并发死锁
+                </div>
+                <div class="flex items-start gap-2 text-sm font-semibold text-slate-800">
+                    <span class="text-emerald-600 font-bold">✓</span> 异步化：释放主服务响应流
+                </div>
+            </div>
+        </div>
+
+        <!-- 职责归一化对照矩阵 -->
+        <div class="space-y-3 pt-2">
+            <div class="text-xs font-mono uppercase tracking-wider text-slate-400">工程源码职责矩阵对照表</div>
+            <div class="overflow-x-auto border border-slate-200 rounded-xl">
+                <table class="w-full text-left border-collapse text-xs">
+                    <thead>
+                        <tr class="bg-stone-100/75 border-b border-slate-200 text-slate-500 font-mono uppercase">
+                            <th class="py-3 px-4 font-bold">层级划分</th>
+                            <th class="py-3 px-4 font-bold">核心源码文件</th>
+                            <th class="py-3 px-4 font-bold">对应 ADR 规范</th>
+                            <th class="py-3 px-4 font-bold">设计模式与工程机制</th>
+                        </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100 text-slate-700 font-mono">
+                        <tr>
+                            <td class="py-3 px-4 font-bold text-indigo-600">L1 前端层</td>
+                            <td class="py-3 px-4">blockParser.js</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-indigo-50 text-indigo-700 font-bold">ADR-007</span></td>
+                            <td class="py-3 px-4 font-sans text-slate-600">流式物理切片屏障，将纯文字对白与互动 UI 卡片隔离</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 font-bold text-blue-600">L2 路由层</td>
+                            <td class="py-3 px-4">slash_handler.py</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-blue-50 text-blue-700 font-bold">ADR-004</span></td>
+                            <td class="py-3 px-4 font-sans text-slate-600">快捷指令前置分流中枢，互动卡片与平滑上下文引导语注入</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 font-bold text-purple-600">L3 决策层</td>
+                            <td class="py-3 px-4">prompts.py</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-purple-50 text-purple-700 font-bold">ADR-002</span></td>
+                            <td class="py-3 px-4 font-sans text-slate-600">动态提示词管线，实时拉取角色好感度依赖注入与 XML 通信协议</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 font-bold text-emerald-700">L4 深模块</td>
+                            <td class="py-3 px-4">agent_tools.py</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold">ADR-001</span></td>
+                            <td class="py-3 px-4 font-sans text-slate-600">免Key泛搜 3 条封顶、DOM 降维清洗、800 行物理硬截断</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 font-bold text-emerald-700">L4 深模块</td>
+                            <td class="py-3 px-4">character_state.py</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-emerald-50 text-emerald-800 font-bold">ADR-003</span></td>
+                            <td class="py-3 px-4 font-sans text-slate-600">CSM 角色状态机单例封装，内部由 _state_lock 线程锁收口事务</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 font-bold text-amber-600">L5 异步层</td>
+                            <td class="py-3 px-4">response_pipeline.py</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold">ADR-003</span></td>
+                            <td class="py-3 px-4 font-sans text-slate-600">发布订阅模式，实现主请求毫秒级返回与副作用解耦异步写入讲义文件</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 font-bold text-amber-600">L5 异步层</td>
+                            <td class="py-3 px-4">memory_decay.py</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-amber-50 text-amber-700 font-bold">ADR-005</span></td>
+                            <td class="py-3 px-4 font-sans text-slate-600">时间梯度衰减浓缩引擎 (-2d/-7d/-30d/-365d) 与四字段归纳</td>
+                        </tr>
+                        <tr>
+                            <td class="py-3 px-4 font-bold text-slate-700">L6 存储层</td>
+                            <td class="py-3 px-4">materials_manager.py</td>
+                            <td class="py-3 px-4"><span class="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-bold">ADR-005</span></td>
+                            <td class="py-3 px-4 font-sans text-slate-600">RAG 知识库检索白名单拦截 (严禁脏数据，仅扫描白名单目录)</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+</main>
+</body>
+</html>
