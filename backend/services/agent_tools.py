@@ -22,7 +22,7 @@ PENDING_APPROVALS = {}
 
 class BashTool(AgentTool):
     name = "execute_bash"
-    description = "Execute a local terminal command."
+    description = "Execute a restricted local terminal command. Dangerous file-reading utilities are physically blocked by guardrails."
 
     def execute(self, params: dict) -> str:
         command = params.get("command", "")
@@ -103,7 +103,7 @@ class BashTool(AgentTool):
 
 class ReadFileTool(AgentTool):
     name = "read_file"
-    description = "Read the contents of a local file, optionally specifying start_line and end_line."
+    description = "Safely read the contents of a local file, optionally specifying start_line and end_line."
 
     def execute(self, params: dict) -> str:
         path = params.get("path", "")
@@ -165,7 +165,7 @@ class ReadFileTool(AgentTool):
 
 class GrepSearchTool(AgentTool):
     name = "grep_search"
-    description = "Search for a query string in all text files within a directory."
+    description = "Perform a full-repository cross-file search for a query string in all text files within a directory."
 
     def execute(self, params: dict) -> str:
         dir_path = params.get("dir_path", "")
@@ -205,7 +205,7 @@ class GrepSearchTool(AgentTool):
 
 class ReplaceFileContentTool(AgentTool):
     name = "replace_file_content"
-    description = "Surgically replace a block of text in a specific file. Restricted to the data/materials/Sandbox directory."
+    description = "Surgically replace a block of text in a specific file. Strictly physically isolated and restricted to the data/materials/Sandbox directory."
 
     def execute(self, params: dict) -> str:
         path = params.get("path", "")
@@ -259,7 +259,7 @@ class ReplaceFileContentTool(AgentTool):
 
 class CreateFileTool(AgentTool):
     name = "create_file"
-    description = "Create a brand new file with the specified content. Restricted to the data/materials/Sandbox directory."
+    description = "Create a brand new file with the specified content. Strictly physically isolated and restricted to the data/materials/Sandbox directory."
 
     def execute(self, params: dict) -> str:
         path = params.get("path", "")
@@ -294,7 +294,7 @@ class CreateFileTool(AgentTool):
 
 class WebSearchTool(AgentTool):
     name = "web_search"
-    description = "Search the web for current information using DDGS (DuckDuckGo)."
+    description = "Perform a real-time web search for current information using the DDGS (DuckDuckGo) engine."
 
     def execute(self, params: dict) -> str:
         query = params.get("query", "")
