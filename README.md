@@ -24,7 +24,12 @@ MeiWenfeng-Classroom/
 │   ├── main.py               # API 入口与中间件 (含防肉鸡白名单)
 │   ├── routers/              # 路由层 (对话/记忆/知识库/课程大纲/监控)
 │   ├── services/             # 核心服务 (模型路由/记忆衰减算法等)
+│   ├── claude_engine/        # Claude 原生协议适配引擎
+│   ├── openai_adapter/       # OpenAI 标准协议转接层
+│   ├── scripts/              # 辅助维护脚本
 │   ├── tests/                # 自动化测试用例与集成验证脚本 (使用 pytest)
+│   ├── litellm_config.yaml   # LiteLLM 代理网关路由配置
+│   ├── mcp_server.py         # MCP (Model Context Protocol) 服务
 │   ├── database.py           # SQLite 初始化与操作
 │   └── classroom.db          # 结构化数据库 (好感度/课程进度/系统配置)
 ├── frontend/                 # React 前端
@@ -85,8 +90,9 @@ cd MeiWenfeng-Classroom
 
 脚本将自动：
 1. 检查并同步最新的 Python 依赖包（如新增的 ddgs 联网搜索组件等）。
-2. 启动 FastAPI 后端服务（绑定 `0.0.0.0:12701`）。
-3. 启动 Vite 前端开发服务器（绑定 `0.0.0.0:12703`）。
+2. 启动 LiteLLM 智能模型代理网关（绑定 `127.0.0.1:12704`，负责底层协议转换拦截）。
+3. 启动 FastAPI 后端服务（绑定 `0.0.0.0:12701`）。
+4. 启动 Vite 前端开发服务器（绑定 `0.0.0.0:12703`）。
 
 > 💡 **局域网访问提醒**：项目默认开启了 IP 白名单防护。您不仅可以在本机的 `http://localhost:12703` 访问，也可以在同一 WiFi 下的手机上，通过输入 `http://您的电脑IP:12703` 进行访问，恶意不明 IP 会被后端自动拦截。
 
@@ -109,7 +115,7 @@ cd MeiWenfeng-Classroom
 - **应用执行层 (`AgentExecutor`)**：包裹底层协议，驱动多轮思考 (`<thought>`) 与工具调用循环。现已集成 7 大核心工具：受限终端 (`execute_bash`)、安全读取 (`read_file` / `grep_search`)、联网搜索 (`web_search` / `read_url_content`)，以及被严格隔离在沙盒 (`Sandbox/`) 内的文件修改操作 (`create_file` / `replace_file_content`)。
 - **动态并发与防注入拦截 (HITL)**：内建严密的 AST 级防注入护栏，有效物理拦截恶意 Shell 命令和路径穿越攻击（结合持续的自动化回归防御）。针对高危动作（如写入磁盘），通过前端原生交互机制 `BashApprovalCard` 实施 Human-in-the-loop (HITL) 拦截，同时在路由层强化 Pydantic Payload Validation，防止一切形式的前端异常导致聊天流瘫痪。
 - **响应拦截层 (`ResponsePipeline`)**：字符级状态机实时拦截 XML 副作用标签（如 `<glossary>`, `[SYSTEM_PASS]`），同时保障向前端输送绝对纯净的 SSE 文本流，避免打字机卡顿或标签泄漏。
-- **大文件 OOM 防护**：通过 `@文件` 语法读取本地文件时，自动截断超大文件（限制 20000 字符），并智能引导大模型使用专项搜索工具深入探索。
+- **大文件 OOM 防护**：通过 `@文件` 语法读取本地文件时，底层工具链会自动截断超大文件（强制截断为 800 行以防止 Context Overflow），并智能引导大模型使用专项搜索工具深入探索。
 
 ### 🖥️ 沉浸式双栏布局与智能 UI
 - **动态 Token 环形指示器**：实时计算底层隐藏上下文（系统设定/RAG/记忆）与当前对话的 Token 消耗总和，接近模型上限时自动变色预警。
