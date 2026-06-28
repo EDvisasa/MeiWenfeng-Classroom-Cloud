@@ -611,7 +611,13 @@ body {
   /* space for absolute positioned edit button */
 }
 
-.user-msg .edit-msg-btn {
+.assistant-msg .message-bubble {
+  position: relative;
+  padding-bottom: 28px;
+}
+
+.user-msg .edit-msg-btn,
+.assistant-msg .edit-msg-btn {
   position: absolute;
   right: 8px;
   bottom: 6px;
@@ -629,7 +635,8 @@ body {
   transition: all 0.15s ease-in-out;
 }
 
-.user-msg .edit-msg-btn:hover {
+.user-msg .edit-msg-btn:hover,
+.assistant-msg .edit-msg-btn:hover {
   opacity: 1;
   background: var(--bg-tertiary);
   color: var(--text-primary);
@@ -639,6 +646,11 @@ body {
 .user-msg .edit-msg-btn svg {
   width: 10px;
   height: 10px;
+}
+
+.assistant-msg .edit-msg-btn svg {
+  width: 12px;
+  height: 12px;
 }
 
 /* 编辑状态的样式 */

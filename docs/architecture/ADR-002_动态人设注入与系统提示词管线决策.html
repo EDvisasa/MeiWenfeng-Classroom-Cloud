@@ -92,7 +92,7 @@
             <div class="border-l-4 border-purple-500 pl-4 py-1">
                 <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 严格 XML 标签通信协议</h3>
                 <p class="text-sm text-slate-600 leading-relaxed">
-                    强制约束 LLM 使用专用标签输出功能组件：<code>&lt;explainer&gt;</code>（生成讲义卡片）、<code>&lt;quiz&gt;</code>（生成互动测验）、<code>&lt;glossary&gt;</code>（高亮专业词汇）。后端流式解析器拦截这些标签并静默转换为 RAG 引用材料或 UI 卡片，绝不泄露给前端对白流。
+                    强制约束 LLM 使用专用标签输出功能组件：<code>&lt;explainer&gt;</code>（生成讲义卡片）、<code>&lt;quiz&gt;</code>（生成互动测验）、<code>&lt;glossary&gt;</code>（高亮专业词汇）。后端流式解析器旁路拦截这些标签并转换为 RAG 引用材料或 UI 卡片，同时将原始标签穿透至前端供 <code>blockParser.js</code> 正则隐藏，保障数据溯源而不破坏对白流。
                 </p>
             </div>
         </div>

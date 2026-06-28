@@ -93,6 +93,12 @@
                     将庞杂的副作用剥离至独立的 <code>ResponsePipeline</code> 与 <code>side_effects.py</code> 注册表（如 <code>SystemPassHandler</code>, <code>GlossaryHandler</code>），实现主对话毫秒级返回，副作用异步消化。
                 </p>
             </div>
+            <div class="border-l-4 border-purple-500 pl-4 py-1 mt-6">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 拦截器数据穿透与前端按需渲染 (Data Passthrough)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    为了让前端能捕获完整的 AI 原始逻辑链，拦截器在触发副作用后不再“吞噬”数据，而是将其完整穿透 <code>yield</code> 至前端流。前端 <code>blockParser.js</code> 则通过正则在普通气泡中隐藏控制标签，但在“原始流编辑框”中保留，实现数据溯源与调试闭环。
+                </p>
+            </div>
         </div>
 
         <div class="mt-8">
@@ -118,9 +124,10 @@
                     %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
                     graph TD
                         Route2["API 路由端点"] -->|"极简函数调用"| CSM["🏛️ CharacterStateManager"]
-                        CSM -->|"安全线程锁与事务收口"| DB2["SQLite 数据库"]
-                        Route2 -->|"触发事件通知"| Pipe["⚡ ResponsePipeline"]
-                        Pipe -.->|"异步分发至 side_effects"| SE["✨ SystemPassHandler / GlossaryHandler"]
+                        CSM -->|"安全事务收口"| DB2["SQLite 数据库"]
+                        Route2 -->|"流式处理"| Pipe["⚡ ResponsePipeline"]
+                        Pipe -.->|"旁路分发"| SE["✨ SideEffectHandlers"]
+                        Pipe -->|"数据无损穿透"| FE["🖥️ 前端 (正则隐藏+编辑曝光)"]
                     </div>
                 </div>
             </div>

@@ -11,7 +11,7 @@ def test_interceptor_basic_extraction():
     for chunk in interceptor.finish():
         output += chunk.get("text", "") if isinstance(chunk, dict) else chunk
     
-    assert output == "This is a test.  more text  end."
+    assert output == text
     assert "custom_tag" in interceptor.intercepted_data
     assert len(interceptor.intercepted_data["custom_tag"]) == 2
     assert interceptor.intercepted_data["custom_tag"][0]["content"] == "Quantum Computing"
@@ -45,7 +45,7 @@ def test_interceptor_with_agent_executor_chunks():
     for processed in interceptor.finish():
         output += processed.get("text", "") if isinstance(processed, dict) else processed
         
-    assert output == '咱们继续往下读，好不好嘛？♡"'
+    assert output == '咱们继续往下读，好不好嘛？♡"<property_update affection_delta="+1" />'
     assert "property_update" in interceptor.intercepted_data
     assert interceptor.intercepted_data["property_update"][0]["attrs"] == {"affection_delta": "+1"}
 
@@ -75,7 +75,7 @@ def test_interceptor_bugfix_non_target_closing_tag_poisoning():
     for processed in interceptor.finish():
         output += processed.get("text", "") if isinstance(processed, dict) else processed
         
-    assert "property_update" not in output
+    assert "<property_update" in output
     assert '</thought>\n听到你刚睡醒' in output
     assert "property_update" in interceptor.intercepted_data
     assert interceptor.intercepted_data["property_update"][0]["attrs"] == {"affection_delta": "+1"}

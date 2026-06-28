@@ -36,7 +36,7 @@ def test_simulate_llm_logic():
                 
     assert "Normal chat." in result
     assert "<inner_thought>" in result
-    assert "<property_update" not in result
+    assert "<property_update" in result
     assert "property_update" in pipeline.interceptor.intercepted_data
 
 def test_truncation_logic():

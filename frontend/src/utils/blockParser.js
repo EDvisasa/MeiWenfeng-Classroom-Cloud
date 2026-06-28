@@ -6,10 +6,15 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
   rawBlocks.forEach(b => {
     if (b.type === 'text') {
       let text = b.text || '';
-      text = text.replace(/\s*<inner_thought>[\s\S]*?(?:<\/inner_thought>|$)\s*/g, '');
-      text = text.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|$)\s*/g, '');
-      text = text.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|$)\s*/g, '');
-      text = text.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|$)\s*/g, '');
+      text = text.replace(/\s*<inner_thought>[\s\S]*?(?:<\/inner_thought>|\/>|$)\s*/gi, '');
+      text = text.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|\/>|$)\s*/gi, '');
+      text = text.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|\/>|$)\s*/gi, '');
+      text = text.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|\/>|$)\s*/gi, '');
+      text = text.replace(/\s*<property_update[\s\S]*?(?:<\/property_update>|\/>|$)\s*/gi, '');
+      text = text.replace(/\s*<system_pass[\s\S]*?(?:<\/system_pass>|\/>|$)\s*/gi, '');
+      text = text.replace(/\s*<memory_decay[\s\S]*?(?:<\/memory_decay>|\/>|$)\s*/gi, '');
+      text = text.replace(/\s*<new_course[\s\S]*?(?:<\/new_course>|\/>|$)\s*/gi, '');
+      text = text.replace(/\s*\[SYSTEM_PASS\]\s*/gi, '');
 
       // Strip markdown bold markers that the AI might incorrectly place around our custom block tags
       text = text.replace(/\*\*\s*<glossary/gi, '<glossary').replace(/<\/glossary>\s*\*\*/gi, '</glossary>');
