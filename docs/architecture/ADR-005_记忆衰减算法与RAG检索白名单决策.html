@@ -81,15 +81,15 @@
         </div>
         <div class="space-y-6 mb-8">
             <div class="border-l-4 border-blue-500 pl-4 py-1">
-                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 目录级 RAG 白名单拦截 (MaterialsManager)</h3>
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 目录级白名单拦截 (Classroom_Knowledge)</h3>
                 <p class="text-sm text-slate-600 leading-relaxed">
-                    在 <code>materials_manager.py</code> 中明确锁定扫描顺序 <code>preferred_order = ["Lessons", "LDRs", "References", "Settings"]</code>，仅将正式课程与参考书写入 ChromaDB 向量索引，从物理层面隔绝临时日志调试文件的干扰。
+                    在 <code>materials_manager.py</code> 中明确锁定扫描顺序 <code>preferred_order = ["Lessons", "LDRs", "References", "Settings"]</code>。系统只将这些正式课程、参考书与学习决策记录同步到 ChromaDB 的 <code>Classroom_Knowledge</code> 集合中，从物理层面隔绝临时日志调试文件的干扰。
                 </p>
             </div>
             <div class="border-l-4 border-indigo-500 pl-4 py-1">
-                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 四级渐进式长期记忆提炼引擎 (MemoryDecay)</h3>
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 四级渐进式长期记忆提炼引擎 (Memory_Knowledge)</h3>
                 <p class="text-sm text-slate-600 leading-relaxed">
-                    在 <code>memory_decay.py</code> 中设立四级时间阈值（<code>-2 days</code>、<code>-7 days</code>、<code>-30 days</code>、<code>-365 days</code>）。触发时通过大模型以第三方客观视角归纳为：【时间跨度】、【面向对象】、【详细纪要】、【学情洞察】4 个固定字段，并通过全局锁 <code>_decay_lock</code> 保障并发安全。
+                    在 <code>memory_decay.py</code> 中针对聊天流水账（<code>memory_logs</code>）设立四级时间阈值。触发时，通过大模型以第三方客观视角提炼归纳，并<b>直接将浓缩后的高价值记忆作为纯文本串灌入 ChromaDB 的 <code>Memory_Knowledge</code> 集合</b>中，与正式教学资料严格分离。
                 </p>
             </div>
             <div class="border-l-4 border-teal-500 pl-4 py-1">
@@ -100,33 +100,91 @@
                     2. <b>长程记忆 (memory_logs/RAG)</b>：后端 <code>ResponsePipeline</code> 写入日志与向量库前，强制拦截并用正则剔除所有底层推理标签，保证存入向量数据库的仅为高浓度信息，避免心理活动占据庞大的 Token。
                 </p>
             </div>
+            <div class="border-l-4 border-emerald-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.4 前端 UI 渲染管线解耦与 XML 标签独立提取 (UI Parsing Deepening)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在 <code>blockParser.js</code> 与 <code>App.jsx</code> 中进行深度隔离：<br>
+                    1. <b>阻断正则贪婪</b>：将提取内心独白 (<code>&lt;inner_thought&gt;</code>) 的逻辑与模型原始流 (Raw Stream) 彻底解绑，仅在被确认为 <code>text</code> 类型的纯正文块上执行正则，彻底对大模型在 <code>&lt;thought&gt;</code> 内打的英文草稿“物理失明”。<br>
+                    2. <b>渲染按需刷新</b>：在流式输出结束后的手动编辑阶段，彻底剥离缓存的 <code>blocks</code> 属性，强制组件根据最新修改的纯文本 <code>content</code> 降级触发全量重新解析。
+                </p>
+            </div>
         </div>
 
         <!-- Before vs After Topological Diagram -->
         <div class="mt-8">
             <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
-            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            
+            <!-- 原有的记忆与RAG架构图 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                 <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
                     <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
-                        <span>旧架构：全量搜索 + 无衰减堆叠 (污染严重)</span>
+                        <span>旧架构：全量搜索与强耦合标签处理</span>
                     </div>
                     <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
                     %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
                     graph TD
-                        Query["用户提问"] -->|"搜索全部文件"| RAG["全量匹配 (含沙盒残局)"]
-                        RAG -->|"噪声与历史错误注入"| Confuse["❌ 导向错误答案"]
+                        subgraph 检索管线
+                            Query["用户提问"] --> RAG["全量匹配 (含沙盒残局)"]
+                            RAG --> Confuse["❌ 导向错误答案"]
+                        end
+                        subgraph 记忆管线
+                            FE["前端消息"] --> BE["后端全局剥离标签"]
+                            BE --> RAG_DB["存入向量库"]
+                            BE --> FewShot["破坏 Few-Shot 格式"]
+                        end
                     </div>
                 </div>
                 <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
                     <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
-                        <span>新架构：目录白名单 + 四级纪要浓缩 (高信噪比)</span>
+                        <span>新架构：长短程记忆解耦与双集合白名单拦截</span>
                     </div>
                     <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
                     %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
                     graph TD
-                        Query2["用户提问"] -->|"白名单拦截"| Filter["🔒 仅限 Lessons/LDRs/References"]
-                        Filter -->|"四级时间阈值 (-2d/-7d/-30d/-365d)"| Decay["⏱️ 结构化提炼学情洞察"]
-                        Decay -->|"返回高信噪比记忆"| Clean["✅ 精准辅导"]
+                        subgraph DecayPipe ["异步记忆提炼管线 (Memory Decay)"]
+                            ChatDB[(全量聊天记录)] -->|后台异步触发| Decay["⏱️ 四级提炼学情洞察 (-2d/-7d/-30d/-365d)"]
+                            Decay -->|纯文本直灌| MemVector[(ChromaDB: Memory_Knowledge)]
+                            FE2["前端保留原样标签"] -. "边界拦截" .-> BE2["后端剔除标签并存入聊天库"]
+                            BE2 --> ChatDB
+                        end
+                        subgraph RAGPipe ["实时检索管线 (RAG Retrieval)"]
+                            Query2["用户提问"] --> Filter["🔒 仅检索双安全集合"]
+                            ClassVector[(ChromaDB: Classroom_Knowledge)] -. "向量匹配" .-> Filter
+                            MemVector -. "向量匹配" .-> Filter
+                            Filter --> Clean["✅ 高信噪比精准辅导"]
+                        end
+                    </div>
+                </div>
+            </div>
+
+            <!-- 新增的前端解析架构图 -->
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧前端解析：浅层正则提取 (跨界泄漏)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    flowchart TD
+                        Raw[原始流] --> GlobalRegex[全局正则匹配]
+                        GlobalRegex -. 贪婪匹配泄漏 .-> InnerThought[提取 inner_thought]
+                        InnerThought -. 错误截断 .-> Thought[提取 thought]
+                        classDef leak stroke:#dc2626,stroke-width:2px,color:#dc2626;
+                        class InnerThought,Thought leak
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新前端解析：深度职责隔离 (精准拦截)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-slate-900 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    flowchart TD
+                        Raw[原始流] --> Thought[隔离 thought 块]
+                        Thought --> Text[纯文本块 Text]
+                        Text --> InnerThought[安全提取 inner_thought]
+                        classDef w color:#fff,stroke:#fff,fill:none;
+                        class Raw,Thought,Text,InnerThought w
                     </div>
                 </div>
             </div>
@@ -145,6 +203,7 @@
         <ul class="space-y-2 text-sm text-slate-600">
             <li><strong>✓ 杜绝幻觉回流</strong>：RAG 检索质量大幅提升，AI 讲题时再也不会引用到先前做错的代码或历史错误概念。</li>
             <li><strong>✓ 长期交互上下文可控</strong>：通过四级浓缩，一整年的互动记忆被精炼为极高逻辑浓度的年度总结，极大地节约了推理显存。</li>
+            <li><strong>✓ 渲染稳定性与局部高内聚</strong>：前端 UI 解析模块通过深度重构，不仅完美兼容了带有思考过程的小模型推理，且后续编辑流与展示流共享同一个解析入口，实现了 <code>Locality (高内聚)</code>，极大降低了长期维护的隐患。</li>
         </ul>
     </section>
 </div>
