@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>ADR-007: 多工具连续调用与思考信道屏障决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; items-center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-007</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                📅 决策时间：2026-06-27 | ✍️ 决策方：媚吻锋架构审查团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            多工具连续调用与思考信道屏障决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            升格列装原 <code>multiple-tools</code> 报告。规范前端 <code>blockParser.js</code> 针对 AI 连续调用多个工具（Tool Calls）穿插在思考段落之间的物理隔离屏障机制。
+        </p>
+        
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">✨ Roleplay-Immersion (前端沉浸感映射)</span>
+            <span class="badge bg-rose-50 text-rose-700 border border-rose-200">🛡️ Sandbox-Evolving (用户测验练习沙盒动态演进)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">流式解析中跨工具调用导致的思考状态混淆</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-red-50/60 rounded-xl p-6 border border-red-100">
+                <h3 class="text-base font-bold text-red-900 mb-2">挑战一：连续思考块合并导致的跨段污染</h3>
+                <p class="text-sm text-red-800/80 leading-relaxed">
+                    旧版前端解析器在遇到 `Thinking A -> Tool 1 -> Thinking B` 时，如果无脑将相邻思考段拼接，会导致 Tool 1 前后的思考逻辑混为一团，破坏 AI 真实的解题步骤展现。
+                </p>
+            </div>
+            <div class="bg-amber-50/60 rounded-xl p-6 border border-amber-100">
+                <h3 class="text-base font-bold text-amber-900 mb-2">挑战二：思考动画指示器状态卡死</h3>
+                <p class="text-sm text-amber-800/80 leading-relaxed">
+                    在流式传输 (Streaming) 过程中，如何准确判断当前究竟是哪一段思考正在 `running`、哪一段已经 `done`，直接决定了前端交互面板是否会发生思考动画卡死。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">非思考块物理屏障与局部状态计算</p>
+            </div>
+        </div>
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-blue-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 归一化独立状态计算 (Step 1: Normalization)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在 <code>blockParser.js</code> 第 151-152 行，针对每个切分出的文本片段独立评估 `<thought>` 标签闭合状态：若未包含 `&lt;/thought&gt;` 且正在流式传输，则精确标注当前块为 `running`，已闭合则为 `done`。
+                </p>
+            </div>
+            <div class="border-l-4 border-amber-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 非思考块天然物理屏障 (Step 2: Merging)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在合并步骤（第 170-185 行）中，仅当当前块与前一块同为 `thinking` 时才触发合并。一旦中间插入了 `tool` 或 `text` 块，合并链条自然打断。<strong>非思考块充当了完美的隔离屏障</strong>，让不同阶段的思考段落能够独立呈现。
+                </p>
+            </div>
+        </div>
+
+        <!-- Before vs After Topological Diagram -->
+        <div class="mt-8">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧架构：跨工具跨段无脑合并 (状态错乱)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    graph TD
+                        T1["思考段落 A"] -->|"执行工具 Tool 1"| Tool["Tool Call"]
+                        Tool -->|"思考段落 B"| Merge["无脑合并拼接"]
+                        Merge -->|"状态错乱"| Bug["❌ UI 思考状态卡死 / 内容混成一团"]
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新架构：Tool/Text 物理屏障 (独立展示)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    graph TD
+                        T2["思考段落 A"] -->|"遇到非思考块"| Barrier["🛡️ blockParser 截断屏障"]
+                        Barrier -->|"独立推入数组"| Tool2["Tool Call 卡片"]
+                        Tool2 -->|"独立开启新思考段"| T3["思考段落 B (状态独立计算)"]
+                        T3 -->|"链式展开"| UI["✅ UI 完美呈现真实思维链路"]
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">后果与架构评估 (Consequences)</h2>
+                <p class="text-sm text-slate-500">架构列装后的技术收益与边界</p>
+            </div>
+        </div>
+        <ul class="space-y-2 text-sm text-slate-600">
+            <li><strong>✓ 零卡死的高级 UI 呈现</strong>：完美适配大模型复杂的“思考-调用-再思考-再调用”链式执行历史，用户可清晰追溯 AI 每一个步骤的逻辑。</li>
+            <li><strong>✓ 前端渲染逻辑极简</strong>：无需复杂的状态机补偿代码，仅利用数据块归一化数组的天然边界即可完成安全渲染。</li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>

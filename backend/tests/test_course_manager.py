@@ -26,8 +26,8 @@ def test_db():
     cursor.executemany(
         "INSERT INTO course_progress (phase, topic, status, score) VALUES (?, ?, ?, ?)",
         [
-            ("第一阶段：炼气入道", "灵气感应与纳气入体", "active", 0),
-            ("第一阶段：炼气入道", "经脉拓宽与小周天循环", "pending", 0),
+            ("第一阶段：环境与基础", "编程环境配置与基础语法入门", "active", 0),
+            ("第一阶段：环境与基础", "变量数据类型与控制流逻辑", "pending", 0),
         ]
     )
     conn.commit()
@@ -46,8 +46,8 @@ def test_get_active_course(test_db, monkeypatch):
     active_course = get_active_course()
     
     assert active_course is not None
-    assert active_course["phase"] == "第一阶段：炼气入道"
-    assert active_course["topic"] == "灵气感应与纳气入体"
+    assert active_course["phase"] == "第一阶段：环境与基础"
+    assert active_course["topic"] == "编程环境配置与基础语法入门"
     assert active_course["status"] == "active"
 
 def test_advance_course_progress(test_db, monkeypatch):
@@ -56,20 +56,20 @@ def test_advance_course_progress(test_db, monkeypatch):
     
     # Pre-condition check
     active = cm.get_active_course()
-    assert active["topic"] == "灵气感应与纳气入体"
+    assert active["topic"] == "编程环境配置与基础语法入门"
     
     # Advance progress
     new_active = cm.advance_course_progress()
     
     assert new_active is not None
-    assert new_active["topic"] == "经脉拓宽与小周天循环"
+    assert new_active["topic"] == "变量数据类型与控制流逻辑"
     assert new_active["status"] == "active"
     
     # Check old course is completed
     conn = sqlite3.connect(test_db)
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
-    cursor.execute("SELECT status FROM course_progress WHERE topic = '灵气感应与纳气入体'")
+    cursor.execute("SELECT status FROM course_progress WHERE topic = '编程环境配置与基础语法入门'")
     row = cursor.fetchone()
     conn.close()
     
@@ -100,11 +100,11 @@ def test_get_formatted_syllabus(test_db, monkeypatch):
     
     formatted = cm.get_formatted_syllabus()
     
-    assert "第一阶段：炼气入道" in formatted
+    assert "第一阶段：环境与基础" in formatted
     assert "[当前]" in formatted
     assert "[未修]" in formatted
-    assert "灵气感应与纳气入体" in formatted
-    assert "经脉拓宽与小周天循环" in formatted
+    assert "编程环境配置与基础语法入门" in formatted
+    assert "变量数据类型与控制流逻辑" in formatted
 
 def test_append_to_syllabus(test_db, monkeypatch):
     import backend.services.course_manager as cm

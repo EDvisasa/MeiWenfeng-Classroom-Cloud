@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>ADR-005: 记忆衰减算法与RAG检索白名单决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; items-center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-005</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                📅 决策时间：2026-06-27 | ✍️ 决策方：媚吻锋架构审查团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            记忆衰减算法与RAG检索白名单决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            升格列装原 <code>memory-decay</code> 报告。解决长时间互动下 AI 记忆溢出与检索污染问题，引入四级渐进式长期记忆提炼引擎与目录级安全白名单隔离机制。
+        </p>
+        
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">🏷️ RAG-Vector-Indexed (知识库卡片向量化索引)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">全量检索导致的沙盒噪声注入与记忆爆炸</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-red-50/60 rounded-xl p-6 border border-red-100">
+                <h3 class="text-base font-bold text-red-900 mb-2">挑战一：全量文件扫描引发知识库污染</h3>
+                <p class="text-sm text-red-800/80 leading-relaxed">
+                    旧版 RAG 对工作区全量扫描，导致用户临时执行的报错日志、沙盒测试残局也进入向量索引。当用户提问概念时，检索返回了历史错误代码，严重误导 LLM 做出错误解答。
+                </p>
+            </div>
+            <div class="bg-amber-50/60 rounded-xl p-6 border border-amber-100">
+                <h3 class="text-base font-bold text-amber-900 mb-2">挑战二：历史对话流水账导致 Token 浪费</h3>
+                <p class="text-sm text-amber-800/80 leading-relaxed">
+                    随着陪伴天数增加，海量日常琐碎聊天堆积。如果不进行有效的遗忘与浓缩提炼，上下文将无法承载，且 AI 难以从流水账中抓取用户的真正学习短板。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">白名单隔离与四级纪要浓缩引擎</p>
+            </div>
+        </div>
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-blue-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 目录级 RAG 白名单拦截 (MaterialsManager)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在 <code>materials_manager.py</code> 中明确锁定扫描顺序 <code>preferred_order = ["Lessons", "LDRs", "References", "Settings"]</code>，仅将正式课程与参考书写入 ChromaDB 向量索引，从物理层面隔绝临时日志调试文件的干扰。
+                </p>
+            </div>
+            <div class="border-l-4 border-indigo-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 四级渐进式长期记忆提炼引擎 (MemoryDecay)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在 <code>memory_decay.py</code> 中设立四级时间阈值（<code>-2 days</code>、<code>-7 days</code>、<code>-30 days</code>、<code>-365 days</code>）。触发时通过大模型以第三方客观视角归纳为：【时间跨度】、【面向对象】、【详细纪要】、【学情洞察】4 个固定字段，并通过全局锁 <code>_decay_lock</code> 保障并发安全。
+                </p>
+            </div>
+        </div>
+
+        <!-- Before vs After Topological Diagram -->
+        <div class="mt-8">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧架构：全量搜索 + 无衰减堆叠 (污染严重)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    graph TD
+                        Query["用户提问"] -->|"搜索全部文件"| RAG["全量匹配 (含沙盒残局)"]
+                        RAG -->|"噪声与历史错误注入"| Confuse["❌ 导向错误答案"]
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新架构：目录白名单 + 四级纪要浓缩 (高信噪比)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    graph TD
+                        Query2["用户提问"] -->|"白名单拦截"| Filter["🔒 仅限 Lessons/LDRs/References"]
+                        Filter -->|"四级时间阈值 (-2d/-7d/-30d/-365d)"| Decay["⏱️ 结构化提炼学情洞察"]
+                        Decay -->|"返回高信噪比记忆"| Clean["✅ 精准辅导"]
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">后果与架构评估 (Consequences)</h2>
+                <p class="text-sm text-slate-500">架构列装后的技术收益与边界</p>
+            </div>
+        </div>
+        <ul class="space-y-2 text-sm text-slate-600">
+            <li><strong>✓ 杜绝幻觉回流</strong>：RAG 检索质量大幅提升，AI 讲题时再也不会引用到先前做错的代码或历史错误概念。</li>
+            <li><strong>✓ 长期交互上下文可控</strong>：通过四级浓缩，一整年的互动记忆被精炼为极高逻辑浓度的年度总结，极大地节约了推理显存。</li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>

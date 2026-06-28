@@ -1,6 +1,6 @@
 # Domain Glossary
 
-## Core Concepts
+## Roleplay Persona System Concepts
 
 - **CharacterState**: The dynamic attributes of a character that evolve over time through interactions. Currently bound to a single character (Mei Wenfeng).
 - **Affection (好感度)**: A dynamic attribute (0-100) representing the character's emotional attachment to the user.
@@ -8,7 +8,7 @@
 - **Social Skills (为人处世)**: A dynamic attribute (0-100) representing the character's ability to handle conflicts and emotional situations.
 - **Refractory Period (生理不应期)**: A dynamic attribute representing the recovery phase after an intense interaction (e.g., climax). Decays over rounds.
 
-## Architecture & Conventions
+## Serious Teaching & Core Architecture Concepts
 
 - **CharacterStateManager**: A deep module responsible for encapsulating all state transitions, boundary checks (e.g., 0-100 limits), and database persistence for CharacterState.
 - **State Interface**: The state is represented as a strongly-typed `@dataclass` (`CharacterState`). The manager provides `get_state()` and `update_state()`.

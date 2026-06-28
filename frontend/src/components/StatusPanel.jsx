@@ -121,7 +121,7 @@ export default function StatusPanel({
             {currentThought}
           </div>
           <div className="character-details" style={{ paddingLeft: '8px' }}>
-            <div className="character-role" style={{ fontSize: '12px' }}>当前目标：{mission?.current_mission !== "未知目标" ? "执行修行中" : "自由探索中"}</div>
+            <div className="character-role" style={{ fontSize: '12px' }}>当前状态：{mission?.current_mission !== "未知目标" ? "任务执行中" : "自由探索中"}</div>
             <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
               当前态度：<span style={{ color: 'var(--accent-pink)', fontWeight: '600' }}>{getAffectionText(affection)}</span>
             </div>
@@ -163,7 +163,7 @@ export default function StatusPanel({
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
               <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
             </svg>
-            <span>任务设立中，知识库被封印。<br/>(等待签订契约)</span>
+            <span>目标拟定中，知识库已锁定。<br/>(等待确认目标)</span>
           </div>
         )}
 

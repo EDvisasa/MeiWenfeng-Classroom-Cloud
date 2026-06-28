@@ -169,7 +169,7 @@ def init_db():
     );
     """)
 
-    # 专属修仙辞典 Glossary (Matt Pocock 理念)
+    # 核心课程术语字典表 Glossary (Matt Pocock 理念)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS glossary (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -216,12 +216,12 @@ def init_db():
     cursor.execute("SELECT COUNT(*) FROM course_progress")
     if cursor.fetchone()[0] == 0:
         default_syllabus = [
-            ("第一阶段：炼气入道", "灵气感应与纳气入体", "active", 0),
-            ("第一阶段：炼气入道", "经脉拓宽与小周天循环", "pending", 0),
-            ("第一阶段：炼气入道", "灵力御物与法术初探", "pending", 0),
-            ("第二阶段：筑基稳固", "气态灵力液化与筑基丹服用", "pending", 0),
-            ("第二阶段：筑基稳固", "神识诞生与外放练习", "pending", 0),
-            ("第三阶段：金丹淬炼", "精气神凝聚与金丹雷劫应对", "pending", 0)
+            ("第一阶段：环境与基础", "编程环境配置与基础语法入门", "active", 0),
+            ("第一阶段：环境与基础", "变量数据类型与控制流逻辑", "pending", 0),
+            ("第一阶段：环境与基础", "函数抽象与模块化编程思维", "pending", 0),
+            ("第二阶段：核心进阶", "面向对象设计与类方法封装", "pending", 0),
+            ("第二阶段：核心进阶", "异常处理与文件异步I/O操作", "pending", 0),
+            ("第三阶段：架构实践", "API服务构建与网络通讯管线", "pending", 0)
         ]
         cursor.executemany(
             "INSERT INTO course_progress (phase, topic, status, score) VALUES (?, ?, ?, ?)",

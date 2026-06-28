@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>ADR-004: 斜杠指令路由与课堂心流状态机决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; items-center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-004</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                📅 决策时间：2026-06-27 | ✍️ 决策方：智能教学系统架构团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            快捷指令前置路由与会话状态管理决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            升格列装原 <code>command-routing</code> 报告。规范前端 <code>/lesson</code>、<code>/submit</code>、<code>/set_mission</code> 等快捷指令在底层 <code>slash_handler.py</code> 中的解析与分发机制，保证快捷指令分发与上下文状态连贯，避免会话上下文中断。
+        </p>
+        
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">✨ Context-Continuity (会话上下文连贯性保障)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">业务操作指令与自然对白流混杂导致的上下文断层</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-red-50/60 rounded-xl p-6 border border-red-100">
+                <h3 class="text-base font-bold text-red-900 mb-2">挑战一：自然对白流与功能性指令混杂</h3>
+                <p class="text-sm text-red-800/80 leading-relaxed">
+                    在虚拟陪伴与课堂互动中，用户输入不仅包含闲聊（如“今天学得很累”），还包含高频业务操作（如加载关卡、提交代码沙盒）。如果统一作为普通对话推给 LLM，会严重消耗 Token 并导致 AI 产生逻辑混淆。
+                </p>
+            </div>
+            <div class="bg-amber-50/60 rounded-xl p-6 border border-amber-100">
+                <h3 class="text-base font-bold text-amber-900 mb-2">挑战二：系统控制指令易破坏会话上下文连贯性</h3>
+                <p class="text-sm text-amber-800/80 leading-relaxed">
+                    用户执行业务切换（如 `/cancel_mission` 或 `/reward`）时，系统需要即时给予业务反馈，同时通过平滑引导语让 AI 维持对话连贯性，避免生硬报错中断会话。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">前置命令分流器与系统提示词动态接管</p>
+            </div>
+        </div>
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-blue-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 设立前置斜杠指令路由 (handle_slash_command)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在 <code>backend/services/slash_handler.py</code> 中设立前置分流模块。在请求进入 LLM 主对话流之前，优先匹配 `/update_persona`、`/summarize`、`/prepare`、`/reward`、`/set_mission`、`/cancel_mission` 等快捷指令，执行毫秒级业务处理。
+                </p>
+            </div>
+            <div class="border-l-4 border-amber-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 上下文平滑过渡引导语注入</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    当执行状态重置或中断类指令（如 `/cancel_mission`）时，系统不直接返回报错，而是构造专属的 `<system_directive>` 注入流中，引导 LLM 保持会话语境，保障交互状态平滑过渡与上下文连贯。
+                </p>
+            </div>
+        </div>
+
+        <!-- Before vs After Topological Diagram -->
+        <div class="mt-8">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧架构：硬编码分支匹配 (上下文断层)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    graph TD
+                        Input["输入文本 /lesson 1"] -->|"混入普通对话"| LLM1["🤖 LLM 盲目猜测"]
+                        LLM1 -->|"输出机械提示/生硬报错"| Error["❌ 破坏上下文连贯 / 状态断层"]
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新架构：SlashCommandRouter 前置分流与状态隔离</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    graph TD
+                        Input2["输入指令 /prepare /submit"] -->|"前置路由分流"| Router["⚡ slash_handler.py"]
+                        Router -->|"/prepare"| L["📚 触发关卡卡片组装"]
+                        Router -->|"/cancel_mission"| S["💡 注入上下文引导提示"]
+                        L & S -->|"返回流式响应"| Flow["✨ 保障上下文连贯与平滑对话过渡"]
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">后果与架构评估 (Consequences)</h2>
+                <p class="text-sm text-slate-500">架构列装后的技术收益与边界</p>
+            </div>
+        </div>
+        <ul class="space-y-2 text-sm text-slate-600">
+            <li><strong>✓ 极速响应业务操作</strong>：斜杠指令触发纯后端业务逻辑，无需大模型长文本推理，接口时延由秒级降至毫秒级。</li>
+            <li><strong>✓ 绝对的角色扮演一致性</strong>：任何业务异常均通过人设注入转达，杜绝了系统级控制台错误暴露给用户的风险。</li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>
