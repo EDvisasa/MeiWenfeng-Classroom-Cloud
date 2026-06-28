@@ -17,9 +17,8 @@
   - 检查后端拉取文件内容的 API（如 `GET /api/files/...`）返回的数据结构是否符合前端预期。
   - 修复前必须先查看浏览器的 Developer Console 报错堆栈以精准定位崩溃点。
 
-### 3. [正在测试] 本地小模型思考过程格式泄露（未遵循 XML 规范）
-- **现象描述**：在与本地小模型（如 `ornith-1.0-9b`）对话时，模型未能正确使用 `prompts.py` 中规定的 `<inner_thought>` 或 `<thought>` 等 XML 标签来包裹内心独白。相反，模型直接输出了纯文本 `Thinking` 并紧接英文思考链（例如 `Thinking\nThe user is playfully...`），导致后端的 `ResponsePipeline` 无法基于 XML 规则进行有效拦截，直接将思考过程暴露给了用户界面。
-- **解决方案 (2026-06-28)**：
-  - **零侵入架构决策**：坚持“大模型主动适配系统”原则，不修改本地任何 Python 路由逻辑。
-  - **落地手段 (Assistant Prefill)**：在 `C:\Users\EDvisa\.lmstudio\config-presets\Classroom-Agent.preset.json` 中为其定制了专属 ChatML 强制模板。通过在 `messages` 渲染流的末尾强制注入 `<|im_start|>assistant\n<inner_thought>\n`，在物理层面上劫持了模型的首个 Token 生成，迫使其必须在 XML 标签内完成思考闭环，完美适配了后端的 `TagStreamInterceptor`。
-- **当前状态**：方案已实装，当前正在长期测试其在连续多轮复杂对话中是否会出现格式抖动或回退。
+### 3. [待修复] 小模型思考链引发正则截断故障（嵌套标签污染）
+- **现象描述**：在与本地小模型（如 `ornith-1.0-9b`）对话时，模型经常会在其原生的 `<thought>` 思考过程中“打草稿”，提及 `<inner_thought>` 标签（例如在英文思考流中输出：`Output an <inner_thought> block and at the very end...`）。由于前端 `blockParser.js` 提取内心独白时使用的是正则匹配，这导致它把 `<thought>` 里面的这个字符串误认为了起始点，一口气将后续的整个思考过程、对话正文，直到真正的 `</inner_thought>` 出现前的所有内容，全部错误地打包塞进了“此刻内心”的渲染框里，造成页面排版严重错乱。
+- **调查方向**：
+  - 前端渲染：需修改 `blockParser.js` 的正则或解析逻辑。提取 `<inner_thought>` 时，必须排除掉包含在 `<thought>...</thought>` 内部的内容。
+  - 后端管线：需排查后端的流式拦截器（`TagStreamInterceptor`）在遇到这种“思考过程中提及 XML 标签”的情况时，其内部的状态机（`in_tag`）是否也会发生混乱。
