@@ -1,3 +1,18 @@
+function stripControlTags(text) {
+  if (!text) return '';
+  let cleaned = text;
+  cleaned = cleaned.replace(/\s*<inner_thought>[\s\S]*?(?:<\/inner_thought>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<property_update[\s\S]*?(?:<\/property_update>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<system_pass[\s\S]*?(?:<\/system_pass>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<memory_decay[\s\S]*?(?:<\/memory_decay>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<new_course[\s\S]*?(?:<\/new_course>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*\[SYSTEM_PASS\]\s*/gi, '');
+  return cleaned;
+}
+
 export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
   let rawBlocks = Array.isArray(blocksOrText) ? blocksOrText : [{ type: 'text', text: blocksOrText || '' }];
 
@@ -6,15 +21,6 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
   rawBlocks.forEach(b => {
     if (b.type === 'text') {
       let text = b.text || '';
-      text = text.replace(/\s*<inner_thought>[\s\S]*?(?:<\/inner_thought>|\/>|$)\s*/gi, '');
-      text = text.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|\/>|$)\s*/gi, '');
-      text = text.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|\/>|$)\s*/gi, '');
-      text = text.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|\/>|$)\s*/gi, '');
-      text = text.replace(/\s*<property_update[\s\S]*?(?:<\/property_update>|\/>|$)\s*/gi, '');
-      text = text.replace(/\s*<system_pass[\s\S]*?(?:<\/system_pass>|\/>|$)\s*/gi, '');
-      text = text.replace(/\s*<memory_decay[\s\S]*?(?:<\/memory_decay>|\/>|$)\s*/gi, '');
-      text = text.replace(/\s*<new_course[\s\S]*?(?:<\/new_course>|\/>|$)\s*/gi, '');
-      text = text.replace(/\s*\[SYSTEM_PASS\]\s*/gi, '');
 
       // Strip markdown bold markers that the AI might incorrectly place around our custom block tags
       text = text.replace(/\*\*\s*<glossary/gi, '<glossary').replace(/<\/glossary>\s*\*\*/gi, '</glossary>');
@@ -151,7 +157,8 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
           while ((match = thoughtRegex.exec(textSegment)) !== null) {
             if (match.index > lastIndex) {
               const snippet = textSegment.substring(lastIndex, match.index).replace(/<\/thought>/g, '').trim();
-              if (snippet) normalized.push({ type: 'text', text: snippet });
+              const cleanedSnippet = stripControlTags(snippet);
+              if (cleanedSnippet) normalized.push({ type: 'text', text: cleanedSnippet });
             }
             const isRunning = isStreaming ? !textSegment.substring(match.index).includes('</thought>') : false;
             normalized.push({ type: 'thinking', text: match[1].trim(), status: isRunning ? 'running' : 'done' });
@@ -159,7 +166,8 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
           }
           if (lastIndex < textSegment.length) {
             const snippet = textSegment.substring(lastIndex).replace(/<\/thought>/g, '').trim();
-            if (snippet) normalized.push({ type: 'text', text: snippet });
+            const cleanedSnippet = stripControlTags(snippet);
+            if (cleanedSnippet) normalized.push({ type: 'text', text: cleanedSnippet });
           }
         }
       });

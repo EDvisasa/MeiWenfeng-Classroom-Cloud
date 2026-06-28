@@ -192,9 +192,10 @@ export default function App() {
   const handleEditAiMessage = (index, newContent) => {
     if (isStreaming) return;
 
-    // 仅更新该条 AI 消息的内容
+    // 仅更新该条 AI 消息的内容，并删除旧的 blocks，强制让渲染器从新的 content 重新解析
     const nextMessages = [...messages];
     nextMessages[index] = { ...nextMessages[index], content: newContent };
+    delete nextMessages[index].blocks;
 
     setMessages(nextMessages);
   };
@@ -1205,16 +1206,17 @@ export default function App() {
                       }
                       return b.text;
                     }).join('');
-                    const thoughtMatchArray = displayContent.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/g);
+                    
+                    // Extract inner_thought ONLY from standard text blocks, ignoring anything inside <thought> (thinking blocks).
+                    // This prevents regex greedy bugs when the AI drafts <inner_thought> inside a <thought> block.
+                    let textContentOnly = currentBlocks.filter(b => b.type === 'text').map(b => b.text).join('');
+                    const thoughtMatchArray = textContentOnly.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/g);
                     if (thoughtMatchArray && thoughtMatchArray.length > 0) {
                       const lastThought = thoughtMatchArray[thoughtMatchArray.length - 1];
                       const innerMatch = lastThought.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/);
                       if (innerMatch) {
                         setCurrentThought(innerMatch[1].trim());
                       }
-                      // DO NOT strip it from displayContent here! 
-                      // blockParser.js handles hiding tags for normal chat bubbles.
-                      // We want msg.content to be 100% raw for the edit box.
                     }
                     lastMsg.content = displayContent;
                   }

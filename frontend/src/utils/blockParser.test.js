@@ -75,4 +75,15 @@ describe('parseAndMergeBlocks', () => {
       { type: 'text', text: 'Here is text.' }
     ]);
   });
+
+  // Behavior 7
+  it('should NOT let <inner_thought> regex corrupt text if mentioned inside <thought> block', () => {
+    const input = '<thought>Output an <inner_thought> block and at the very end</thought> Hello world! <inner_thought>actual inner thought</inner_thought>';
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      { type: 'thinking', text: 'Output an <inner_thought> block and at the very end', status: 'done' },
+      { type: 'text', text: 'Hello world!' }
+    ]);
+  });
 });
