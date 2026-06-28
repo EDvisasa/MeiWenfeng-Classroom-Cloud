@@ -106,7 +106,7 @@ cd MeiWenfeng-Classroom
 ### 🤖 Agentic 工具流与管道架构 (New!)
 彻底告别将网络请求、工具执行和副作用拦截揉捏在一起的“上帝函数”。系统现已升级为智能体系统架构：
 - **底座协议层 (`LLMClientProtocol`)**：纯粹的物理层流式通信。
-- **应用执行层 (`AgentExecutor`)**：包裹底层协议，负责状态机驱动的多轮思考 (`<thought>`) 与本地工具集调用循环。系统目前实际集成了 7 个核心工具（严格对齐底层 `agent_tools.py`），包括：`execute_bash` (执行本地终端命令)、`read_file` (读取本地文件)、`grep_search` (目录内文本搜索)、`web_search` (使用 DDGS 搜索网络信息)、`read_url_content` (抓取指定 URL 网页并转换为干净的 Markdown 格式)，以及被严格限定在 `data/materials/Sandbox` 沙盒目录内执行的写入操作——`create_file` (创建新文件) 与 `replace_file_content` (替换文件特定内容)。
+- **应用执行层 (`AgentExecutor`)**：包裹底层协议，驱动多轮思考 (`<thought>`) 与工具调用循环。现已集成 7 大核心工具：受限终端 (`execute_bash`)、安全读取 (`read_file` / `grep_search`)、联网搜索 (`web_search` / `read_url_content`)，以及被严格隔离在沙盒 (`Sandbox/`) 内的文件修改操作 (`create_file` / `replace_file_content`)。
 - **动态并发与防注入拦截 (HITL)**：内建严密的 AST 级防注入护栏，有效物理拦截恶意 Shell 命令和路径穿越攻击（结合持续的自动化回归防御）。针对高危动作（如写入磁盘），通过前端原生交互机制 `BashApprovalCard` 实施 Human-in-the-loop (HITL) 拦截，同时在路由层强化 Pydantic Payload Validation，防止一切形式的前端异常导致聊天流瘫痪。
 - **响应拦截层 (`ResponsePipeline`)**：字符级状态机实时拦截 XML 副作用标签（如 `<glossary>`, `[SYSTEM_PASS]`），同时保障向前端输送绝对纯净的 SSE 文本流，避免打字机卡顿或标签泄漏。
 - **大文件 OOM 防护**：通过 `@文件` 语法读取本地文件时，自动截断超大文件（限制 20000 字符），并智能引导大模型使用专项搜索工具深入探索。
