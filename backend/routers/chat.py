@@ -114,15 +114,18 @@ def get_system_context(payload: ChatRequest):
     """前端调用以获取当前状态下隐藏上下文（系统设定、RAG、好感度等）所占用的准确 Token 数"""
     last_user_msg = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
     system_prompt, _, _ = _build_full_system_prompt(payload, last_user_msg)
+    from backend.services.agent_tools import get_agent_execution_protocol
+    
+    full_preview_prompt = system_prompt + "\n\n" + get_agent_execution_protocol()
     
     try:
         encoding = tiktoken.get_encoding("cl100k_base")
-        tokens = len(encoding.encode(system_prompt))
+        tokens = len(encoding.encode(full_preview_prompt))
     except Exception as e:
         logger.error(f"tiktoken fallback: {e}")
-        tokens = len(system_prompt) // 4
+        tokens = len(full_preview_prompt) // 4
         
-    return {"status": "success", "baseSystemTokens": tokens}
+    return {"status": "success", "baseSystemTokens": tokens, "system_prompt": full_preview_prompt}
 
 @router.post("/send")
 def send_message(payload: ChatRequest):

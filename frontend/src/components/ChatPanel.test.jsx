@@ -62,7 +62,7 @@ describe('ChatPanel Editing Behavior Tests', () => {
       messages: [
         {
           role: 'assistant',
-          content: 'Hello, <thought>I am testing</thought>'
+          content: 'Hello, <think>I am testing</think>'
         }
       ]
     };
@@ -78,7 +78,7 @@ describe('ChatPanel Editing Behavior Tests', () => {
 
     // 2. Initial content is correct
     const textarea = document.querySelector('.edit-textarea');
-    expect(textarea.value).toBe('Hello, <thought>I am testing</thought>');
+    expect(textarea.value).toBe('Hello, <think>I am testing</think>');
 
     // 3. Cancel editing does not trigger callback
     fireEvent.change(textarea, { target: { value: 'Changed content' } });

@@ -281,8 +281,8 @@ class ResponsePipeline:
             
             # 清理长程记忆：剔除所有心理活动和思考标签，节约向量数据库和摘要时的上下文Token
             memory_clean_text = clean_text
-            memory_clean_text = re.sub(r'<inner_thought>[\s\S]*?(?:</inner_thought>|$)', '', memory_clean_text, flags=re.IGNORECASE)
-            memory_clean_text = re.sub(r'<thought>[\s\S]*?(?:</thought>|$)', '', memory_clean_text, flags=re.IGNORECASE)
+            memory_clean_text = re.sub(r'<monologue>[\s\S]*?(?:</monologue>|$)', '', memory_clean_text, flags=re.IGNORECASE)
+            memory_clean_text = re.sub(r'<think>[\s\S]*?(?:</think>|$)', '', memory_clean_text, flags=re.IGNORECASE)
             memory_clean_text = memory_clean_text.strip()
             
             time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')

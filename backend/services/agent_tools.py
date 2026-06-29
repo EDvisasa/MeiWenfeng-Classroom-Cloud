@@ -10,6 +10,7 @@ from openai import OpenAI
 class AgentTool:
     name: str = ""
     description: str = ""
+    parameters_schema: dict = {}
 
     def execute(self, params: dict) -> str:
         raise NotImplementedError()
@@ -22,7 +23,21 @@ PENDING_APPROVALS = {}
 
 class BashTool(AgentTool):
     name = "execute_bash"
-    description = "Execute a local terminal command."
+    description = "Execute a local terminal command. Use this for running tests, managing files, and checking system state."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "command": {
+                "type": "string",
+                "description": "The bash/cmd command to execute."
+            },
+            "approval_id": {
+                "type": "string",
+                "description": "Optional unique ID for HITL approval."
+            }
+        },
+        "required": ["command"]
+    }
 
     def execute(self, params: dict) -> str:
         command = params.get("command", "")
@@ -103,7 +118,25 @@ class BashTool(AgentTool):
 
 class ReadFileTool(AgentTool):
     name = "read_file"
-    description = "Read the contents of a local file, optionally specifying start_line and end_line."
+    description = "Read lines from a file. You can specify a range using start_line and end_line."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "The absolute or relative path to the file."
+            },
+            "start_line": {
+                "type": "string",
+                "description": "Optional start line number."
+            },
+            "end_line": {
+                "type": "string",
+                "description": "Optional end line number."
+            }
+        },
+        "required": ["path"]
+    }
 
     def execute(self, params: dict) -> str:
         path = params.get("path", "")
@@ -166,6 +199,20 @@ class ReadFileTool(AgentTool):
 class GrepSearchTool(AgentTool):
     name = "grep_search"
     description = "Search for a query string in all text files within a directory."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "dir_path": {
+                "type": "string",
+                "description": "The directory path to search in."
+            },
+            "query": {
+                "type": "string",
+                "description": "The string to search for."
+            }
+        },
+        "required": ["dir_path", "query"]
+    }
 
     def execute(self, params: dict) -> str:
         dir_path = params.get("dir_path", "")
@@ -206,6 +253,24 @@ class GrepSearchTool(AgentTool):
 class ReplaceFileContentTool(AgentTool):
     name = "replace_file_content"
     description = "Surgically replace a block of text in a specific file. Restricted to the data/materials/Sandbox directory."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "The path to the file in the Sandbox."
+            },
+            "old_content": {
+                "type": "string",
+                "description": "The exact existing content to replace."
+            },
+            "new_content": {
+                "type": "string",
+                "description": "The new content to insert."
+            }
+        },
+        "required": ["path", "old_content", "new_content"]
+    }
 
     def execute(self, params: dict) -> str:
         path = params.get("path", "")
@@ -259,7 +324,21 @@ class ReplaceFileContentTool(AgentTool):
 
 class CreateFileTool(AgentTool):
     name = "create_file"
-    description = "Create a brand new file with the specified content. Restricted to the data/materials/Sandbox directory."
+    description = "Create a completely new file with content. Restricted to the data/materials/Sandbox directory."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "path": {
+                "type": "string",
+                "description": "The path of the new file to create in the Sandbox."
+            },
+            "content": {
+                "type": "string",
+                "description": "The complete content of the new file."
+            }
+        },
+        "required": ["path", "content"]
+    }
 
     def execute(self, params: dict) -> str:
         path = params.get("path", "")
@@ -294,7 +373,17 @@ class CreateFileTool(AgentTool):
 
 class WebSearchTool(AgentTool):
     name = "web_search"
-    description = "Search the web for current information using DDGS (DuckDuckGo)."
+    description = "Search the internet using DuckDuckGo to find information."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "The search query."
+            }
+        },
+        "required": ["query"]
+    }
 
     def execute(self, params: dict) -> str:
         query = params.get("query", "")
@@ -335,7 +424,25 @@ class WebSearchTool(AgentTool):
 
 class ReadUrlContentTool(AgentTool):
     name = "read_url_content"
-    description = "Fetch URL content and convert it to clean Markdown, optionally specifying start_line and end_line for pagination."
+    description = "Read and extract clean markdown content from a specific URL. Useful for reading documentation or articles."
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "url": {
+                "type": "string",
+                "description": "The URL of the webpage to read."
+            },
+            "start_line": {
+                "type": "string",
+                "description": "Optional start line number for pagination."
+            },
+            "end_line": {
+                "type": "string",
+                "description": "Optional end line number for pagination."
+            }
+        },
+        "required": ["url"]
+    }
 
     def execute(self, params: dict) -> str:
         url = params.get("url", "")
@@ -448,10 +555,13 @@ class OpenAILLMClient:
         }
         if "max_tokens" in kwargs and kwargs["max_tokens"] > 0:
             call_kwargs["max_tokens"] = kwargs["max_tokens"]
+        if "tools" in kwargs and kwargs["tools"]:
+            call_kwargs["tools"] = kwargs["tools"]
 
         import time
         import httpx
         import openai
+        import json
 
         max_retries = 10
         base_wait = 2
@@ -461,7 +571,6 @@ class OpenAILLMClient:
                 response = self.client.chat.completions.create(**call_kwargs)
                 
                 if attempt > 1:
-                    import json
                     yield {"type": "retry_status", "text": json.dumps({"success": True})}
 
                 for chunk in response:
@@ -471,6 +580,23 @@ class OpenAILLMClient:
                             yield {"type": "thinking", "text": delta.reasoning_content}
                         if delta.content:
                             yield {"type": "text", "text": delta.content}
+                        if hasattr(delta, "tool_calls") and delta.tool_calls:
+                            # 提取原生 JSON tool calls 并原样返回给 Executor 聚合
+                            # 注意: OpenAI v1 API 中的 delta.tool_calls 是对象列表
+                            calls_list = []
+                            for tc in delta.tool_calls:
+                                c_dict = {"index": tc.index}
+                                if tc.id is not None:
+                                    c_dict["id"] = tc.id
+                                if tc.function is not None:
+                                    c_dict["function"] = {}
+                                    if tc.function.name is not None:
+                                        c_dict["function"]["name"] = tc.function.name
+                                    if tc.function.arguments is not None:
+                                        c_dict["function"]["arguments"] = tc.function.arguments
+                                calls_list.append(c_dict)
+                            if calls_list:
+                                yield {"type": "tool_calls_chunk", "tool_calls": calls_list}
                 
                 return
 
@@ -484,232 +610,189 @@ class OpenAILLMClient:
                 ConnectionError
             ) as e:
                 if attempt == max_retries:
-                    import json
                     yield {"type": "retry_status", "text": json.dumps({"error": str(e).split('\n')[0][:80], "failed": True})}
                     raise e
                 
                 wait_time = min(base_wait * (2 ** (attempt - 1)), 30)
                 error_msg = str(e).split('\n')[0][:80]
                 
-                # 在后端终端打印详细报错，方便开发者排查问题（UI 会在重试成功后自动清理气泡）
-                print(f"[API Retry Warning] Attempt {attempt}/{max_retries} failed. Retrying in {wait_time}s. Error: {str(e)}")
-                
-                import json
-                payload = json.dumps({
-                    "error": error_msg,
+                yield {"type": "retry_status", "text": json.dumps({
                     "attempt": attempt,
                     "max_retries": max_retries,
-                    "wait_time": wait_time
-                })
-                yield {"type": "retry_status", "text": payload}
+                    "wait_time": wait_time,
+                    "error": error_msg
+                })}
                 time.sleep(wait_time)
 
 
-# --- 新增：AgentExecutor 应用层 ---
+def get_agent_execution_protocol() -> str:
+    import platform
+    current_os = platform.system()
+    os_instruction = ""
+    if current_os == "Windows":
+        os_instruction += " You are using Windows cmd.exe. CRITICAL: Multiline strings do NOT work well in `python -c` or standard terminal commands here. If you need to run a python script, write it entirely on ONE line using semicolons (e.g. `python -c \"import os; print('hi')\"`), or write it to a temporary .py file and execute that file. Use Windows commands (e.g., `dir` instead of `ls`)."
+    else:
+        os_instruction += " You are using a standard Unix bash shell."
+
+    return f"""
+<agent_execution_protocol>
+<environment_constraints>
+1. You have native function calling tools via the API. Do NOT hallucinate tool results.
+2. {os_instruction}
+3. ERROR RECOVERY: If a tool execution fails, analyze it in your next <think> block and try a different command.
+4. SPECIFIC TOOLS: You MUST use `read_file` to read files and `grep_search` to search directories.
+5. TIME PERCEPTION: You already have the exact real-world time in the `<current_time>` block of your system prompt.
+6. WEB SEARCH: You have access to a `web_search` tool. Use it to look up recent facts or news.
+</environment_constraints>
+
+<execution_framework>
+To ensure perfect immersion and strict format compliance, your response MUST strictly follow this exact sequence:
+
+[PHASE 1: INTERNAL REASONING]
+You MUST start with a `<think>` block that strictly follows these 6 steps:
+1. User Intent: Analyze the user's explicit request and hidden emotional needs.
+2. Tool Selection: Determine if you need to use `web_search`, read files, or run commands. (If YES, plan to call the tool and STOP your turn immediately).
+3. Attribute Analysis: Analyze your current Affection Score, Social Status, and Refractory state to determine your precise tone.
+4. Response Plan: Design your non-verbal actions (wrapped in `*`) and dialogue strategy.
+5. Property Calculation: Calculate the exact delta for Affection, Social Status, Social Skills, and Refractory Period.
+6. Post-Response Checklist: Remind yourself to output the `<monologue>` block followed by the `<property_update>` tag at the very end.
+
+[PHASE 2: DIALOGUE & ACTIONS]
+Respond directly in character (wrapped in `*` for actions). Do not output XML tags or tool calls here.
+
+[PHASE 3: HIDDEN STATE]
+Append your `<monologue>...</monologue>` block.
+Finally, append the `<property_update>` tag.
+CRITICAL: The `<property_update>` tag MUST be the very last thing in your response.
+</execution_framework>
+</agent_execution_protocol>
+"""
+
 class AgentExecutor:
-    """
-    负责多轮对话循环、实时流式标签拦截、工具解析与执行的高层模块。
-    它包裹了底层的 LLMClientProtocol，实现了协议解耦。
-    """
     def __init__(self, llm_client: LLMClientProtocol, max_iterations: int = 5):
         self.llm_client = llm_client
         self.max_iterations = max_iterations
 
-
-    def run(self, messages: List[Dict[str, str]], **kwargs) -> Generator[Dict[str, Any], None, None]:
-        import platform
-        current_os = platform.system()
-        os_instruction = f"Operating System: {current_os}."
-        if current_os == "Windows":
-            os_instruction += " You are using Windows cmd.exe. CRITICAL: Multiline strings do NOT work well in `python -c` or standard terminal commands here. If you need to run a python script, write it entirely on ONE line using semicolons (e.g. `python -c \"import os; print('hi')\"`), or write it to a temporary .py file and execute that file. Use Windows commands (e.g., `dir` instead of `ls`)."
-        else:
-            os_instruction += " You are using a standard Unix bash shell."
-
-        system_injection = f"""
-<tool_use_guidelines>
-You have access to a local command-line terminal and file system tools.
-{os_instruction}
-
-CRITICAL RULES:
-1. THINK BEFORE YOU ACT: You MUST ALWAYS start your response with a <thought> block to explain your plan and reasoning.
-2. STRICT TAG SEQUENCE: You MUST explicitly close your `</thought>` block BEFORE outputting any tool calls. NEVER nest tools inside `<thought>`.
-3. BATCH EXECUTION: To execute operations concurrently, you MUST wrap all your `<call_tool>` blocks inside a SINGLE `<tool_batch>...</tool_batch>` container. 
-4. STOP AT BATCH CLOSURE: After you output `</tool_batch>`, you MUST STOP generating immediately. DO NOT hallucinate the system's response. The system will execute all tools within the batch concurrently and return "[System Tool Result]"s.
-5. ERROR RECOVERY: If the system execution result contains an error, analyze it in your next <thought> block and try a different command. Do NOT bother the user with technical errors.
-6. USE SPECIFIC TOOLS: You MUST use `read_file` to read files. NEVER use `cat` or `type` via `execute_bash`.
-7. ENFORCE SEARCH TOOL: To search for a specific string or keywords across files in a directory, you MUST use the `grep_search` tool. You are ABSOLUTELY FORBIDDEN from using `execute_bash` (like findstr, grep, or custom python scripts) to search files.
-8. TIME PERCEPTION: You already have the exact, up-to-date real-world time in the `<current_time>` block of your system prompt. Do NOT use `execute_bash` or any code to check the current time or date. Rely entirely on the injected time.
-9. WEB SEARCH: You have access to a `web_search` tool. Use it to look up recent facts, news, or technical documentation. Do not hallucinate facts if you are unsure.
-10. MAINTAIN PERSONA: When you have gathered enough info and are ready to reply, DO NOT output any `<call_tool>` or `<tool_batch>` tags. Just respond directly in character.
-
-TOOL EXECUTION FORMAT:
-<thought>
-I need to check the current directory contents and read config.json.
-</thought>
-<tool_batch>
-<call_tool name="execute_bash">
-<command>{"dir" if current_os == "Windows" else "ls -la"}</command>
-</call_tool>
-<call_tool name="read_file">
-<path>config.json</path>
-<start_line>10</start_line>
-<end_line>50</end_line>
-</call_tool>
-</tool_batch>
-
-OR to search for a query across files in a directory:
-<thought>
-I need to find where 'login' is mentioned in the src folder.
-</thought>
-<tool_batch>
-<call_tool name="grep_search">
-<dir_path>C:/path/to/src</dir_path>
-<query>login</query>
-</call_tool>
-</tool_batch>
-
-OR to surgically replace code in a sandbox file:
-<thought>
-I need to update the sandbox test file to increase difficulty.
-</thought>
-<tool_batch>
-<call_tool name="replace_file_content">
-  <path>docs/sandbox/target_file.py</path>
-  <old_content>exact text to be replaced (must be unique)</old_content>
-  <new_content>new text</new_content>
-</call_tool>
-
-If you need to create an entirely new file from scratch in the sandbox, use:
-<call_tool name="create_file">
-  <path>docs/sandbox/new_file.py</path>
-  <content>entire content of the new file</content>
-</call_tool>
-</tool_batch>
-
-OR to search the web:
-<thought>
-I need to find the latest documentation on React Hooks.
-</thought>
-<tool_batch>
-<call_tool name="web_search">
-  <query>React Hooks latest documentation site:react.dev</query>
-</call_tool>
-</tool_batch>
-
-OR to deeply read a webpage to find specific information (with pagination support!):
-<thought>
-I need to read the content of this URL. I will read the first page now.
-</thought>
-<tool_batch>
-<call_tool name="read_url_content">
-  <url>https://example.com</url>
-  <start_line>1</start_line>
-</call_tool>
-</tool_batch>
-If the result says it was truncated, you MUST call it again with the suggested `start_line` to continue scrolling!
-</tool_use_guidelines>
-"""
+    def run(self, messages: List[Dict[str, Any]], **kwargs) -> Generator[Dict[str, Any], None, None]:
+        system_injection = get_agent_execution_protocol()
         current_messages = messages.copy()
         if len(current_messages) > 0 and current_messages[0]["role"] == "system":
             current_messages[0]["content"] = str(current_messages[0]["content"]) + "\n\n" + system_injection
         else:
             current_messages.insert(0, {"role": "system", "content": system_injection})
 
-        iteration = 0
+        # Inject Tool Schemas natively
+        tools_list = []
+        for name, tool_obj in TOOL_REGISTRY.items():
+            schema = getattr(tool_obj, 'parameters_schema', {})
+            tools_list.append({
+                "type": "function",
+                "function": {
+                    "name": name,
+                    "description": tool_obj.description,
+                    "parameters": schema if schema else {"type": "object", "properties": {}}
+                }
+            })
+        kwargs["tools"] = tools_list
 
+        iteration = 0
 
         while iteration < self.max_iterations:
             iteration += 1
             full_content = ""
-
-            # 使用状态机实时拦截 <call_tool> 或 <execute_bash>
-            buffer = ""
-            in_tag = False
+            tool_calls_accumulator = {}
 
             for chunk in self.llm_client.stream_completion(current_messages, **kwargs):
-                chunk_type = chunk.get("type", "text")  # "thinking" 或 "text"
+                chunk_type = chunk.get("type", "text")
+                
+                if chunk_type == "tool_calls_chunk":
+                    for tc in chunk.get("tool_calls", []):
+                        idx = tc.get("index", 0)
+                        if idx not in tool_calls_accumulator:
+                            tool_calls_accumulator[idx] = {
+                                "id": tc.get("id", ""), 
+                                "type": "function", 
+                                "function": {"name": "", "arguments": ""}
+                            }
+                        
+                        func = tc.get("function", {})
+                        if func.get("name"):
+                            tool_calls_accumulator[idx]["function"]["name"] += func["name"]
+                        if func.get("arguments"):
+                            tool_calls_accumulator[idx]["function"]["arguments"] += func["arguments"]
+                    continue
                 
                 if chunk_type not in ["text", "thinking"]:
                     yield chunk
                     continue
                     
                 text = chunk.get("text", "")
+                full_content += text
+                yield chunk
 
-                # 对 thinking 和 text 通道应用完全相同的拦截器状态机
-                # 防止 DeepSeek 把 <tool_batch> 或故事正文写入 reasoning_content 时直接泄漏
-                for char in text:
-                    if not in_tag and not buffer and char == '<':
-                        buffer += char
-                        continue
-
-                    if buffer or in_tag:
-                        buffer += char
-                        if buffer.startswith("<tool_batch"):
-                            in_tag = True
-                            # 关键修复：检测 </tool_batch> 闭合，一旦发现就刷新并退出 in_tag 状态
-                            if "</tool_batch>" in buffer:
-                                full_content += buffer
-                                buffer = ""
-                                in_tag = False
-                                # 不 yield 任何内容（tool_batch 本体对前端不可见）
-                        elif buffer.startswith("<"):
-                            # 如果发现不是目标标签，释放缓冲
-                            if ">" in buffer or len(buffer) > 20:
-                                if not buffer.startswith("<tool_batch"):
-                                    yield {"type": chunk_type, "text": buffer}
-                                    full_content += buffer
-                                    buffer = ""
-                                    in_tag = False
-                        else:
-                            # 意外情况，释放缓冲
-                            yield {"type": chunk_type, "text": buffer}
-                            full_content += buffer
-                            buffer = ""
-                    else:
-                        yield {"type": chunk_type, "text": char}
-                        full_content += char
-
-
-            # 流结束后，如果有遗留缓冲（完整的工具标签）
-            if buffer:
-                full_content += buffer
-
-            # 解析并执行工具
-            tools_to_run = self._parse_tools(full_content)
-
-            if not tools_to_run:
-                break # 没有工具调用，结束循环
-
-            current_messages.append({"role": "assistant", "content": full_content})
-
+            import json
+            import uuid
             import concurrent.futures
             
-            system_result_text = ""
+            tools_to_run = []
+            final_tool_calls_payload = []
             
-            # 去重逻辑
-            unique_tools = []
-            seen = set()
-            for t in tools_to_run:
-                # 序列化 param 字典以便哈希去重
-                param_repr = repr(sorted(t["param"].items()) if isinstance(t.get("param"), dict) else t.get("param"))
-                key = (t["name"], param_repr)
-                if key not in seen:
-                    seen.add(key)
-                    unique_tools.append(t)
-            
-            tools_to_run = unique_tools
+            # If we accumulated tool calls, parse them
+            if tool_calls_accumulator:
+                # 伪造 <tool_batch> 骗前端解析器，让前端不用改代码也能渲染华丽UI
+                yield {"type": "text", "text": "\n<tool_batch>\n"}
+                
+                for idx, tc in sorted(tool_calls_accumulator.items()):
+                    # OpenAI requires tool_call_id to be populated. If empty, generate one (for some open source models).
+                    if not tc["id"]:
+                        tc["id"] = "call_" + uuid.uuid4().hex[:16]
+                        
+                    final_tool_calls_payload.append(tc)
+                    func_name = tc["function"]["name"]
+                    args_str = tc["function"]["arguments"]
+                    try:
+                        t_param = json.loads(args_str) if args_str else {}
+                    except json.JSONDecodeError:
+                        t_param = {}
+                        
+                    c_str = self._format_command_str(func_name, t_param)
+                    tools_to_run.append({"id": tc["id"], "name": func_name, "param": t_param, "command_str": c_str})
+                    
+                    # 伪造具体的 <call_tool>
+                    fake_xml = f'<call_tool name="{func_name}">\n'
+                    for k, v in t_param.items():
+                        fake_xml += f'<{k}>{v}</{k}>\n'
+                    fake_xml += "</call_tool>\n"
+                    
+                    yield {"type": "text", "text": fake_xml}
+                    
+                yield {"type": "text", "text": "</tool_batch>\n"}
 
+            if not tools_to_run:
+                break # No tool calls, exit loop
+
+            # Prepare assistant message
+            assistant_msg = {"role": "assistant"}
+            if full_content.strip():
+                assistant_msg["content"] = full_content
+            else:
+                assistant_msg["content"] = ""
+            assistant_msg["tool_calls"] = final_tool_calls_payload
+            
+            # Note: We do NOT append the fake <tool_batch> string into current_messages!
+            # The model only sees its standard native tool_calls structure.
+            current_messages.append(assistant_msg)
+
+            # Execute tools
             def run_tool(t):
                 if t["name"] in TOOL_REGISTRY:
                     return TOOL_REGISTRY[t["name"]].execute(t["param"])
-                else:
-                    return f"[Error] Unknown tool: {t['name']}"
+                return f"[Error] Unknown tool: {t['name']}"
 
-            # 区分安全工具与危险工具
             safe_tools = [t for t in tools_to_run if t["name"] != "execute_bash"]
             unsafe_tools = [t for t in tools_to_run if t["name"] == "execute_bash"]
 
-            # 1. 并发执行 Safe Tools
+            # 1. Execute Safe Tools concurrently
             if safe_tools:
                 results = [None] * len(safe_tools)
                 with concurrent.futures.ThreadPoolExecutor(max_workers=min(10, len(safe_tools))) as executor:
@@ -725,13 +808,19 @@ If the result says it was truncated, you MUST call it again with the suggested `
                     yield {"type": "tool_start", "tool_name": t["name"], "command": t["command_str"]}
                     yield {"type": "tool_output", "text": str(output)}
                     yield {"type": "tool_end"}
-                    system_result_text += f"[System Tool Result {t['name']}]:\n{output}\n\n"
+                    
+                    # Append strictly as a standard tool message
+                    current_messages.append({
+                        "role": "tool",
+                        "tool_call_id": t["id"],
+                        "name": t["name"],
+                        "content": str(output)
+                    })
 
-            # 2. 串行执行 Unsafe Tools 提前 yield 发送前端拦截卡片
+            # 2. Execute Unsafe Tools sequentially
             if unsafe_tools:
                 for t in unsafe_tools:
                     approval_id = uuid.uuid4().hex
-                    
                     if "param" not in t or not isinstance(t["param"], dict):
                         t["param"] = {}
                     t["param"]["approval_id"] = approval_id
@@ -745,63 +834,13 @@ If the result says it was truncated, you MUST call it again with the suggested `
                         
                     yield {"type": "tool_output", "text": str(output)}
                     yield {"type": "tool_end"}
-                    system_result_text += f"[System Tool Result {t['name']}]:\n{output}\n\n"
-
-            # 将执行结果喂给模型，进入下一轮
-            current_messages.append({
-                "role": "user",
-                "content": f"{system_result_text}请根据上述结果继续分析，或者如果信息足够，请立刻使用你当前的人设进行最终回复（最终回复绝不能包含任何XML标签）。"
-            })
-
-    def _parse_tools(self, full_content: str) -> List[Dict[str, Any]]:
-        tools_to_run = []
-        
-        # 1. 尝试解析标准的 <call_tool>
-        matches = re.finditer(r'<call_tool[^>]*>.*?(?:</call_tool>|$)', full_content, re.DOTALL)
-        for match in matches:
-            tool_xml = match.group(0)
-            if not tool_xml.endswith("</call_tool>"):
-                tool_xml += "</call_tool>"
-            try:
-                root = ET.fromstring(tool_xml)
-                t_name = root.attrib.get("name")
-                t_param = {}
-                for child in root:
-                    t_param[child.tag] = child.text if child.text else ""
-
-                c_str = self._format_command_str(t_name, t_param)
-                if t_name:
-                    tools_to_run.append({"name": t_name, "param": t_param, "command_str": c_str})
-            except Exception:
-                pass
-
-        # 2. 如果没有找到标准的 <call_tool>，则尝试兼容大模型的直接标签幻觉（如 <grep_search>...</grep_search>）
-        if not tools_to_run:
-            for tool_name in TOOL_REGISTRY.keys():
-                pattern = f'<{tool_name}>(.*?)(?:</{tool_name}>|$)'
-                for match in re.finditer(pattern, full_content, re.DOTALL):
-                    inner_xml = match.group(1).strip()
-                    # 将其组装成可以被 ET 解析的格式
-                    dummy_xml = f"<{tool_name}>{inner_xml}</{tool_name}>"
-                    try:
-                        root = ET.fromstring(dummy_xml)
-                        t_param = {}
-                        for child in root:
-                            t_param[child.tag] = child.text if child.text else ""
-                            
-                        # 特殊处理 execute_bash
-                        if tool_name == "execute_bash" and not t_param:
-                            # 兼容 <execute_bash>ls -la</execute_bash> 的旧格式
-                            c_str = inner_xml.strip()
-                            t_param = {"command": c_str}
-                        else:
-                            c_str = self._format_command_str(tool_name, t_param)
-                            
-                        tools_to_run.append({"name": tool_name, "param": t_param, "command_str": c_str})
-                    except Exception:
-                        pass
-
-        return tools_to_run
+                    
+                    current_messages.append({
+                        "role": "tool",
+                        "tool_call_id": t["id"],
+                        "name": t["name"],
+                        "content": str(output)
+                    })
 
     def _format_command_str(self, t_name: str, t_param: dict) -> str:
         if t_name == "read_file":

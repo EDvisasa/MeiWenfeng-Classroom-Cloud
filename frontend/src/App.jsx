@@ -1199,21 +1199,21 @@ export default function App() {
                   if (lastMsg.role === 'assistant') {
                     lastMsg.blocks = [...currentBlocks];
                     // Keep plain text content completely raw for editing and full visibility.
-                    // Also convert native 'thinking' blocks (reasoning_content) back into <thought> tags so they are not lost in the edit box.
+                    // Also convert native 'thinking' blocks (reasoning_content) back into <think> tags so they are not lost in the edit box.
                     let displayContent = currentBlocks.filter(b => b.type === 'text' || b.type === 'thinking').map(b => {
                       if (b.type === 'thinking') {
-                        return `<thought>\n${b.text.trim()}\n</thought>\n`;
+                        return `<think>\n${b.text.trim()}\n</think>\n`;
                       }
                       return b.text;
                     }).join('');
                     
-                    // Extract inner_thought ONLY from standard text blocks, ignoring anything inside <thought> (thinking blocks).
-                    // This prevents regex greedy bugs when the AI drafts <inner_thought> inside a <thought> block.
+                    // Extract monologue ONLY from standard text blocks, ignoring anything inside <think> (thinking blocks).
+                    // This prevents regex greedy bugs when the AI drafts <monologue> inside a <think> block.
                     let textContentOnly = currentBlocks.filter(b => b.type === 'text').map(b => b.text).join('');
-                    const thoughtMatchArray = textContentOnly.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/g);
+                    const thoughtMatchArray = textContentOnly.match(/<monologue>([\s\S]*?)(?:<\/monologue>|$)/g);
                     if (thoughtMatchArray && thoughtMatchArray.length > 0) {
                       const lastThought = thoughtMatchArray[thoughtMatchArray.length - 1];
-                      const innerMatch = lastThought.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/);
+                      const innerMatch = lastThought.match(/<monologue>([\s\S]*?)(?:<\/monologue>|$)/);
                       if (innerMatch) {
                         setCurrentThought(innerMatch[1].trim());
                       }

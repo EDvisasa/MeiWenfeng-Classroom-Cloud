@@ -22,3 +22,17 @@
 - **调查方向**：
   - 前端渲染：需修改 `blockParser.js` 的正则或解析逻辑。提取 `<inner_thought>` 时，必须排除掉包含在 `<thought>...</thought>` 内部的内容。
   - 后端管线：需排查后端的流式拦截器（`TagStreamInterceptor`）在遇到这种“思考过程中提及 XML 标签”的情况时，其内部的状态机（`in_tag`）是否也会发生混乱。
+
+## 🏗️ 架构与深模块解耦缺陷 (Architecture Deepening Opportunities)
+
+### 4. AgentExecutor 的流解析与工具调度耦合
+- **现象描述**：`AgentExecutor.run` 作为上帝函数，严重混合了 LLM 流分块解析、多线程执行与系统状态管理，导致新增模型服务商或修改解析逻辑极易破坏底层工具执行，缺乏局部性 (Locality) 和接缝 (Seam)。
+- **调查方向**：将流式解析适配器 (`StreamParser`) 与完全独立的工具引擎 (`ToolExecutionEngine`) 解耦。
+
+### 5. Model Router 路由层人设泄漏
+- **现象描述**：网络路由模块 `stream_chat` 内硬编码了长达 30 行的 `perfect_one_shot` 字符串。这导致路由层被核心角色扮演逻辑污染。
+- **调查方向**：将 One-Shot 的动态注入逻辑移动到 `prompts.py` 中的 `PromptBuilder` 内，路由器只接收完全就绪的 messages。
+
+### 6. 斜杠指令 (Slash Commands) 巨石阵结构
+- **现象描述**：`slash_handler.py` 内部使用庞大的 `if/elif` 链为每个指令硬塞海量多行 XML 系统指令。难以新增或删除，完全违背删除测试 (Deletion Test)。
+- **调查方向**：提炼 `CommandStrategy` 接口，每条指令独立为类，由核心注册器分发。

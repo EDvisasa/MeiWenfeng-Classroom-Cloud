@@ -14,7 +14,7 @@ class FakeLLMClient(LLMClientProtocol):
             yield {"type": "text", "text": self.output_text[i:i+3]}
 
 def test_simulate_llm_logic():
-    fake_output = "Normal chat. <inner_thought>这黏人的小家伙，真想直接挤进浴室跟他一块儿洗……算了算了，他熬夜太累了</inner_thought><property_update affection_delta=\"+1\" refractory_delta=\"-1\" />"
+    fake_output = "Normal chat. <monologue>这黏人的小家伙，真想直接挤进浴室跟他一块儿洗……算了算了，他熬夜太累了</monologue><property_update affection_delta=\"+1\" refractory_delta=\"-1\" />"
     
     client = FakeLLMClient(fake_output)
     executor = AgentExecutor(llm_client=client, max_iterations=1)
@@ -35,7 +35,7 @@ def test_simulate_llm_logic():
                 pass
                 
     assert "Normal chat." in result
-    assert "<inner_thought>" in result
+    assert "<monologue>" in result
     assert "<property_update" in result
     assert "property_update" in pipeline.interceptor.intercepted_data
 
