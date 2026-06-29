@@ -5,7 +5,7 @@ import sys
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '../../')))
 
 from backend.services.model_router import get_active_model
-from backend.services.agent_tools import OpenAILLMClient, AgentExecutor
+from backend.services.agent_executor import OpenAILLMClient, AgentExecutor
 from backend.services.prompts import get_system_prompt
 
 def test_model():

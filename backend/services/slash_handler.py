@@ -155,42 +155,12 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
     在原本的大模型对话流基础上，追加特定的 System Prompt 注入，让大模型根据指令自动执行动作。
     采用解耦的 ResponsePipeline。
     """
-    try:
-        state = CharacterStateManager.get_state()
-        affection_value = state.affection
-        social_status = state.social_status
-        social_skills = state.social_skills
-        refractory_period = state.refractory_period
-    except CharacterStateError as e:
-        logger.error(f"Failed to fetch character state in slash handler: {e}")
-        affection_value = 50
-        social_status = 50
-        social_skills = 50
-        refractory_period = 0
-
-    rag_context = ""
-    if last_user_msg:
-        try:
-            rag_client = get_rag_client()
-            kb_context = rag_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge", "Memory_Knowledge"])
-            mem_context = rag_client.retrieve_memory(last_user_msg, n_results=3)
-            # 兼容返回字符串或列表
-            parts = []
-            if kb_context:
-                parts.extend(kb_context if isinstance(kb_context, list) else [kb_context])
-            if mem_context:
-                 parts.extend(mem_context if isinstance(mem_context, list) else [mem_context])
-            if parts:
-                rag_context = "\n\n".join(parts)
-        except Exception as e:
-            logger.error(f"RAG Retrieval failed: {e}")
-
-    system_prompt = get_system_prompt(affection_value, persona_type, social_status, social_skills, refractory_period)
-    if rag_context:
-        system_prompt += f"\n\n<retrieved_background_knowledge>\n{rag_context}\n</retrieved_background_knowledge>\n<instruction>Integrate this background knowledge naturally into your response if relevant. If irrelevant, ignore it.</instruction>"
-
-    if system_injection:
-        system_prompt += f"\n\n{system_injection}\n"
+    from backend.services.context_manager import build_base_system_prompt
+    system_prompt, _, _ = build_base_system_prompt(
+        last_user_msg=last_user_msg,
+        persona_type=persona_type,
+        extra_system_injection=system_injection
+    )
 
 
     def on_stream_end(clean_text: str):
@@ -198,8 +168,11 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
             return
         try:
             from datetime import datetime
+            from backend.services.response_pipeline import clean_memory_text
+            
+            memory_clean_text = clean_memory_text(clean_text)
             time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            memory_content = f"【对话记录 ({time_str})】\n用户：{last_user_msg}\n媚吻锋：{clean_text}"
+            memory_content = f"【对话记录 ({time_str})】\n用户：{last_user_msg}\n媚吻锋：{memory_clean_text}"
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
@@ -217,7 +190,7 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
             conn.close()
 
             rag_client = get_rag_client()
-            rag_client.save_memory(last_user_msg, clean_text, level=0)
+            rag_client.save_memory(last_user_msg, memory_clean_text, level=0)
         except Exception as e:
             logger.error(f"Failed to save memory in callback: {e}")
 

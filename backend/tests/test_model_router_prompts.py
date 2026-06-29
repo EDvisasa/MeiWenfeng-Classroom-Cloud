@@ -32,7 +32,8 @@ def test_stream_chat_prompt_assembly():
         assert formatted_messages[0]["role"] == "system"
         assert formatted_messages[0]["content"] == system_prompt
         assert formatted_messages[1]["role"] == "user"
-        assert formatted_messages[1]["content"] == "What are your rules?"
+        assert formatted_messages[1]["content"].startswith("What are your rules?")
+        assert "<system_injection>" in formatted_messages[1]["content"]
 
 
 def test_stream_chat_time_perception_injection():

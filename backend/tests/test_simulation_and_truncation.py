@@ -1,7 +1,7 @@
 import json
 import pytest
 from backend.services.response_pipeline import ResponsePipeline
-from backend.services.agent_tools import AgentExecutor, LLMClientProtocol
+from backend.services.agent_executor import AgentExecutor, LLMClientProtocol
 from backend.services.action_registry import action_registry
 from backend.services.model_router import stream_chat
 
