@@ -13,6 +13,20 @@ def json_escape(text: str) -> str:
     """包装为 JSON 字符串，便于前端原样解析"""
     return json.dumps({"text": text}, ensure_ascii=False)
 
+def clean_memory_text(text: str) -> str:
+    """清理长程记忆：剔除所有心理活动和思考标签，节约上下文Token"""
+    if not text:
+        return text
+    tags = ["think", "thought", "inner_thought", "monologue", "property_update", "call_tool", "execute_bash"]
+    memory_clean_text = text
+    for tag in tags:
+        # Match self-closing tags first, e.g. <property_update ... />
+        memory_clean_text = re.sub(rf'<{tag}\b[^>]*/>', '', memory_clean_text, flags=re.IGNORECASE)
+        # Match open tags and their content, up to the closing tag or end of string. 
+        # (?<!/) ensures we don't match self-closing tags here.
+        memory_clean_text = re.sub(rf'<{tag}\b[^>]*(?<!/)>[\s\S]*?(?:</{tag}>|$)', '', memory_clean_text, flags=re.IGNORECASE)
+    return memory_clean_text.strip()
+
 class TagStreamInterceptor:
     """
     流式拦截器：处理大模型输出流，缓冲并拦截特定的 XML 标签和 [SYSTEM_PASS]。
@@ -280,10 +294,7 @@ class ResponsePipeline:
             import re
             
             # 清理长程记忆：剔除所有心理活动和思考标签，节约向量数据库和摘要时的上下文Token
-            memory_clean_text = clean_text
-            memory_clean_text = re.sub(r'<inner_thought>[\s\S]*?(?:</inner_thought>|$)', '', memory_clean_text, flags=re.IGNORECASE)
-            memory_clean_text = re.sub(r'<thought>[\s\S]*?(?:</thought>|$)', '', memory_clean_text, flags=re.IGNORECASE)
-            memory_clean_text = memory_clean_text.strip()
+            memory_clean_text = clean_memory_text(clean_text)
             
             time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             memory_content = f"【对话记录 ({time_str})】\n用户：{self.original_user_msg}\n媚吻锋：{memory_clean_text}"

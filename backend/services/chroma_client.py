@@ -182,7 +182,9 @@ class ChromaRAGClient(RAGClient):
             self._ensure_client()
             collection = self._get_collection("conversation_memory")
             
-            combined = f"用户：{user_msg}\n媚吻锋：{assistant_msg}"
+            from datetime import datetime
+            time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            combined = f"【对话记录 ({time_str})】\n用户：{user_msg}\n媚吻锋：{assistant_msg}"
             doc_id = hashlib.md5(combined[:200].encode("utf-8")).hexdigest()
             
             from datetime import datetime

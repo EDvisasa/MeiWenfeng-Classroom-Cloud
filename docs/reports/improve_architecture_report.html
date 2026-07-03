@@ -1,0 +1,222 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Architecture Review</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+</head>
+<body class="bg-slate-50 p-8 font-sans">
+    <div class="max-w-5xl mx-auto space-y-8">
+        <h1 class="text-3xl font-bold text-slate-800 border-b pb-4">Architecture Review: Deepening Opportunities</h1>
+        <p class="text-slate-600">Based on the domain model (CONTEXT.md) and current codebase, here are the architectural friction points identified along with proposals for deepening the modules.</p>
+        
+        <!-- Candidate 1 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex flex-col gap-2">
+                    <h2 class="text-xl font-semibold text-indigo-700">1. Decouple LLM Stream Parsing from Tool Execution</h2>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">LLM-Prompt-Injection</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">Candidate</span>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full">Strong</span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4 font-mono">Files: backend/services/agent_tools.py (AgentExecutor)</p>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">Problem</h3>
+                    <p class="text-slate-600 text-sm">The <code>AgentExecutor.run</code> is a shallow module acting as a god-function. It mixes LLM stream chunk parsing (extracting OpenAI format tool_calls), threading for tool execution, and state management. This lacks <strong>locality</strong> because adding a new provider or changing stream parsing breaks the tool execution logic. The <strong>seam</strong> is non-existent.</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">Solution & Benefits</h3>
+                    <p class="text-slate-600 text-sm">Extract a <code>StreamParser</code> adapter that yields generic events, and a separate <code>ToolExecutionEngine</code>.<br/><br/><strong>Benefits:</strong> High <strong>leverage</strong>. We can test the stream parser independently from the tools. The tools engine becomes a deep module providing a clean <strong>interface</strong> for executing an array of tool calls.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">Before (Friction)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                        A["AgentExecutor.run"] --> B["Parse chunks"]
+                        A --> C["Execute Tools via Threads"]
+                        A --> D["Append to messages"]
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">After (Deepened)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                        A["AgentExecutor"] --> B["StreamParser"]
+                        A --> C["ToolExecutionEngine"]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate 2 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex flex-col gap-2">
+                    <h2 class="text-xl font-semibold text-indigo-700">2. Extract Persona Prompts from Router</h2>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">LLM-Prompt-Injection</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">Candidate</span>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-full">Worth exploring</span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4 font-mono">Files: backend/services/model_router.py (stream_chat)</p>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">Problem</h3>
+                    <p class="text-slate-600 text-sm"><code>stream_chat</code> physically mutates the conversation history by hardcoding a 30-line <code>perfect_one_shot</code> string. This leaks persona logic into the network router module. The router module shouldn't know about Mei Wenfeng or the 6-step think process.</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">Solution & Benefits</h3>
+                    <p class="text-slate-600 text-sm">Move the one-shot injection into a <code>PromptBuilder</code> adapter in <code>prompts.py</code>. The router's <strong>interface</strong> should only accept prepared messages.<br/><br/><strong>Benefits:</strong> Improves <strong>locality</strong> of persona design. If we change the persona, we don't touch the router. The router becomes a deep module for handling network operations.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">Before (Friction)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                        A["stream_chat"] --> B["Inject Hardcoded One-Shot"]
+                        B --> C["Call LiteLLM"]
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">After (Deepened)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                        A["PromptBuilder"] -->|"Prepared Messages"| B["stream_chat"]
+                        B --> C["Call LiteLLM"]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate 3 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex flex-col gap-2">
+                    <h2 class="text-xl font-semibold text-indigo-700">3. Refactor Slash Commands to Strategy Pattern</h2>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">LLM-Prompt-Injection</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">Sandbox-Evolving</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">Candidate</span>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full">Strong</span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4 font-mono">Files: backend/services/slash_handler.py</p>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">Problem</h3>
+                    <p class="text-slate-600 text-sm"><code>slash_handler.py</code> contains massive multi-line XML strings (<code>&lt;system_directive&gt;</code>) for every command. It mixes HTTP request handling, formatting prompts, and business logic. It's a shallow module that violates the deletion test: deleting a command requires hunting through a giant <code>if/elif</code> chain.</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">Solution & Benefits</h3>
+                    <p class="text-slate-600 text-sm">Extract a <code>CommandStrategy</code> <strong>interface</strong>. Each command defines its own class with <code>get_system_injection()</code>. The handler just routes to the right strategy.<br/><br/><strong>Benefits:</strong> Creates a clean <strong>seam</strong> for adding new commands. <strong>locality</strong> is greatly improved: one command = one file/class.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">Before (Friction)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                        A["handle_slash_command"] --> B["if /lesson"]
+                        A --> C["elif /submit"]
+                        B --> D["Massive XML String"]
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">After (Deepened)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                        A["handle_slash_command"] --> B["CommandRegistry"]
+                        B --> C["LessonCommand"]
+                        B --> D["SubmitCommand"]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate 4 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex flex-col gap-2">
+                    <h2 class="text-xl font-semibold text-indigo-700">4. Deepen Context Orchestration via Centralized ContextManager</h2>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">Context-Orchestration</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">Candidate</span>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full">Strong</span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4 font-mono">Files: backend/services/context_manager.py (New), chat.py, slash_handler.py, model_router.py, agent_executor.py</p>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">Problem</h3>
+                    <p class="text-slate-600 text-sm">Message assembly is currently split across a cluster of <strong>shallow modules</strong>: <code>chat.py</code> concatenates RAG and IDE states; <code>model_router.py</code> injects One-Shot examples; and <code>agent_executor.py</code> mutates <code>messages[0]</code> to append execution protocols. This severely lacks <strong>locality</strong>. Under the <strong>deletion test</strong>, removing or modifying any single fragment corrupts the prompt array. There is no clean <strong>seam</strong>. Furthermore, storing execution constraints at the top leads to attention decay in 9B models, causing forgotten formatting rules and hallucinated tool calls.</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">Solution & Benefits</h3>
+                    <p class="text-slate-600 text-sm">Extract a unified <code>ContextManager</code> <strong>deep module</strong> exposing a concise <strong>interface</strong> (<code>assemble_messages</code>) that centralizes RAG injection, One-Shot formatting, and Sandwich Tail Injection (appending `<current_time>` and `<agent_execution_protocol>` with explicit Cross-reference Pointers to the final user message).<br/><br/><strong>Benefits:</strong> Exceptional <strong>leverage</strong> and code navigation. Complex prompt orchestration is hidden behind an impenetrable <strong>seam</strong>. Testing becomes straightforward because "<strong>the interface is the test surface</strong>". Additionally, Tail Injection acts as an attention <strong>adapter</strong> that ensures 9B models maintain 100% adherence to formatting and tool calls across 50+ dialogue turns.</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">Before (Scattered Shallow Assembly)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                        A["chat.py (RAG/IDE concat)"] --> D["API Payload"]
+                        B["model_router.py (One-Shot injection)"] --> D
+                        C["agent_executor.py (Mutates top prompt)"] --> D
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">After (ContextManager Deep Module)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                        A["Routers / Handlers"] -->|Clean interface call| M["ContextManager (Deep Module)"]
+                        M -->|1. Clean Top System| E["Orchestrated Payload"]
+                        M -->|2. One-Shot Injection| E
+                        M -->|3. Tail Cross-ref Pointers| E
+                        E --> F["LLM Gateway API"]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-indigo-50 rounded-xl p-6 border border-indigo-200">
+            <h2 class="text-2xl font-bold text-indigo-900 mb-2">Top Recommendation</h2>
+            <p class="text-indigo-900">
+                I strongly recommend immediately implementing <strong>Candidate 4: Deepen Context Orchestration via Centralized ContextManager</strong>. This establishes the necessary <strong>seam</strong> to execute Sandwich Tail Injection and Cross-reference pointers, directly curing the attention decay observed in 9B local models. Subsequently, we should pursue <strong>Candidate 3 (Strategy Pattern)</strong> to decouple slash commands.
+            </p>
+        </div>
+    </div>
+</body>
+</html>

@@ -86,7 +86,7 @@ class ExplainerHandler(SideEffectHandler):
 
         with open(filepath, "w", encoding="utf-8") as f:
             f.write(content)
-        logger.info(f"实体讲义玉简已生成: {filepath}")
+        logger.info(f"长文参考讲义 Markdown 文件已落地生成: {filepath}")
 
 class PropertyUpdateHandler(SideEffectHandler):
     def handle(self, attrs: Dict[str, Any], content: str) -> None:

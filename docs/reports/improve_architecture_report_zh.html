@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>系统架构盘点与分析报告</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral' });
+    </script>
+</head>
+<body class="bg-slate-50 p-8 font-sans">
+    <div class="max-w-5xl mx-auto space-y-8">
+        <h1 class="text-3xl font-bold text-slate-800 border-b pb-4">系统架构盘点：深模块演进机会 (Deepening Opportunities)</h1>
+        <p class="text-slate-600">基于现有的领域模型定义 (CONTEXT.md) 与当前代码库，我们通过**删除测试 (Deletion Test)** 扫描出了以下系统架构的“摩擦点 (Friction points)”，并提出了将这些**浅模块 (Shallow modules)** 演进重构为**深模块 (Deep modules)** 的方案。</p>
+        
+        <!-- Candidate 1 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex flex-col gap-2">
+                    <h2 class="text-xl font-semibold text-indigo-700">1. 将 LLM 流式解析与工具执行逻辑解耦</h2>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">LLM-Prompt-Injection</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">摩擦候选 (Candidate)</span>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full">强力推荐 (Strong)</span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4 font-mono">涉及文件: backend/services/agent_tools.py (AgentExecutor)</p>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">存在问题 (Problem)</h3>
+                    <p class="text-slate-600 text-sm"><code>AgentExecutor.run</code> 是一个充当“上帝函数”的<strong>浅模块 (Shallow Module)</strong>。它严重混合了 LLM 流数据分块解析（提取 OpenAI 格式的工具调用）、工具执行的多线程调度以及系统状态管理。这严重缺乏<strong>局部性 (Locality)</strong>，因为哪怕仅仅是更换一个模型服务商或修改解析逻辑，都极易破坏底层的工具执行代码。二者之间毫无<strong>接缝 (Seam)</strong>可言。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">解决方案与收益 (Solution & Benefits)</h3>
+                    <p class="text-slate-600 text-sm">提取出一个 <code>StreamParser</code> 适配器（专门产出通用的解析事件流），并抽离一个完全独立的 <code>ToolExecutionEngine</code> 工具执行引擎。<br/><br/><strong>收益：</strong>获得极高的<strong>杠杆率 (Leverage)</strong>。我们可以脱离具体的业务工具，单独为流式解析器编写测试。同时，工具执行引擎也蜕变成为一个深模块，对外提供清晰的<strong>接口 (Interface)</strong>，专注于并发工具的执行与结果回传。</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">重构前：偶合摩擦 (Before)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                        A["AgentExecutor.run"] --> B["解析网络流数据 (Parse chunks)"]
+                        A --> C["多线程执行工具 (Execute Tools)"]
+                        A --> D["重组历史消息块 (Append to messages)"]
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">重构后：深模块解耦 (After)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                        A["AgentExecutor"] --> B["流解析适配器 (StreamParser)"]
+                        A --> C["工具引擎 (ToolExecutionEngine)"]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate 2 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex flex-col gap-2">
+                    <h2 class="text-xl font-semibold text-indigo-700">2. 从底层网络路由中抽离角色 (Persona) 逻辑</h2>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">LLM-Prompt-Injection</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">摩擦候选 (Candidate)</span>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-yellow-100 text-yellow-800 text-sm font-medium rounded-full">值得探索 (Worth exploring)</span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4 font-mono">涉及文件: backend/services/model_router.py (stream_chat)</p>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">存在问题 (Problem)</h3>
+                    <p class="text-slate-600 text-sm"><code>stream_chat</code> 函数通过硬编码一段长达 30 行的 <code>perfect_one_shot</code> 字符串直接篡改了对话历史记录。这导致核心的“人设 (Persona) 业务逻辑”发生了严重的缝隙泄漏，直接污染了网络路由模块。底层路由器根本不应该知道“Mei Wenfeng”的存在，也不该关心这 6 步思考法。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">解决方案与收益 (Solution & Benefits)</h3>
+                    <p class="text-slate-600 text-sm">将 One-Shot 的动态注入逻辑完全移动到 <code>prompts.py</code> 的 <code>PromptBuilder</code> 适配器中。路由器的<strong>接口 (Interface)</strong>设计应保持纯粹，只接收已经完全就绪的 <code>messages</code> 数组。<br/><br/><strong>收益：</strong>大幅改善人设设计的<strong>局部性 (Locality)</strong>。以后哪怕对人设进行翻天覆地的修改，也无需碰触网络层代码。路由器将纯粹蜕变为一个深模块，只对 LiteLLM API 的网络稳定性负责。</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">重构前：偶合摩擦 (Before)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                        A["stream_chat"] --> B["硬编码拦截注入 One-Shot"]
+                        B --> C["调用 LiteLLM 网关"]
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">重构后：深模块解耦 (After)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                        A["PromptBuilder"] -->|"完全就绪的 Messages"| B["stream_chat"]
+                        B --> C["调用 LiteLLM 网关"]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate 3 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex flex-col gap-2">
+                    <h2 class="text-xl font-semibold text-indigo-700">3. 将巨石阵斜杠指令重构为“策略模式”</h2>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">LLM-Prompt-Injection</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">Sandbox-Evolving</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">摩擦候选 (Candidate)</span>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full">强力推荐 (Strong)</span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4 font-mono">涉及文件: backend/services/slash_handler.py</p>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">存在问题 (Problem)</h3>
+                    <p class="text-slate-600 text-sm"><code>slash_handler.py</code> 内部为每一个斜杠指令硬塞了极其庞大的多行 XML 系统指令 (<code>&lt;system_directive&gt;</code>)。它将 HTTP 流响应生成、Prompt 文本拼接和核心指令业务逻辑完全搅和在了一起。这是一个典型的浅模块，且彻底违背了<strong>删除测试 (Deletion Test)</strong>：当你只想删除一个废弃指令时，你被迫要在一个数百行的巨型 <code>if/elif</code> 链条中痛苦定位，容易产生误伤。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">解决方案与收益 (Solution & Benefits)</h3>
+                    <p class="text-slate-600 text-sm">提取出一个通用的 <code>CommandStrategy</code> <strong>接口 (Interface)</strong>。每一条指令都自成一个独立类（如 LessonCommand），并实现自己的 <code>get_system_injection()</code> 和执行逻辑。核心 Handler 退居幕后，只做路由注册。<br/><br/><strong>收益：</strong>打造出一条非常清晰且易于扩展的<strong>接缝 (Seam)</strong>。极大提升<strong>局部性 (Locality)</strong>：一条指令等于一个独立的文件/类，修改互不干扰。</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">重构前：偶合摩擦 (Before)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                        A["handle_slash_command"] --> B["if /lesson"]
+                        A --> C["elif /submit"]
+                        B --> D["硬编码巨型 XML String"]
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">重构后：深模块解耦 (After)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                        A["handle_slash_command"] --> B["指令注册器 (CommandRegistry)"]
+                        B --> C["LessonCommand 类"]
+                        B --> D["SubmitCommand 类"]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Candidate 4 -->
+        <div class="bg-white rounded-xl shadow-sm p-6 border border-slate-200">
+            <div class="flex justify-between items-start mb-4">
+                <div class="flex flex-col gap-2">
+                    <h2 class="text-xl font-semibold text-indigo-700">4. 将报文组装与尾部交叉引用重构为独立深模块 (ContextManager)</h2>
+                    <div class="flex gap-2">
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">Context-Orchestration</span>
+                        <span class="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs font-medium rounded border">摩擦候选 (Candidate)</span>
+                    </div>
+                </div>
+                <span class="px-3 py-1 bg-red-100 text-red-800 text-sm font-medium rounded-full">强力推荐 (Strong)</span>
+            </div>
+            <p class="text-sm text-slate-500 mb-4 font-mono">涉及文件: backend/services/context_manager.py (新增), chat.py, slash_handler.py, model_router.py, agent_executor.py</p>
+            
+            <div class="grid grid-cols-2 gap-6 mb-6">
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">存在问题 (Problem)</h3>
+                    <p class="text-slate-600 text-sm">目前的报文组装分散在多个不同文件中：<code>chat.py</code> 拼接 RAG 与 IDE 状态；<code>model_router.py</code> 遍历历史注入 One-Shot；<code>agent_executor.py</code> 硬修改 <code>messages[0]</code> 塞入执行协议。这是一个严重散落的<strong>浅模块 (Shallow Module)</strong>群，缺乏<strong>局部性 (Locality)</strong>。根据<strong>删除测试 (Deletion Test)</strong>，删改任何一处都会破坏整体报文结构，二者间毫无<strong>接缝 (Seam)</strong>。此外，长对话中顶部规则被稀释，导致 9B 小模型严重遗忘动作星号与工具调用。</p>
+                </div>
+                <div>
+                    <h3 class="font-bold text-slate-700 mb-2">解决方案与收益 (Solution & Benefits)</h3>
+                    <p class="text-slate-600 text-sm">构建统一的 <code>ContextManager</code> <strong>深模块 (Deep Module)</strong> 作为唯一接口，提供 <code>assemble_messages</code> 统一收口 RAG 注入、One-Shot 规范与“三明治尾部注入（向最新 User 尾部注入带交叉引用指针的协议与时间戳）”。<br/><br/><strong>收益：</strong>获得巨大的<strong>杠杆率 (Leverage)</strong>。复杂的上下文编排被封装在清晰的<strong>接缝 (Seam)</strong>之后。测试不再依赖网络与数据库路由，满足“<strong>接口即测试表面 (The interface is the test surface)</strong>”。尾部交叉引用指针充当了强大的注意力<strong>适配器 (Adapter)</strong>，确保小模型在 50+ 轮对话后仍能 100% 遵守规则。</p>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4">
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">重构前：散落耦合浅组装 (Before)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                        A["chat.py (拼接RAG/IDE)"] --> D["发往 API"]
+                        B["model_router.py (注入One-Shot)"] --> D
+                        C["agent_executor.py (硬塞协议到顶部)"] --> D
+                    </div>
+                </div>
+                <div class="bg-slate-50 p-4 rounded-lg border border-slate-200 flex flex-col">
+                    <h4 class="text-sm font-bold text-slate-500 mb-2 text-center">重构后：ContextManager 深模块中枢 (After)</h4>
+                    <div class="mermaid flex-1">
+                        graph TD
+                        %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                        A["业务层 (chat/slash)"] -->|纯粹接口调用| M["ContextManager (深模块)"]
+                        M -->|1. 顶部纯净 System| E["组合报文"]
+                        M -->|2. 首轮 One-Shot 注入| E
+                        M -->|3. 尾部交叉引用指针注入| E
+                        E --> F["统一发送至 API"]
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-indigo-50 rounded-xl p-6 border border-indigo-200">
+            <h2 class="text-2xl font-bold text-indigo-900 mb-2">优先行动建议 (Top Recommendation)</h2>
+            <p class="text-indigo-900">
+                当前最迫切、回报率最高的行动是实施 <strong>候选方案 4：构建 ContextManager 深模块与三明治尾部注入</strong>！这是解决我们刚实测发现的 9B 模型遗忘动作星号和口嗨不调工具问题的<strong>唯一完美接缝 (Seam)</strong>。
+                其次，针对斜杠命令系统，建议逐步推进 <strong>候选方案 3（策略模式）</strong>，彻底摆脱巨石阵代码。
+            </p>
+        </div>
+    </div>
+</body>
+</html>
