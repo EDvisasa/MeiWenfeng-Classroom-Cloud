@@ -304,6 +304,10 @@ const RetryBlock = ({ block, idx }) => {
 
 export default function ChatPanel({
   theme,
+  cursorLine,
+  selectionStartLine,
+  selectionEndLine,
+  selectedText,
   messages,
   models,
   activeModel,
@@ -400,7 +404,10 @@ export default function ChatPanel({
             messages: messages,
             persona_type: localStorage.getItem('persona_type') || 'simplified',
             current_file_path: selectedFilePath || '',
-            cursor_line: 0,
+            cursor_line: cursorLine || 0,
+            selection_start_line: selectionStartLine || 0,
+            selection_end_line: selectionEndLine || 0,
+            selected_text: selectedText || '',
             custom_max_tokens: maxTokens
           })
         });
@@ -416,7 +423,7 @@ export default function ChatPanel({
 
     // 我们在会话改变或新消息发出后，以及切换具有不同最大 Token 数的模型时，静默刷新底层 Token 占用
     fetchSystemTokens();
-  }, [messages.length, activeSessionId, selectedFilePath, activeModel, maxTokens]);
+  }, [messages.length, activeSessionId, selectedFilePath, cursorLine, selectionStartLine, selectionEndLine, selectedText, activeModel, maxTokens]);
 
   // 计算前端动态 tokens
   React.useEffect(() => {

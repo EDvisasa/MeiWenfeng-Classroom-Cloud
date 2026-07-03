@@ -17,11 +17,8 @@
   - 检查后端拉取文件内容的 API（如 `GET /api/files/...`）返回的数据结构是否符合前端预期。
   - 修复前必须先查看浏览器的 Developer Console 报错堆栈以精准定位崩溃点。
 
-### 3. [待修复] 小模型思考链引发正则截断故障（嵌套标签污染）
-- **现象描述**：在与本地小模型（如 `ornith-1.0-9b`）对话时，模型经常会在其原生的 `<thought>` 思考过程中“打草稿”，提及 `<inner_thought>` 标签（例如在英文思考流中输出：`Output an <inner_thought> block and at the very end...`）。由于前端 `blockParser.js` 提取内心独白时使用的是正则匹配，这导致它把 `<thought>` 里面的这个字符串误认为了起始点，一口气将后续的整个思考过程、对话正文，直到真正的 `</inner_thought>` 出现前的所有内容，全部错误地打包塞进了“此刻内心”的渲染框里，造成页面排版严重错乱。
-- **调查方向**：
-  - 前端渲染：需修改 `blockParser.js` 的正则或解析逻辑。提取 `<inner_thought>` 时，必须排除掉包含在 `<thought>...</thought>` 内部的内容。
-  - 后端管线：需排查后端的流式拦截器（`TagStreamInterceptor`）在遇到这种“思考过程中提及 XML 标签”的情况时，其内部的状态机（`in_tag`）是否也会发生混乱。
+### 3. [已解决] 小模型思考链引发正则截断故障（嵌套标签污染）
+- **状态更新**：已在前端 `App.jsx` 与 `blockParser.js` 彻底修复。采用“双重隔离屏障”机制：1）在提取独白前强制预先剥离流中尚未闭合或已闭合的 `<think>...</think>` 思考块；2）将提取正则升级为非重叠非贪婪匹配 `/<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|$)/g`。即便小模型在思考链或正文中打草稿提及 `<monologue>` 标签，绝不会发生跨标签贪婪截断，完美保障 UI 渲染。
 
 ### 4. [待修复] 工具执行授权或运行超时后窗口卡死（无法操作）
 - **现象描述**：在调用工具（如 Bash）进行授权等待或执行时间超期到头后，当前前端交互窗口处于卡死或无法操作的状态。
@@ -31,9 +28,8 @@
 
 ## 🏗️ 架构与深模块解耦缺陷 (Architecture Deepening Opportunities)
 
-### 4. AgentExecutor 的流解析与工具调度耦合
-- **现象描述**：`AgentExecutor.run` 作为上帝函数，严重混合了 LLM 流分块解析、多线程执行与系统状态管理，导致新增模型服务商或修改解析逻辑极易破坏底层工具执行，缺乏局部性 (Locality) 和接缝 (Seam)。
-- **调查方向**：将流式解析适配器 (`StreamParser`) 与完全独立的工具引擎 (`ToolExecutionEngine`) 解耦。
+### 4. [已解决] AgentExecutor 的流解析与工具调度耦合
+- **状态更新**：已通过架构重构彻底解耦。抽离出独立的高内聚流式解析适配器 `backend/services/stream_parser.py` (专注于 SSE 流事件切分与 XML 解析) 与独立的工具执行引擎 `backend/services/tool_engine.py` (专注于多工具并发与权限控制)。`AgentExecutor` 仅作为轻量级调度回路，删除了 40 多行冗余旧代码。
 
 ### 5. Model Router 路由层人设泄漏
 - **现象描述**：网络路由模块 `stream_chat` 内硬编码了长达 30 行的 `perfect_one_shot` 字符串。这导致路由层被核心角色扮演逻辑污染。
@@ -43,8 +39,5 @@
 - **现象描述**：`slash_handler.py` 内部使用庞大的 `if/elif` 链为每个指令硬塞海量多行 XML 系统指令。难以新增或删除，完全违背删除测试 (Deletion Test)。
 - **调查方向**：提炼 `CommandStrategy` 接口，每条指令独立为类，由核心注册器分发。
 
-### 7. [观察中/测试中] 长程对话上下文管理与提示词尾部注入 (Tail Injection)
-- **现象描述**：目前系统采用“顶部 System 预设 + 首轮 Assistant One-Shot 动态示范”来约束模型输出格式与思维链。对 `Ornith-1.0-9B` 等 Qwen 架构本地小模型表现优异且稳定。但在超长多轮对话（如 50+ 轮）中，小模型是否存在注意力漂移、人设遗忘或格式错乱仍需长期观察。
-- **调查方向**：
-  - 目前暂不进行代码重构，优先保障 `Ornith-1.0-9B` 的稳定性。
-  - 长期测试中如发现长程对话格式遗忘，再评估是否抽离独立的 `context_manager.py` 模块，并参考 SillyTavern 的 Author's Note 机制，在不压垮小模型理解力的前提下，探索轻量级的尾部注意力唤醒技术。
+### 7. [已解决] 长程对话上下文管理与提示词尾部注入 (Tail Injection)
+- **状态更新**：已正式抽离并列装高内聚的 `backend/services/context_manager.py` 模块。采用“顶部静态系统预设 (Static Persona) + 尾部三明治动态注入 (Tail Injection)”架构，动态整合 RAG 切片、近期记忆日志与 IDE 状态。同时实现了严格的**分回合工具切断协议 (Turn Separation Protocol)**，在调工具回合静默触发 API 调用不吐独白，彻底解决了长程对话中的格式错乱与 Token 浪费问题。

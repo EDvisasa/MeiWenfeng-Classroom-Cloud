@@ -86,4 +86,14 @@ describe('parseAndMergeBlocks', () => {
       { type: 'text', text: 'Hello world!' }
     ]);
   });
+
+  // Behavior 8
+  it('should prevent greedy matching across opening tags when multiple or unclosed monologue tags exist', () => {
+    const input = 'Mention <monologue> here. Middle text. <monologue>Actual thought</monologue> End text.';
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      { type: 'text', text: 'Mention <monologue> here. Middle text.End text.' }
+    ]);
+  });
 });

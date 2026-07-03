@@ -29,6 +29,9 @@ class ChatRequest(BaseModel):
     persona_type: Optional[str] = "simplified"
     current_file_path: Optional[str] = ""
     cursor_line: Optional[int] = 0
+    selection_start_line: Optional[int] = 0
+    selection_end_line: Optional[int] = 0
+    selected_text: Optional[str] = ""
     custom_max_tokens: Optional[int] = 8192
 
 def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str):
@@ -37,6 +40,9 @@ def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str)
         last_user_msg=original_last_user_msg,
         current_file_path=payload.current_file_path,
         cursor_line=payload.cursor_line or 0,
+        selection_start_line=payload.selection_start_line or 0,
+        selection_end_line=payload.selection_end_line or 0,
+        selected_text=payload.selected_text or "",
         persona_type=payload.persona_type or "default"
     )
 

@@ -31,3 +31,20 @@ def test_build_base_system_prompt(mock_db_path):
     assert len(prompt) > 0
     assert kb_count >= 0
     assert mem_count >= 0
+
+def test_build_base_system_prompt_with_selection(mock_db_path):
+    """
+    验证 build_base_system_prompt 在传入 IDE 光标选区及选中代码片段时，
+    能准确构建 <ide_context> 区域提示词。
+    """
+    prompt, _, _ = build_base_system_prompt(
+        last_user_msg="请解释这段代码",
+        current_file_path="/path/to/app.js",
+        cursor_line=15,
+        selection_start_line=10,
+        selection_end_line=20,
+        selected_text="function hello() { return 'world'; }"
+    )
+    assert "<ide_context>" in prompt
+    assert "- Highlighted Region: Lines 10 to 20" in prompt
+    assert "function hello() { return 'world'; }" in prompt

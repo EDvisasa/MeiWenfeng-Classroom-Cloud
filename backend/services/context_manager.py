@@ -56,6 +56,9 @@ def build_base_system_prompt(
     last_user_msg: str = "",
     current_file_path: str = None,
     cursor_line: int = 0,
+    selection_start_line: int = 0,
+    selection_end_line: int = 0,
+    selected_text: str = "",
     persona_type: str = "default",
     extra_system_injection: str = ""
 ) -> Tuple[str, int, int]:
@@ -129,11 +132,27 @@ def build_base_system_prompt(
     if recent_memory_text:
         dynamic_parts.append(f"{recent_memory_text}\n（请结合以上近期日记和背景知识进行回答，保证时间线和记忆的连贯性）")
 
-    # 3. 当前 IDE 状态上下文
+    # 3. 当前 IDE 状态与选区上下文 (IDE State & Selection Context)
     if current_file_path:
         filename = os.path.basename(current_file_path)
         line_str = f"Line {cursor_line}" if cursor_line > 0 else "Unknown"
-        dynamic_parts.append(f"<ide_context>\nThe user is currently viewing the following file in their VS Code editor:\n- File Name: {filename}\n- Absolute Path: {current_file_path}\n- Cursor Position: {line_str}\nYou should use this context implicitly if the user asks about 'this file' or 'here'.\n</ide_context>")
+        ide_info = [
+            f"- File Name: {filename}",
+            f"- Absolute Path: {current_file_path}",
+            f"- Cursor Position: {line_str}"
+        ]
+        if selection_start_line and selection_end_line and selection_start_line != selection_end_line:
+            ide_info.append(f"- Highlighted Region: Lines {selection_start_line} to {selection_end_line}")
+        if selected_text:
+            ide_info.append(f"- Selected Code Snippet:\n```\n{selected_text}\n```")
+        
+        ide_context_str = "\n".join(ide_info)
+        dynamic_parts.append(
+            f"<ide_context>\n"
+            f"The user is currently viewing/selecting the following in their VS Code editor:\n{ide_context_str}\n"
+            f"You should use this context implicitly if the user asks about 'this file', 'selected lines', 'this snippet', or 'here'.\n"
+            f"</ide_context>"
+        )
 
     # 4. 当前会话情绪与属性锚点
     dynamic_parts.append(dynamic_attrs)

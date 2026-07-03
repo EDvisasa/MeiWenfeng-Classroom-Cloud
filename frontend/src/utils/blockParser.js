@@ -1,7 +1,7 @@
 function stripControlTags(text) {
   if (!text) return '';
   let cleaned = text;
-  cleaned = cleaned.replace(/\s*<monologue>[\s\S]*?(?:<\/monologue>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|\/>|$)\s*/gi, '');
   cleaned = cleaned.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|\/>|$)\s*/gi, '');
   cleaned = cleaned.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|\/>|$)\s*/gi, '');
   cleaned = cleaned.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|\/>|$)\s*/gi, '');
