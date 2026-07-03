@@ -17,9 +17,27 @@
   - 检查后端拉取文件内容的 API（如 `GET /api/files/...`）返回的数据结构是否符合前端预期。
   - 修复前必须先查看浏览器的 Developer Console 报错堆栈以精准定位崩溃点。
 
-### 3. [正在测试] 本地小模型思考过程格式泄露（未遵循 XML 规范）
-- **现象描述**：在与本地小模型（如 `ornith-1.0-9b`）对话时，模型未能正确使用 `prompts.py` 中规定的 `<inner_thought>` 或 `<thought>` 等 XML 标签来包裹内心独白。相反，模型直接输出了纯文本 `Thinking` 并紧接英文思考链（例如 `Thinking\nThe user is playfully...`），导致后端的 `ResponsePipeline` 无法基于 XML 规则进行有效拦截，直接将思考过程暴露给了用户界面。
-- **解决方案 (2026-06-28)**：
-  - **零侵入架构决策**：坚持“大模型主动适配系统”原则，不修改本地任何 Python 路由逻辑。
-  - **落地手段 (Assistant Prefill)**：在 `C:\Users\EDvisa\.lmstudio\config-presets\Classroom-Agent.preset.json` 中为其定制了专属 ChatML 强制模板。通过在 `messages` 渲染流的末尾强制注入 `<|im_start|>assistant\n<inner_thought>\n`，在物理层面上劫持了模型的首个 Token 生成，迫使其必须在 XML 标签内完成思考闭环，完美适配了后端的 `TagStreamInterceptor`。
-- **当前状态**：方案已实装，当前正在长期测试其在连续多轮复杂对话中是否会出现格式抖动或回退。
+### 3. [已解决] 小模型思考链引发正则截断故障（嵌套标签污染）
+- **状态更新**：已在前端 `App.jsx` 与 `blockParser.js` 彻底修复。采用“双重隔离屏障”机制：1）在提取独白前强制预先剥离流中尚未闭合或已闭合的 `<think>...</think>` 思考块；2）将提取正则升级为非重叠非贪婪匹配 `/<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|$)/g`。即便小模型在思考链或正文中打草稿提及 `<monologue>` 标签，绝不会发生跨标签贪婪截断，完美保障 UI 渲染。
+
+### 4. [待修复] 工具执行授权或运行超时后窗口卡死（无法操作）
+- **现象描述**：在调用工具（如 Bash）进行授权等待或执行时间超期到头后，当前前端交互窗口处于卡死或无法操作的状态。
+- **调查方向**：
+  - 排查前端授权弹窗及 WebSocket 接收在请求超时后的状态机重置逻辑。
+  - 评估交互优化方案：考虑保留一个醒目的“取消操作 / 强行中断”按钮，或在后台执行超时后自动释放前端 UI 操作锁。
+
+## 🏗️ 架构与深模块解耦缺陷 (Architecture Deepening Opportunities)
+
+### 4. [已解决] AgentExecutor 的流解析与工具调度耦合
+- **状态更新**：已通过架构重构彻底解耦。抽离出独立的高内聚流式解析适配器 `backend/services/stream_parser.py` (专注于 SSE 流事件切分与 XML 解析) 与独立的工具执行引擎 `backend/services/tool_engine.py` (专注于多工具并发与权限控制)。`AgentExecutor` 仅作为轻量级调度回路，删除了 40 多行冗余旧代码。
+
+### 5. Model Router 路由层人设泄漏
+- **现象描述**：网络路由模块 `stream_chat` 内硬编码了长达 30 行的 `perfect_one_shot` 字符串。这导致路由层被核心角色扮演逻辑污染。
+- **调查方向**：将 One-Shot 的动态注入逻辑移动到 `prompts.py` 中的 `PromptBuilder` 内，路由器只接收完全就绪的 messages。
+
+### 6. 斜杠指令 (Slash Commands) 巨石阵结构
+- **现象描述**：`slash_handler.py` 内部使用庞大的 `if/elif` 链为每个指令硬塞海量多行 XML 系统指令。难以新增或删除，完全违背删除测试 (Deletion Test)。
+- **调查方向**：提炼 `CommandStrategy` 接口，每条指令独立为类，由核心注册器分发。
+
+### 7. [已解决] 长程对话上下文管理与提示词尾部注入 (Tail Injection)
+- **状态更新**：已正式抽离并列装高内聚的 `backend/services/context_manager.py` 模块。采用“顶部静态系统预设 (Static Persona) + 尾部三明治动态注入 (Tail Injection)”架构，动态整合 RAG 切片、近期记忆日志与 IDE 状态。同时实现了严格的**分回合工具切断协议 (Turn Separation Protocol)**，在调工具回合静默触发 API 调用不吐独白，彻底解决了长程对话中的格式错乱与 Token 浪费问题。

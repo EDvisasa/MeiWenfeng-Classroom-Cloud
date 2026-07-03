@@ -214,10 +214,11 @@ export default function App() {
         } else if (lastAsst.content) {
           textToParse = lastAsst.content;
         }
-        const thoughtMatch = textToParse.match(/【此刻内心】[：:]\s*[（(]([\s\S]*?)[)）]/g);
+        let cleanText = textToParse.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '');
+        const thoughtMatch = cleanText.match(/<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|$)/g) || cleanText.match(/【此刻内心】[：:]\s*[（(]([\s\S]*?)[)）]/g);
         if (thoughtMatch && thoughtMatch.length > 0) {
           const lastThought = thoughtMatch[thoughtMatch.length - 1];
-          const innerMatch = lastThought.match(/[（(]([\s\S]*?)[)）]/);
+          const innerMatch = lastThought.match(/<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|$)/) || lastThought.match(/[（(]([\s\S]*?)[)）]/);
           if (innerMatch) {
             setCurrentThought(innerMatch[1].trim());
           }
@@ -462,6 +463,9 @@ export default function App() {
   }, [isBackendReady]);
 
   const [cursorLine, setCursorLine] = useState(1);
+  const [selectionStartLine, setSelectionStartLine] = useState(0);
+  const [selectionEndLine, setSelectionEndLine] = useState(0);
+  const [selectedText, setSelectedText] = useState('');
 
 
   // Tips 轮播
@@ -514,8 +518,11 @@ export default function App() {
     const handleMessage = (event) => {
       const message = event.data;
       if (message.type === 'activeFileChanged' || message.type === 'cursorMoved') {
-        if (message.filePath) setSelectedFilePath(message.filePath);
-        if (message.cursorLine) setCursorLine(message.cursorLine);
+        if (message.filePath !== undefined) setSelectedFilePath(message.filePath);
+        if (message.cursorLine !== undefined) setCursorLine(message.cursorLine);
+        if (message.selectionStartLine !== undefined) setSelectionStartLine(message.selectionStartLine);
+        if (message.selectionEndLine !== undefined) setSelectionEndLine(message.selectionEndLine);
+        if (message.selectedText !== undefined) setSelectedText(message.selectedText);
       }
     };
     window.addEventListener('message', handleMessage);
@@ -1053,6 +1060,9 @@ export default function App() {
           persona_type: personaType,
           current_file_path: selectedFilePath,
           cursor_line: cursorLine,
+          selection_start_line: selectionStartLine,
+          selection_end_line: selectionEndLine,
+          selected_text: selectedText,
           custom_max_tokens: maxTokens
         })
       });
@@ -1199,21 +1209,22 @@ export default function App() {
                   if (lastMsg.role === 'assistant') {
                     lastMsg.blocks = [...currentBlocks];
                     // Keep plain text content completely raw for editing and full visibility.
-                    // Also convert native 'thinking' blocks (reasoning_content) back into <thought> tags so they are not lost in the edit box.
+                    // Also convert native 'thinking' blocks (reasoning_content) back into <think> tags so they are not lost in the edit box.
                     let displayContent = currentBlocks.filter(b => b.type === 'text' || b.type === 'thinking').map(b => {
                       if (b.type === 'thinking') {
-                        return `<thought>\n${b.text.trim()}\n</thought>\n`;
+                        return `<think>\n${b.text.trim()}\n</think>\n`;
                       }
                       return b.text;
                     }).join('');
                     
-                    // Extract inner_thought ONLY from standard text blocks, ignoring anything inside <thought> (thinking blocks).
-                    // This prevents regex greedy bugs when the AI drafts <inner_thought> inside a <thought> block.
+                    // Extract monologue ONLY from standard text blocks, ignoring anything inside <think> (thinking blocks).
+                    // This prevents regex greedy bugs when the AI drafts <monologue> inside a <think> block.
                     let textContentOnly = currentBlocks.filter(b => b.type === 'text').map(b => b.text).join('');
-                    const thoughtMatchArray = textContentOnly.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/g);
+                    let cleanText = textContentOnly.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '');
+                    const thoughtMatchArray = cleanText.match(/<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|$)/g);
                     if (thoughtMatchArray && thoughtMatchArray.length > 0) {
                       const lastThought = thoughtMatchArray[thoughtMatchArray.length - 1];
-                      const innerMatch = lastThought.match(/<inner_thought>([\s\S]*?)(?:<\/inner_thought>|$)/);
+                      const innerMatch = lastThought.match(/<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|$)/);
                       if (innerMatch) {
                         setCurrentThought(innerMatch[1].trim());
                       }
@@ -1451,6 +1462,11 @@ export default function App() {
           <ChatPanel
             theme={theme}
             isVsCode={isVsCode}
+            selectedFilePath={selectedFilePath}
+            cursorLine={cursorLine}
+            selectionStartLine={selectionStartLine}
+            selectionEndLine={selectionEndLine}
+            selectedText={selectedText}
             messages={messages}
             models={models}
             activeModel={activeModel}

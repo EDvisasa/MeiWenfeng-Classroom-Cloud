@@ -1,7 +1,7 @@
 function stripControlTags(text) {
   if (!text) return '';
   let cleaned = text;
-  cleaned = cleaned.replace(/\s*<inner_thought>[\s\S]*?(?:<\/inner_thought>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|\/>|$)\s*/gi, '');
   cleaned = cleaned.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|\/>|$)\s*/gi, '');
   cleaned = cleaned.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|\/>|$)\s*/gi, '');
   cleaned = cleaned.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|\/>|$)\s*/gi, '');
@@ -31,7 +31,7 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
       text = text.replace(/\*\*([^\n]+?)\*\*/g, ' **$1** ');
 
       const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/gi;
-      const thoughtRegex = /<thought>([\s\S]*?)(?:<\/thought>|$)/gi;
+      const thinkRegex = /<think>([\s\S]*?)(?:<\/think>|$)/gi;
       const missionRegex = /<mission_proposal([^>]*?)\/?>/gi;
       const explainerRegex = /<explainer\s+title=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/explainer>|$)/gi;
       const glossaryRegex = /<glossary\s+term=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/glossary>|$)/gi;
@@ -150,22 +150,22 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
         } else if (segment.isGlossary) {
           normalized.push({ type: 'glossary', term: segment.term, text: segment.content, status: 'done' });
         } else {
-          // Process thought tags within the text segment
+          // Process think tags within the text segment
           let textSegment = segment.content;
           let match;
           let lastIndex = 0;
-          while ((match = thoughtRegex.exec(textSegment)) !== null) {
+          while ((match = thinkRegex.exec(textSegment)) !== null) {
             if (match.index > lastIndex) {
-              const snippet = textSegment.substring(lastIndex, match.index).replace(/<\/thought>/g, '').trim();
+              const snippet = textSegment.substring(lastIndex, match.index).replace(/<\/think>/g, '').trim();
               const cleanedSnippet = stripControlTags(snippet);
               if (cleanedSnippet) normalized.push({ type: 'text', text: cleanedSnippet });
             }
-            const isRunning = isStreaming ? !textSegment.substring(match.index).includes('</thought>') : false;
+            const isRunning = isStreaming ? !textSegment.substring(match.index).includes('</think>') : false;
             normalized.push({ type: 'thinking', text: match[1].trim(), status: isRunning ? 'running' : 'done' });
-            lastIndex = thoughtRegex.lastIndex;
+            lastIndex = thinkRegex.lastIndex;
           }
           if (lastIndex < textSegment.length) {
-            const snippet = textSegment.substring(lastIndex).replace(/<\/thought>/g, '').trim();
+            const snippet = textSegment.substring(lastIndex).replace(/<\/think>/g, '').trim();
             const cleanedSnippet = stripControlTags(snippet);
             if (cleanedSnippet) normalized.push({ type: 'text', text: cleanedSnippet });
           }

@@ -3,8 +3,8 @@ import { parseAndMergeBlocks } from './blockParser';
 
 describe('parseAndMergeBlocks', () => {
   // Tracer Bullet: Behavior 1
-  it('should split text with <thought> into separate text and done thinking blocks', () => {
-    const input = 'Before thought. <thought>This is a thought.</thought> After thought.';
+  it('should split text with <think> into separate text and done thinking blocks', () => {
+    const input = 'Before thought. <think>This is a thought.</think> After thought.';
     const result = parseAndMergeBlocks(input, false);
 
     expect(result).toEqual([
@@ -15,8 +15,8 @@ describe('parseAndMergeBlocks', () => {
   });
 
   // Behavior 2
-  it('should mark unclosed <thought> as running when isStreaming is true', () => {
-    const input = 'Start. <thought>This is an ongoing thought...';
+  it('should mark unclosed <think> as running when isStreaming is true', () => {
+    const input = 'Start. <think>This is an ongoing thought...';
     const result = parseAndMergeBlocks(input, true);
 
     expect(result).toEqual([
@@ -57,8 +57,8 @@ describe('parseAndMergeBlocks', () => {
   });
 
   // Behavior 5
-  it('should strip <inner_thought> completely from the final text', () => {
-    const input = 'Normal text. <inner_thought>This is hidden.</inner_thought> More normal text.';
+  it('should strip <monologue> completely from the final text', () => {
+    const input = 'Normal text. <monologue>This is hidden.</monologue> More normal text.';
     const result = parseAndMergeBlocks(input, false);
 
     expect(result).toEqual([
@@ -77,13 +77,23 @@ describe('parseAndMergeBlocks', () => {
   });
 
   // Behavior 7
-  it('should NOT let <inner_thought> regex corrupt text if mentioned inside <thought> block', () => {
-    const input = '<thought>Output an <inner_thought> block and at the very end</thought> Hello world! <inner_thought>actual inner thought</inner_thought>';
+  it('should NOT let <monologue> regex corrupt text if mentioned inside <think> block', () => {
+    const input = '<think>Output an <monologue> block and at the very end</think> Hello world! <monologue>actual inner thought</monologue>';
     const result = parseAndMergeBlocks(input, false);
 
     expect(result).toEqual([
-      { type: 'thinking', text: 'Output an <inner_thought> block and at the very end', status: 'done' },
+      { type: 'thinking', text: 'Output an <monologue> block and at the very end', status: 'done' },
       { type: 'text', text: 'Hello world!' }
+    ]);
+  });
+
+  // Behavior 8
+  it('should prevent greedy matching across opening tags when multiple or unclosed monologue tags exist', () => {
+    const input = 'Mention <monologue> here. Middle text. <monologue>Actual thought</monologue> End text.';
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      { type: 'text', text: 'Mention <monologue> here. Middle text.End text.' }
     ]);
   });
 });
