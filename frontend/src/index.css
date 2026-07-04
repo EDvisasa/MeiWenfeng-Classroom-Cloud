@@ -37,6 +37,15 @@
   --border-radius-sm: 8px;
   --border-radius-md: 12px;
   --border-radius-lg: 20px;
+
+  --modal-bg: #ffffff;
+  --modal-header-bg: #f8f9fb;
+  --modal-border: #e2e8f0;
+  --modal-text: #1e293b;
+  --modal-text-muted: #64748b;
+  --modal-code-bg: #f1f5f9;
+  --modal-code-text: #0f172a;
+  --modal-accent: #3b82f6;
 }
 
 /* 亮色主题 (默认) */
@@ -49,6 +58,15 @@
   --text-primary: rgba(45, 45, 45, 1);
   --text-secondary: rgba(100, 100, 100, 1);
   --text-dialog: rgba(83, 126, 197, 1);
+
+  --modal-bg: #ffffff;
+  --modal-header-bg: #f8f9fb;
+  --modal-border: #e2e8f0;
+  --modal-text: #1e293b;
+  --modal-text-muted: #64748b;
+  --modal-code-bg: #f1f5f9;
+  --modal-code-text: #0f172a;
+  --modal-accent: #3b82f6;
 }
 
 /* 暗色主题 */
@@ -69,6 +87,15 @@
   /* 明亮的粉色，适合对话和强调文字 */
   --accent-pink-hover: #db2777;
   --accent-glow: rgba(244, 114, 182, 0.35);
+
+  --modal-bg: #14151a;
+  --modal-header-bg: #181920;
+  --modal-border: rgba(255, 255, 255, 0.12);
+  --modal-text: #f1f5f9;
+  --modal-text-muted: #94a3b8;
+  --modal-code-bg: #1e2028;
+  --modal-code-text: #e2e8f0;
+  --modal-accent: #60a5fa;
 }
 
 .header-btn {

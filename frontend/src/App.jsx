@@ -6,6 +6,7 @@ import ChatPanel from './components/ChatPanel';
 import StatusPanel from './components/StatusPanel';
 import CropModal from './components/CropModal';
 import DatabaseViewer from './components/DatabaseViewer';
+import PreviewEditModal from './components/PreviewEditModal';
 
 const COMMANDS = [
   { cmd: '/set_mission', desc: '设定或更改宏大学习目标（触发严苛审问）' },
@@ -334,6 +335,7 @@ export default function App() {
   // Mission & Knowledge Tree states
   const [mission, setMission] = useState({ current_mission: "未知目标", is_drafting: false, draft_details: null });
   const [knowledgeTree, setKnowledgeTree] = useState([]);
+  const [previewModal, setPreviewModal] = useState(null); // { path: '', content: '' }
 
   // 酒馆式 API 设置和字体弹窗状态
   const [activeRightTab, setActiveRightTab] = useState('status');
@@ -1521,10 +1523,7 @@ export default function App() {
                     const res = await fetch(`${API_BASE}/api/chat/materials/content?path=${encodeURIComponent(path)}`);
                     if (res.ok) {
                       const data = await res.json();
-                      setMessages(prev => [
-                        ...prev,
-                        { role: 'system_info', type: 'markdown_doc', content: data.content, path: path }
-                      ]);
+                      setPreviewModal({ path: path, content: data.content });
                     } else {
                       alert("拉取文件失败");
                     }
@@ -2134,6 +2133,15 @@ export default function App() {
           </div>
         )}
       </div>
+
+      <PreviewEditModal
+        isOpen={Boolean(previewModal)}
+        onClose={() => setPreviewModal(null)}
+        fileData={previewModal}
+        onSaveSuccess={(newContent) => {
+          setPreviewModal(prev => prev ? { ...prev, content: newContent } : null);
+        }}
+      />
     </>
   );
 }

@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>ADR-008: 知识档案预览与编辑弹窗架构决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; align-items: center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-008</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                📅 决策时间：2026-07-05 | ✍️ 决策方：媚吻锋架构审查团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            知识档案预览与编辑弹窗架构决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            将原来依赖于聊天流内联嵌入的 <code>markdown_doc</code> 卡片展示机制，重构为独立解耦的全局浮层弹窗（<code>PreviewEditModal</code>），并打通底层沙盒防穿透写入锁与 RAGFlow 异步知识库索引同步管线。
+        </p>
+        
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-rose-50 text-rose-700 border border-rose-200">🛡️ Sandbox-Evolving (用户测验练习沙盒动态演进)</span>
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">📚 RAG-Vector-Indexed (知识库卡片向量化索引)</span>
+            <span class="badge bg-teal-50 text-teal-700 border border-teal-200">🗺️ State-Decoupled (前端状态与UI拓扑解耦)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">聊天流污染与教学文档闭环反馈编辑缺失</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-red-50/60 rounded-xl p-6 border border-red-100">
+                <h3 class="text-base font-bold text-red-900 mb-2">挑战一：聊天会话流被内联文档卡片严重污染</h3>
+                <p class="text-sm text-red-800/80 leading-relaxed">
+                    旧架构中，用户在右侧资源树点击 `.md` 文件，系统会直接往 `messages` 对话数组中强行塞入一条 `markdown_doc` 消息。当用户频繁查阅多份讲义时，对话窗口被冗长的文档内容淹没，彻底破坏了师生对白的沉浸感与连贯性。
+                </p>
+            </div>
+            <div class="bg-amber-50/60 rounded-xl p-6 border border-amber-100">
+                <h3 class="text-base font-bold text-amber-900 mb-2">挑战二：只读锁限制与知识同步脱节</h3>
+                <p class="text-sm text-amber-800/80 leading-relaxed">
+                    现有后端 `materials_manager.py` 仅提供了文件读取能力，缺乏对 `data/materials/` 下文件安全保存修改的回路；同时，在修改教材完好后，若无法及时同步更新至 RAG 向量知识库，将导致 AI 导师所掌握的教学知识与真实文件发生“脑裂”。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">纯全局弹窗解耦、防穿透写锁与异步 RAG 索引驱动</p>
+            </div>
+        </div>
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-blue-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 前端全局浮层与会话流绝对解耦 (Pure Global Modal)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    废弃在 `ChatPanel` 对话流中渲染 Markdown 文件的旧模式。新增独立全局模态组件 <code>PreviewEditModal</code>，当用户点击右侧文件树或引用链接时，直接在屏幕中央打开弹窗。弹窗内置 **【📖 效果预览 (Preview)】** 与 **【✏️ 源码编辑 (Edit)】** 双向无缝切换视图，让对话流回归纯粹的人机交互。
+                </p>
+            </div>
+            <div class="border-l-4 border-amber-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 开放全量材料写权限与防穿透保护 (Secure Write Lock)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在后端 `MaterialsManager` 中扩充 <code>save_material_content(rel_path, content)</code> 核心方法，向 `Lessons/`、`Sandbox/`、`References/` 及 `LDRs/` 四大目录全面开放 `.md` 写入权限。同时严格绑定 `os.path.abspath` 防目录穿透校验与 `.md` 后缀检查，确保任何恶意路径请求被阻断于安全边界之外。
+                </p>
+            </div>
+            <div class="border-l-4 border-emerald-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 后台异步自适应 RAG 向量化索引同步 (Async RAG Indexing)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    为保障极致交互响应，当用户点击【保存】时，后端将文本更新落盘后以极速返回 HTTP 200 OK；同时通过异步任务向 `rag_client.sync_knowledge({rel_path: content}, dataset_name="Classroom_Knowledge")` 发送更新请求，保证 AI 导师知识库实时自适应重建，毫无界面延迟。
+                </p>
+            </div>
+        </div>
+
+        <!-- Before vs After Topological Diagram -->
+        <div class="mt-8">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧架构：内联卡片注入与只读脱节 (会话污染)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    graph TD
+                        Click["用户点击 .md 文件"] -->|"发送 GET 请求"| API["GET /materials/content"]
+                        API -->|"强行推入数组"| Msg["messages 注入 markdown_doc"]
+                        Msg -->|"内联渲染"| Chat["❌ 聊天流被长文淹没杂乱"]
+                        Chat -.->|"无法编辑"| NoEdit["❌ 无法修改与 RAG 脱节"]
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新架构：纯弹窗双态切换与异步自适应 RAG 闭环</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    graph TD
+                        Click2["用户点击 .md 文件"] -->|"独立状态解耦"| Modal["📖 全局 PreviewEditModal 浮层"]
+                        Modal -->|"预览/编辑无缝切换"| Toggle["✏️ 实时编辑源码"]
+                        Toggle -->|"点击保存"| SaveAPI["POST /materials/save (防穿透锁)"]
+                        SaveAPI -->|"极速响应 200 OK"| UI["✅ UI 即时提示保存成功"]
+                        SaveAPI -->|"异步后台触发"| RAG["📚 RAGFlow 向量知识库更新"]
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">后果与架构评估 (Consequences & Evaluation)</h2>
+                <p class="text-sm text-slate-500">架构列装后的技术收益与边界</p>
+            </div>
+        </div>
+        <ul class="space-y-2 text-sm text-slate-600">
+            <li><strong>✓ 极简纯粹的对话沉浸感</strong>：聊天窗口彻底摆脱大段文档卡片的刷屏干扰，保证了沉浸式的师生交互。</li>
+            <li><strong>✓ 零延迟的知行合一闭环</strong>：用户在沙盒练习或阅读讲义时随时可以修改存盘，并由后台异步管线自动完成 RAG 知识更新，真正做到“即改即同步即教学”。</li>
+            <li><strong>✓ 绝对安全的文件沙盒锁</strong>：严格的 `abspath` 校验保证了即便开放写入权限，系统物理机及父目录也能得到 100% 的隔离保护。</li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>
