@@ -66,3 +66,21 @@ domain: project-planning
   1. 返回气泡末尾包含规范的引用徽章标签；
   2. 非白名单链接直接在中间层过滤拦截。
 - **Verification Command**: `pytest backend/tests/test_agent_tools.py`
+
+### <a id="issue-05"></a>[ISSUE-05] `ChatPanel` 与 `App` 的超时授权生命周期闭环及缺陷归档
+- **Status**: `DONE` (已完成)
+- **Parent**: [Bug #4](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md#L30-L35)
+- **User Story**: 作为用户，当我暂离电脑导致 Bash 授权等待超时后，前端卡片自动静默平滑收起，既不卡死页面，也不在输入框上方残留废弃的置灰小卡片。
+- **What to build**: 
+  1. 在 `ChatPanel.jsx` 的 `BashApprovalCard` 组件中，当倒计时 `timeLeft === 0` 时，触发重置/销毁卡片逻辑（静默收回）。
+  2. 在 `App.jsx` 的流式解析处理逻辑中，当收到 WebSocket 的 `tool_end` 事件时，同步执行 `setPendingApproval(null)`，防止后发到达或超时结束时残留 UI。
+  3. 在 `docs/planning/bug-tracker.md` 中将 Bug #4 标记为 `[已解决]`，记录解决路线与测试用例。
+- **Affected Files**: [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx), [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx), [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+- **Acceptance Criteria**: 
+  - [x] 当 `BashApprovalCard` 倒计时归零时，卡片平滑销毁且 `pendingApproval` 重置为 `null`。
+  - [x] 当收到 `tool_end` 事件时，前端同步清空授权卡片。
+  - [x] 聊天输入框和发送按钮始终不被阻塞，用户可以随时打断或发送新指令。
+  - [x] `bug-tracker.md` 中 Bug #4 状态准确归档为已解决。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_agent_tools.py`
+

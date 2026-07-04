@@ -1,7 +1,7 @@
 import os
 import tempfile
 import pytest
-from backend.services.agent_tools import ReadFileTool, BashTool, TOOL_REGISTRY
+from backend.services.agent_tools import ReadFileTool, BashTool, TOOL_REGISTRY, PENDING_APPROVALS
 
 def test_read_file_tool_reads_file_content():
     """Test that ReadFileTool can successfully read a standard file."""
@@ -193,3 +193,14 @@ def test_create_file_tool_blocks_outside_sandbox():
     })
     
     assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
+
+def test_bash_tool_approval_timeout():
+    """Test that BashTool times out after approval_timeout without user intervention and cleans up PENDING_APPROVALS."""
+    tool = BashTool()
+    tool.approval_timeout = 0.1  # Fast timeout for testing
+    
+    approval_id = "test-timeout-id"
+    result = tool.execute({"command": "echo hi", "approval_id": approval_id})
+    
+    assert result == "[Error] Command approval timed out after 60 seconds."
+    assert approval_id not in PENDING_APPROVALS

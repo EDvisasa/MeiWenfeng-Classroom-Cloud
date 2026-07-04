@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ChatPanel from './ChatPanel';
@@ -133,4 +133,39 @@ describe('ChatPanel Editing Behavior Tests', () => {
     expect(mockOnEditAndResend).toHaveBeenCalledTimes(1);
     expect(mockOnEditAndResend).toHaveBeenCalledWith(0, 'User edited');
   });
+
+  it('TDD 3: BashApprovalCard auto-dismisses when 60s countdown expires', async () => {
+    vi.useFakeTimers();
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const mockSetPendingApproval = vi.fn();
+    const props = {
+      ...getBaseProps(),
+      pendingApproval: {
+        approval_id: 'test-timeout-id',
+        tool_name: 'execute_bash',
+        command: 'echo "hello"'
+      },
+      setPendingApproval: mockSetPendingApproval
+    };
+
+    render(<ChatPanel {...props} />);
+
+    // Verify card is present
+    expect(screen.getByText('需要授权执行 Bash 命令')).toBeInTheDocument();
+    expect(screen.getByText('echo "hello"')).toBeInTheDocument();
+
+    // Fast-forward 60 seconds inside async act
+    await act(async () => {
+      vi.advanceTimersByTime(60000);
+    });
+
+    // Verify setPendingApproval(null) was called to dismiss card
+    expect(mockSetPendingApproval).toHaveBeenCalledWith(null);
+
+    global.fetch = originalFetch;
+    vi.useRealTimers();
+  });
 });
+

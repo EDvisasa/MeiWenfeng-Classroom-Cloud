@@ -29,6 +29,12 @@ const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
     return () => clearInterval(timer);
   }, [pendingApproval]);
 
+  React.useEffect(() => {
+    if (timeLeft === 0 && pendingApproval) {
+      if (onReject) onReject();
+    }
+  }, [timeLeft, pendingApproval, onReject]);
+
   if (!pendingApproval) return null;
 
   return (

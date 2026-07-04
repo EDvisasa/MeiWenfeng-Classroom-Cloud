@@ -1189,6 +1189,7 @@ export default function App() {
                     lastBlock.output += (parsed.text || '');
                   }
                 } else if (parsed.type === 'tool_end') {
+                  setPendingApproval(null);
                   let lastBlock = currentBlocks[currentBlocks.length - 1];
                   if (lastBlock && lastBlock.type === 'tool') {
                     lastBlock.status = 'done';
