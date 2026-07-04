@@ -51,7 +51,7 @@ class BashTool(AgentTool):
         if approval_id:
             PENDING_APPROVALS[approval_id] = "pending"
             start_time = time.time()
-            timeout = 60
+            timeout = getattr(self, 'approval_timeout', 60)
             
             while True:
                 status = PENDING_APPROVALS.get(approval_id)
@@ -67,7 +67,7 @@ class BashTool(AgentTool):
                         del PENDING_APPROVALS[approval_id]
                     return "[Error] Command approval timed out after 60 seconds."
                     
-                time.sleep(0.5)
+                time.sleep(0.05)
 
         # Physical Guardrails to enforce tool usage using shlex for safer parsing
         try:

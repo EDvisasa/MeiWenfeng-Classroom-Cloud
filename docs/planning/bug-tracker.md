@@ -27,11 +27,15 @@ domain: project-planning
 ### 3. [已解决] 小模型思考链引发正则截断故障（嵌套标签污染）
 - **状态更新**：已在前端 `App.jsx` 与 `blockParser.js` 彻底修复。采用“双重隔离屏障”机制：1）在提取独白前强制预先剥离流中尚未闭合或已闭合的 `<think>...</think>` 思考块；2）将提取正则升级为非重叠非贪婪匹配 `/<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|$)/g`。即便小模型在思考链或正文中打草稿提及 `<monologue>` 标签，绝不会发生跨标签贪婪截断，完美保障 UI 渲染。
 
-### 4. [待修复] 工具执行授权或运行超时后窗口卡死（无法操作）
+### 4. [已解决] 工具执行授权或运行超时后窗口卡死（无法操作）
 - **现象描述**：在调用工具（如 Bash）进行授权等待或执行时间超期到头后，当前前端交互窗口处于卡死或无法操作的状态。
 - **调查方向**：
   - 排查前端授权弹窗及 WebSocket 接收在请求超时后的状态机重置逻辑。
   - 评估交互优化方案：考虑保留一个醒目的“取消操作 / 强行中断”按钮，或在后台执行超时后自动释放前端 UI 操作锁。
+- **状态更新 (2026-07-04)**：通过 TDD [ISSUE-05] 彻底闭环解决：
+  1. 前端 `ChatPanel.jsx` 中 `BashApprovalCard` 针对倒计时归零 `timeLeft === 0` 时通过独立 `useEffect` 自动触发 `onReject`；
+  2. 前端 `App.jsx` 在处理 SSE 流事件 `tool_end` 时同步执行 `setPendingApproval(null)`，确保工具结束或超时断开时 DOM 卡片被销毁；
+  3. 后端 `BashTool` 的授权轮询在超时（默认 60s，支持 `approval_timeout` 动态注入）后自动释放 `PENDING_APPROVALS` 字典锁并返回规范错误提示。前后端与自动化测试已全量绿灯通过。
 
 ## 🏗️ 架构与深模块解耦缺陷 (Architecture Deepening Opportunities)
 
