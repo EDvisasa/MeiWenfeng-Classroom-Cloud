@@ -703,7 +703,7 @@ export default function ChatPanel({
                   <div style={{ marginBottom: '8px', fontSize: '12px', color: 'var(--text-secondary)', borderBottom: '1px solid var(--border-color)', paddingBottom: '4px' }}>
                     文件路径：{msg.path}
                   </div>
-                  <ChatBlockParser content={msg.content} theme={theme} isVsCode={isVsCode} />
+                  {renderNormalizedBlocks(parseAndMergeBlocks(msg.content))}
                 </div>
               );
             }

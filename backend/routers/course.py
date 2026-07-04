@@ -1,8 +1,9 @@
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, BackgroundTasks
 from typing import Dict, Any
 from backend.database import get_db_connection
 from backend.services.mission_manager import MissionManager
 from backend.services.materials_manager import MaterialsManager
+from backend.services.rag_factory import get_rag_client
 
 router = APIRouter(prefix="/api/chat", tags=["course", "status", "materials"])
 
@@ -59,6 +60,27 @@ def get_material(path: str):
     try:
         content = MaterialsManager.get_material_content(path)
         return {"content": content}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/materials/save")
+def save_material(payload: Dict[str, Any] = Body(...), background_tasks: BackgroundTasks = None):
+    """保存具体的 Markdown 文件内容并异步同步到 RAG 向量知识库"""
+    path = payload.get("path")
+    content = payload.get("content")
+    if not path or content is None:
+        raise HTTPException(status_code=400, detail="Missing path or content")
+    try:
+        MaterialsManager.save_material_content(path, content)
+        if background_tasks:
+            try:
+                rag_client = get_rag_client()
+                background_tasks.add_task(rag_client.sync_knowledge, {path: content}, "Classroom_Knowledge")
+            except Exception:
+                pass
+        return {"status": "success", "message": "Material saved and RAG sync initiated"}
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:

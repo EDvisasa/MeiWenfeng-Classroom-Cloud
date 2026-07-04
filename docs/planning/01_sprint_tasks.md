@@ -84,3 +84,47 @@ domain: project-planning
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_agent_tools.py`
 
+### <a id="issue-06"></a>[ISSUE-06] 修复 `ChatPanel` 知识档案预览中的未定义组件白屏崩溃
+- **Status**: `DONE` (已完成)
+- **Parent**: [Bug #2](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md#L20-L25)
+- **User Story**: 作为用户，当我点击右侧导师状态栏 `@data/materials` 目录下的 `.md` 文件时，系统必须在聊天面板中安全、美观地将其解析为规范 Markdown 与交互块，而非报 `ReferenceError` 导致整个界面白屏崩溃。
+- **What to build**: 
+  1. 将 [`ChatPanel.jsx` L706](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx#L706) 替换为全库统一且安全的高内聚块解析与渲染回路 `renderNormalizedBlocks(parseAndMergeBlocks(msg.content))`。
+  2. 移除对不存在组件 `ChatBlockParser` 的调用。
+  3. 在 [`ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 中添加针对 `msg.type === 'markdown_doc'` 渲染不崩溃且正确渲染文本/标签块的自动化测试用例。
+- **Affected Files**: [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx), [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
+- **Acceptance Criteria**: 
+  - [x] 点击 `.md` 文件预览时，系统不再报错 `ReferenceError: ChatBlockParser is not defined`，前端应用无白屏崩溃。
+  - [x] 聊天面板中能够正常渲染 `markdown_doc` 卡片，且 Markdown 语法与标签块正常展示。
+  - [x] 新增的自动化前端单元测试通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `cd frontend && npm run test`
+
+### <a id="issue-08"></a>[ISSUE-08] 后端知识档案写入与安全防穿透沙盒锁及 RAG 异步同步
+- **Status**: `DONE` (已完成)
+- **Parent**: `ADR-008`
+- **User Story**: 作为系统后端，提供安全的 `save_material_content(path, content)` 与 `POST /api/chat/materials/save` 接口，支持对 `Lessons/`、`Sandbox/`、`References/`、`LDRs/` 的 `.md` 文件进行保存并防范目录穿透；同时保存成功后触发后台异步任务调用 RAGFlow 向量库同步。
+- **What to build**:
+  1. 在 `MaterialsManager` 中新增 `save_material_content`，利用 `os.path.abspath` 防穿透锁与 `.md` 后缀拦截非法写入。
+  2. 在 `course.py` 中新增 `POST /api/chat/materials/save` 路由，保存落盘后立即返回 200 OK，并借助后台任务触发 `rag_client.sync_knowledge`。
+- **Affected Files**: [`backend/services/materials_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/materials_manager.py), [`backend/routers/course.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/course.py)
+- **Acceptance Criteria**:
+  1. `save_material_content` 能够成功写入合法路径的 `.md` 文件；
+  2. 针对非 `.md` 后缀或企图通过 `../` 穿越跳出 `materials` 目录的请求，强行抛出 ValueError / 403 拒绝；
+  3. 接口在写入盘后迅速返回 HTTP 200 OK，并通过异步后台调用 `rag_client.sync_knowledge`。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_materials_save.py`
+
+### <a id="issue-09"></a>[ISSUE-09] 前端知识档案全局 `PreviewEditModal` 弹窗与会话流解耦
+- **Status**: `DONE` (已完成)
+- **Parent**: `ADR-008`
+- **User Story**: 作为学习用户，当我点击右侧文件树或教材引用链接时，系统直接弹出全局居中的 `PreviewEditModal` 浮层，支持在“📖效果预览”与“✏️源码编辑”两态中无缝切换，彻底取消把 markdown 嵌入对话历史流的做法。
+- **What to build**:
+  1. 创建 `frontend/src/components/PreviewEditModal.jsx`，支持双态切换、卡片解析预览与代码框编辑保存。
+  2. 改造 `App.jsx` 的 `onFileClick`，改为触发模态状态 `setPreviewModal`，不再向 `messages` 插入 `markdown_doc` 元素。
+- **Affected Files**: [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx), [`frontend/src/components/PreviewEditModal.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.jsx), [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+- **Acceptance Criteria**:
+  1. 点击文件树触发全局 Modal 打开，且 `messages` 数组不会被插入任何 `markdown_doc` 元素；
+  2. 在 Modal 的编辑态修改文本并点击保存，发起到 `POST /api/chat/materials/save` 的请求并在成功后更新本地视图。
+- **Blocked by**: [ISSUE-08]
+- **Verification Command**: `cd frontend && npm run test`

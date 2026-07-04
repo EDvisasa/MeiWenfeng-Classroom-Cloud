@@ -4,8 +4,23 @@ import logging
 logger = logging.getLogger(__name__)
 
 class MaterialsManager:
-    @staticmethod
-    def build_knowledge_tree() -> list:
+    @classmethod
+    def _get_materials_dir(cls) -> str:
+        base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return os.path.abspath(os.path.join(base_root, "data", "materials"))
+
+    @classmethod
+    def _get_safe_path(cls, rel_path: str, require_md: bool = False) -> str:
+        materials_dir = cls._get_materials_dir()
+        safe_path = os.path.abspath(os.path.join(materials_dir, rel_path))
+        if not safe_path.startswith(materials_dir):
+            raise ValueError("Forbidden: Directory traversal attempt")
+        if require_md and not safe_path.endswith(".md"):
+            raise ValueError("Forbidden: Only .md files can be modified")
+        return safe_path
+
+    @classmethod
+    def build_knowledge_tree(cls) -> list:
         """
         Scans data/materials/ and returns a 2-level tree structure:
         [
@@ -16,9 +31,7 @@ class MaterialsManager:
             ...
         ]
         """
-        base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        materials_dir = os.path.join(base_root, "data", "materials")
-        
+        materials_dir = cls._get_materials_dir()
         if not os.path.exists(materials_dir):
             return []
 
@@ -51,18 +64,20 @@ class MaterialsManager:
                 
         return tree
 
-    @staticmethod
-    def get_material_content(rel_path: str) -> str:
+    @classmethod
+    def get_material_content(cls, rel_path: str) -> str:
         """Reads a specific markdown file from data/materials/"""
-        base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        materials_dir = os.path.join(base_root, "data", "materials")
-        
-        # Secure the path (prevent directory traversal)
-        safe_path = os.path.abspath(os.path.join(materials_dir, rel_path))
-        if not safe_path.startswith(os.path.abspath(materials_dir)):
-            raise ValueError("Forbidden: Directory traversal attempt")
-            
+        safe_path = cls._get_safe_path(rel_path)
         if os.path.exists(safe_path) and os.path.isfile(safe_path):
             with open(safe_path, "r", encoding="utf-8") as f:
                 return f.read()
         return f"Document not found: {rel_path}"
+
+    @classmethod
+    def save_material_content(cls, rel_path: str, content: str) -> bool:
+        """Saves a markdown file to data/materials/ with path traversal and extension protection."""
+        safe_path = cls._get_safe_path(rel_path, require_md=True)
+        os.makedirs(os.path.dirname(safe_path), exist_ok=True)
+        with open(safe_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        return True

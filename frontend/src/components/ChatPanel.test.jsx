@@ -5,15 +5,6 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ChatPanel from './ChatPanel';
 
 // Mock heavy child components and utilities to isolate ChatPanel behavior
-vi.mock('../utils/blockParser', () => ({
-  parseAndMergeBlocks: vi.fn((blocksOrString) => {
-    // Return dummy block to bypass complex rendering
-    if (typeof blocksOrString === 'string') {
-      return [{ type: 'text', text: blocksOrString }];
-    }
-    return blocksOrString;
-  })
-}));
 
 vi.mock('./MissionProposalCard', () => ({
   default: () => <div data-testid="mission-card">Mission</div>
@@ -166,6 +157,33 @@ describe('ChatPanel Editing Behavior Tests', () => {
 
     global.fetch = originalFetch;
     vi.useRealTimers();
+  });
+
+  it('TDD 4: renders markdown_doc system_info message without ReferenceError and parses custom cards', () => {
+    const originalFetch = global.fetch;
+    global.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({}) });
+
+    const props = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'system_info',
+          type: 'markdown_doc',
+          path: 'data/materials/Lessons/test_lesson.md',
+          content: '# 课程导学\n这里是一段介绍文本。\n<explainer title="重点原理解析">这里是深层次的理论说明。</explainer>'
+        }
+      ]
+    };
+
+    render(<ChatPanel {...props} />);
+
+    expect(screen.getByText('📖 本地知识档案')).toBeInTheDocument();
+    expect(screen.getByText(/文件路径：data\/materials\/Lessons\/test_lesson\.md/)).toBeInTheDocument();
+    expect(screen.getByText(/这里是一段介绍文本。/)).toBeInTheDocument();
+    expect(screen.getByText('重点原理解析')).toBeInTheDocument();
+    expect(screen.getByText(/这里是深层次的理论说明。/)).toBeInTheDocument();
+
+    global.fetch = originalFetch;
   });
 });
 

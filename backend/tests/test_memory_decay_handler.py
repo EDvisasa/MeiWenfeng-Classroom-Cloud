@@ -51,3 +51,22 @@ def test_memory_decay_handler_handles_phase_a(test_db):
 
     # The exact logic of process_memory_decay will run, so we just check if it did something
     assert compressed_count > 0
+
+def test_force_decay_api_failure_does_not_return_success(test_db):
+    """Test that when generate_summary fails (API failure), force_decay endpoint does not silently return success"""
+    from backend.routers.memory import force_decay
+    from fastapi import HTTPException
+    
+    # Setup initial data needing decay (level 1 log older than threshold)
+    cursor = test_db.cursor()
+    cursor.execute(
+        "INSERT INTO memory_logs (content, summary, level, status, timestamp) VALUES ('', 'Old summary', 1, 'active', datetime('now', '-3 days'))"
+    )
+    test_db.commit()
+
+    # When generate_summary fails (returns empty string "" after retries due to API failure)
+    with patch("backend.services.memory_decay.generate_summary", return_value=""):
+        # force_decay should raise an HTTPException or indicate error, NOT silently return status: "success"
+        with pytest.raises(HTTPException) as exc_info:
+            force_decay()
+        assert exc_info.value.status_code >= 500

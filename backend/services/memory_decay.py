@@ -146,7 +146,7 @@ def process_memory_decay(phase_a_only=False, phase_b_only=False) -> Dict[str, An
         conn = get_db_connection()
         cursor = conn.cursor()
 
-        stats = {"processed": 0, "levels": {}, "inserted": 0, "updated": 0}
+        stats = {"processed": 0, "levels": {}, "inserted": 0, "updated": 0, "failed": 0}
 
         # ==========================
         # Phase A: 即时归档 (Level 0 -> 1)
@@ -209,6 +209,9 @@ def process_memory_decay(phase_a_only=False, phase_b_only=False) -> Dict[str, An
 
                 stats["processed"] += len(level0_rows)
                 stats["levels"][0] = len(level0_rows)
+            else:
+                logger.error("Phase A summary generation failed (empty response).")
+                stats["failed"] += 1
 
         # ==========================
         # Phase B: 被动延时降级 (Level N -> N+1)
@@ -283,8 +286,13 @@ def process_memory_decay(phase_a_only=False, phase_b_only=False) -> Dict[str, An
 
                     stats["processed"] += len(rows)
                     stats["levels"][level] = len(rows)
+                else:
+                    logger.error(f"Phase B summary generation failed for level {level} -> {next_level}.")
+                    stats["failed"] += 1
 
         conn.close()
+        if stats.get("failed", 0) > 0:
+            raise RuntimeError("大模型 API 调用生成记忆纪要失败，请检查大模型配置及 Token 余额后重试。")
         return stats
     finally:
         _decay_lock.release()
