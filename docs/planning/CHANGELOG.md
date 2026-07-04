@@ -1,3 +1,10 @@
+---
+id: PLAN-CHANGELOG
+title: Changelog
+status: active
+created: 2026-06-27
+domain: project-planning
+---
 # Changelog
 
 All notable changes to this project will be documented in this file.
@@ -16,7 +23,7 @@ All notable changes to this project will be documented in this file.
 ### Fixed
 - **UI State Glitches**: Resolved "ghost typing-cursor" blinking artifact that persisted after streaming had logically concluded.
 - **Responsive Layout**: Rebuilt `ChatPanel` layout logic so that the input textarea safely coexists with system tool block logs and the absolute-positioned `BashApprovalCard`.
-- **Sandbox Boundary Violations**: Upgraded the internal path resolution mechanisms to firmly prevent AI `replace_file_content` out-of-bounds filesystem operations (restricting modifications to `docs/sandbox/`).
+- **Sandbox Boundary Violations**: Upgraded the internal path resolution mechanisms to firmly prevent AI `replace_file_content` out-of-bounds filesystem operations (restricting modifications to `data/materials/Sandbox/`).
 
 ### Changed
 - **Pipeline Segregation**: Migrated specific `execute_bash` execution loops out of the generic `ResponsePipeline` and moved them directly into the pure agent `OpenAILLMClient` wrapper flow for stronger semantic isolation.

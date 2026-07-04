@@ -45,18 +45,18 @@ MeiWenfeng-Classroom/
 │   │   ├── References/       # 理论讲义卡片物理存储区 (需通过 /prepare 手动同步至 RAG 向量库)
 │   │   ├── Sandbox/          # AI 授课与自动化编辑的唯一物理操作沙盒
 │   │   ├── Lessons/          # 课堂生成的具体课时讲义记录
-│   │   ├── Settings/         # 全局学习目标与系统边界配置文件存放区
+│   │   ├── Settings/         # 个人私有学习配置区 (含 user_mission.md 长期目标蓝本)
 │   │   └── LDRs/             # 课程规划漂移追踪记录 (Learning Drift Records)
 │   └── persona/              # 角色扮演人设系统专属配置
 │       └── simplified/       # 动态迭代与提炼后的精简人设设定
 ├── docs/                     # 项目工程研发与架构决策文档
 │   ├── architecture/         # 系统架构决策记录 (ADRs，全量单文件 HTML)
-│   ├── planning/             # 任务进展、项目规划与 Bug 缺陷追踪清单 (00_总纲 / XX_Bug追踪 等)
+│   ├── planning/             # 任务进展、冲刺规划与缺陷追踪清单 (00_project_roadmap / bug-tracker 等)
 │   ├── reports/              # 分析与测试报告收纳中心
-│   ├── 00_文档规范与命名总纲.md # 【最高纲领】双系统架构隔离与文件命名铁律
-│   └── 01_开发与测试指南.md  # 自动化测试体系与端到端用例参考
-├── CONTEXT.md                # 领域核心概念与系统架构术语字典
-├── MISSION.md                # 全局长期学习目标与核心任务指标配置
+│   ├── GLOSSARY.md           # 全局领域权威术语字典与表名黑名单
+│   ├── 00_doc_guidelines.md  # 【最高纲领】分级存储规范、元数据规则与 ASCII 命名铁律
+│   └── 01_dev_and_test_guide.md # 自动化测试体系与回归单测参考
+├── AGENTS.md                 # 智能体交接宪法与技能寻址表
 ├── start.bat                 # Windows 一键启动脚本
 ├── start.sh                  # Linux/Mac 一键启动脚本
 ├── .env.example              # 环境变量参考模板
@@ -159,12 +159,14 @@ cd MeiWenfeng-Classroom
 
 ## 📚 开发者指引 (给 AI 的备注)
 
-当你后续接手此工程进行二次开发时，请首先恪守 `docs/` 目录下的最高纲领与规范：
-- **`docs/00_文档规范与命名总纲.md`**：【最高纲领】严格遵循文档分级存储规范与文件命名铁律，时刻遵守“**角色扮演系统 vs 严肃教学底座系统**”的双领域用词物理隔离法则。
-- **`docs/01_开发与测试指南.md`**：包含本项目的自动化测试体系说明，以及常用的端到端测试用例参考。
-- **`docs/planning/00_开发计划总纲.md`**：如果需要做大型系统重构或了解项目底层的阶段性目标与架构选型，请以此为终极蓝本。
-- **`docs/planning/01_当前开发任务.md`**：获取项目当前冲刺阶段（Sprint）切实可执行的开发任务清单。
-- **`docs/planning/XX_当前缺陷与Bug追踪.md`**：【重点】此处集中记录了当前存在的 Bug 清单与待修复项。当你需要排查或追加记录新的系统 Bug 时，请务必查看与更新此文件。
+当你后续接手此工程进行二次开发时，请首先恪守根目录与 `docs/` 目录下的最高纲领与寻址规范：
+- **`AGENTS.md`**：【进场总开关】所有 AI 智能体进入本仓库时的**最高寻址路由表与交接协议**。
+- **`docs/GLOSSARY.md`**：【领域权威】全工程通用语言字典与双系统隔离铁律对照表。
+- **`docs/00_doc_guidelines.md`**：【最高纲领】严格遵循文档分级存储规范、YAML 元数据规则与 ASCII Slug 命名铁律。
+- **`docs/01_dev_and_test_guide.md`**：包含本项目的自动化测试体系说明，以及常用的端到端测试用例参考。
+- **`docs/planning/00_project_roadmap.md`**：如果需要做大型系统重构或了解项目底层的阶段性目标与架构选型，请以此为终极蓝本。
+- **`docs/planning/01_sprint_tasks.md`**：获取项目当前冲刺阶段（Sprint）切实可执行的开发任务卡片（ISSUE 卡片）。
+- **`docs/planning/bug-tracker.md`**：【重点】此处集中记录了当前存在的 Bug 清单与待修复项。当你需要排查或追加记录新的系统 Bug 时，请务必查看与更新此文件。
 - **`docs/reports/`** 与 **`docs/architecture/`**：包含架构决策记录（ADR 单文件 HTML）与历史分析测试报告。
 
 ---

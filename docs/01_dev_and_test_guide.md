@@ -1,16 +1,35 @@
+---
+id: DOC-01
+title: 开发与测试指南
+status: active
+created: 2026-06-27
+domain: core-architecture
+---
 # 开发者指南与测试体系
 
 当你后续接手此工程进行二次开发时，请首先查阅此文档以及 `docs/` 目录下的核心规范与规划资料：
 
-- **`docs/00_文档规范与命名总纲.md`**：【最高纲领】严格遵循文档分级存储、文件命名铁律，以及“**角色扮演系统 vs 严肃教学底座系统**”的双领域用词物理隔离法则。
-- **`docs/planning/01_当前开发任务.md`**：获取项目当前冲刺阶段（Sprint）切实可执行的开发任务清单。
-- **`docs/planning/00_开发计划总纲.md`**：如果需要做大型系统重构或了解项目底层的阶段性目标与架构选型，请以此为终极蓝本。
+- **`docs/00_doc_guidelines.md`**：【最高纲领】严格遵循文档分级存储、文件命名铁律，以及“**角色扮演系统 vs 严肃教学底座系统**”的双领域用词物理隔离法则。
+- **`docs/planning/01_sprint_tasks.md`**：获取项目当前冲刺阶段（Sprint）切实可执行的开发任务清单。
+- **`docs/planning/00_project_roadmap.md`**：如果需要做大型系统重构或了解项目底层的阶段性目标与架构选型，请以此为终极蓝本。
 
 > [!IMPORTANT]
-> **双系统架构与用词隔离铁律 (Domain Terminology Separation)**
-> 本工程由两个核心子系统交织而成，在进行二次开发、编写注释或设计测试用例时，严禁混淆领域界限：
-> 1. **角色扮演系统 (Roleplay Persona System)**：涉及虚拟互动台词与人设模拟（如对白、好感度 `affection`、性格 prompt），允许使用人设专属口吻。
-> 2. **严肃教学与底座架构系统 (Serious Teaching & Core Architecture System)**：涉及课程大纲、数据处理、异步路由、拦截器与沙盒测试，**必须严格使用现代、准确、高效、凝练的技术软件工程术语**。严禁在代码注释、数据库大纲或架构阐述中出现任何修仙、玄幻或小说化用词。
+> **领域用词物理隔离表 (SSOT)**
+> 全库用词红线与数据库表名黑名单，请严格参照字典表：[`docs/GLOSSARY.md`](file:///d:/MeiWenfeng-Classroom/docs/GLOSSARY.md)。
+
+---
+
+## 🤖 智能体交接与 Skills 协同工作流标准协议 (Agent Handover & TDD Workflow)
+
+> **进场交接自检流程 (SSOT)**：智能体接手工作区时的标准三步寻址自检流程，请直接执行根目录入口：[`AGENTS.md`](file:///d:/MeiWenfeng-Classroom/AGENTS.md)。
+
+### 技能联动与开发准则 (Skills & TDD Protocol)
+*   **新功能开发 / Bug 修复 (`tdd` & `diagnosing-bugs`)**：
+    严禁直接盲改生产代码。必须先定位或在 `backend/tests/` 编写验证该问题的测试脚本（如 `pytest backend/tests/test_xxx.py`），确认测试在修改前捕获目标状态（Red），修改后全量通过（Green），再行重构。
+*   **架构重构与任务拆解 (`request-refactor-plan`)**：
+    凡涉及跨模块大规模修改（如引擎重构），必须遵循 Martin Fowler 微小步提交准则，拆解为独立通过 CI 的小提交卡片记录于任务清单。
+*   **双轴代码审查 (`review`)**：
+    改动收尾时，自检两条规范轴：**Standards 轴**（是否满足用词隔离铁律与单文件 HTML 规范）与 **Spec 轴**（是否满足任务卡片中的 Acceptance Criteria）。
 
 ---
 

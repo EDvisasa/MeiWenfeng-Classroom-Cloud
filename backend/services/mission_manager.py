@@ -103,15 +103,15 @@ class MissionManager:
             os.makedirs(os.path.join(materials_dir, "Settings"), exist_ok=True)
             os.makedirs(os.path.join(materials_dir, "LDRs"), exist_ok=True)
 
-            # 1. Write Settings/Mission.md
-            mission_file = os.path.join(materials_dir, "Settings", "Mission边界与设定.md")
+            # 1. Write Settings/user_mission.md
+            mission_file = os.path.join(materials_dir, "Settings", "user_mission.md")
             with open(mission_file, "w", encoding="utf-8") as f:
                 f.write(mission_markdown)
                 
             # 2. Write LDR if there's a drift
             if old_mission and old_mission != mission_markdown:
                 timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                ldr_file = os.path.join(materials_dir, "LDRs", f"{timestamp}-Mission-Drift.md")
+                ldr_file = os.path.join(materials_dir, "LDRs", f"{timestamp}_mission_drift.md")
                 ldr_content = f"# Mission Drift ({timestamp})\n\n## Old Mission\n{old_mission}\n\n## New Mission\n{mission_markdown}\n"
                 with open(ldr_file, "w", encoding="utf-8") as f:
                     f.write(ldr_content)

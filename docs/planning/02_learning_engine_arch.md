@@ -1,7 +1,14 @@
+---
+id: PLAN-02
+title: 子项_学习引擎架构
+status: active
+created: 2026-06-27
+domain: project-planning
+---
 # 学习功能优化路线 (Learning System Roadmap)
 
 > 本文档提取自早期“媚吻锋随身课堂”的核心设定，并深度融合了 Matt Pocock 的 `teach` Skill 架构，旨在为 `MeiWenfeng-Classroom` 的“交互式教学功能”提供架构与路线指引。
-> **架构准则提醒**：学习引擎属于**严肃教学与底座系统**，根据规范总纲 **`docs/00_文档规范与命名总纲.md`** 的双系统物理隔离铁律，本系统所有模块、表结构、微课流与术语沉淀，必须严格使用现代、高效、凝练的软件工程术语，严禁混入任何角色扮演口吻或小说叙事词汇。同时，教学产出的静态卡片、关卡等文件必须落入 `data/materials/` 分级目录并受 `.gitignore` 保护。
+> **架构准则提醒**：学习引擎属于**严肃教学与底座系统**，根据规范总纲 **`docs/00_doc_guidelines.md`** 的双系统物理隔离铁律，本系统所有模块、表结构、微课流与术语沉淀，必须严格使用现代、高效、凝练的软件工程术语，严禁混入任何角色扮演口吻或小说叙事词汇。同时，教学产出的静态卡片、关卡等文件必须落入 `data/materials/` 分级目录并受 `.gitignore` 保护。
 
 ## 一、核心教学哲学 (The Philosophy)
 
@@ -41,7 +48,7 @@
 
 | 原始 `teach` 概念 | 本项目 (MeiWenfeng-Classroom) 的未来实现方案 |
 |-------------------|----------------------------------------------|
-| `MISSION.md` (学习动机) | **宏大目标管理**：由 `/set_mission` 指令控制，展示在右侧导师状态栏顶端，作为所有课程生成的总纲。<br>**防空泛机制 (Push back on vagueness)**：系统拒收过于抽象的目标，必须通过澄清审问将其落实为具体且附带“Out of scope”（能力保护圈）的可执行愿景。 |
+| `user_mission.md` (私密学习动机) | **宏大目标管理**：物理落盘于 `data/materials/Settings/user_mission.md`（受 `.gitignore` 保护）。由 `/set_mission` 指令控制并展示在右侧导师状态栏顶端，作为所有课程生成的总纲。<br>**防空泛机制 (Push back on vagueness)**：系统拒收过于抽象的目标，必须通过澄清审问将其落实为具体且附带“Out of scope”（能力保护圈）的可执行愿景。 |
 | `learning-records/` (学习日志) | **学习决策记录 (LDR)**：利用 SQLite 存储突破的关键认知。**其表结构必须包含**：`evidence`（用户是如何证明自己掌握的，防止大模型幻觉）、`implications`（该认知解锁了什么新能力）、以及 `superseded_by`（当对某概念的认知深化时，用于废弃/覆盖早期的浅层认知记录）。 |
 | `lessons/*.html` (单节微课) | **交互式 Markdown/React 卡片**：废弃静态 HTML。后端实时生成具有高亮、沙盒运行或测验表单（Checkbox/Input）的 React 组件流。 |
 | `reference/` (速查表/知识卡片) | **混合精炼知识库 (Hybrid Reference)**：大模型通过 `<explainer>` 输出独立的 Markdown 备忘录文件（供用户翻阅），系统后台自动将其向量化并沉淀进 ChromaDB 供 RAG 调用。<br>**纯度审查 (High-trust only)**：严格执行白名单过滤机制，剔除浅层或营销性质教程，只沉淀高信噪比文档。 |
