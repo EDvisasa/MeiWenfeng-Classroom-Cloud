@@ -38,9 +38,8 @@ domain: project-planning
 ### 4. [已解决] AgentExecutor 的流解析与工具调度耦合
 - **状态更新**：已通过架构重构彻底解耦。抽离出独立的高内聚流式解析适配器 `backend/services/stream_parser.py` (专注于 SSE 流事件切分与 XML 解析) 与独立的工具执行引擎 `backend/services/tool_engine.py` (专注于多工具并发与权限控制)。`AgentExecutor` 仅作为轻量级调度回路，删除了 40 多行冗余旧代码。
 
-### 5. Model Router 路由层人设泄漏
-- **现象描述**：网络路由模块 `stream_chat` 内硬编码了长达 30 行的 `perfect_one_shot` 字符串。这导致路由层被核心角色扮演逻辑污染。
-- **调查方向**：将 One-Shot 的动态注入逻辑移动到 `prompts.py` 中的 `PromptBuilder` 内，路由器只接收完全就绪的 messages。
+### 5. [已解决] Model Router 路由层人设泄漏
+- **状态更新**：已在架构解耦重构中彻底解决。网络路由层 `backend/services/model_router.py` 中的 `stream_chat` 函数已移除了长达 30 行的 `perfect_one_shot` 硬编码及所有角色扮演逻辑。该逻辑被收拢迁移至上下文与管线引擎 `backend/services/context_manager.py` 的 `assemble_messages` 方法中进行集中组装。路由层现在只纯粹负责接收并分发完全就绪的报文。
 
 ### 6. 斜杠指令 (Slash Commands) 巨石阵结构
 - **现象描述**：`slash_handler.py` 内部使用庞大的 `if/elif` 链为每个指令硬塞海量多行 XML 系统指令。难以新增或删除，完全违背删除测试 (Deletion Test)。
