@@ -96,7 +96,7 @@ def test_replace_file_content_tool_success(tmp_path):
     # We will override the execute method's sandbox_dir calculation just for this test
     # A cleaner way is to patch the os.path.dirname in the tool, but we can also just use the real sandbox dir
     
-    # Actually, since the sandbox is hardcoded to project_root/docs/sandbox,
+    # Actually, since the sandbox is hardcoded to project_root/data/materials/Sandbox,
     # let's create a temporary file in the REAL data/materials/Sandbox to test it safely.
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     sandbox_dir = os.path.abspath(os.path.join(project_root, "data", "materials", "Sandbox"))

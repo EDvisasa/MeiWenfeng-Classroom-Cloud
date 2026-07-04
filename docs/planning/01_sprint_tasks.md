@@ -1,7 +1,14 @@
+---
+id: PLAN-01
+title: 当前开发任务
+status: active
+created: 2026-06-27
+domain: project-planning
+---
 # 当前开发任务 (Sprint Tracker)
 
 > 本文件仅维护当前开发阶段（第三阶段：课堂引擎）的切实可执行的任务清单。完成的任务请及时勾选，全部完成后归档。
-> **架构准则提醒**：所有新增任务、功能开发及文档撰写，必须严格遵循 **`docs/00_文档规范与命名总纲.md`** 中的“双系统用词物理隔离法则”（角色台词归角色，教学与技术底座归现代工程用语）以及“ADR 单文件可运行 HTML 规范”。
+> **架构准则提醒**：所有新增任务、功能开发及文档撰写，必须严格遵循 **`docs/00_doc_guidelines.md`** 中的“双系统用词物理隔离法则”（角色台词归角色，教学与技术底座归现代工程用语）以及“ADR 单文件可运行 HTML 规范”。
 
 ## [近期里程碑] 架构规范与双系统隔离治理 [已达成]
 - [x] **架构文档单文件化与云同步**：完成 `ADR-000` 深度重构，全量内联 Tailwind 与 CSS 变量，确保单文件独立双击可运行并闭环同步至 `D:\MeiWenfeng-Classroom-Cloud\`。
@@ -24,10 +31,38 @@
 - [x] **`/set_mission` 长期目标设定**：已打通前端通信通道（`App.jsx` 的 `fetchStatus` 接收 `data.mission`），并在右侧 `StatusPanel` 实现了常驻的全局学习目标状态与拟定期数据锁定遮罩（`isDrafting`）。
 - [x] **`/lesson` 授课微课流**：后端 `slash_handler.py` 已深度注入授课指令，严格规范 AI 导师基于当前论题吐出短篇极简理论，并**强制附带一个 `<quiz>` 测验块**供前端渲染。
 - [x] **`/submit` 判题反馈流后端逻辑**：已完成基于 Matt Pocock 理念的后端重构：引入“表扬 -> 询问是否迎接下一阶挑战 -> 提取学情洞察存入记忆 -> 调用 `replace_file_content` 演进沙盒”的完整教学与反馈闭环。
-- [ ] **`/submit` 判题与沙盒演进的前端深度适配**：(急需攻克) 经审核，前端 `ChatPanel.jsx` 的 `ToolBlock` 中尚无 `replace_file_content` 的友好命名映射，且缺乏练习文件差异代码高亮（Diff）与升级关卡的直观视觉呈现。
-- [ ] **学习决策记录 (LDR) 引擎打通**：(核心待办) 经审核，`learning_decision_records` 表（含 `evidence`, `implications`, `superseded_by`）已在 `database.py:160` 创建，但后端服务中没有任何读写逻辑。需在闭环判题及记忆归档时接入。
-- [ ] **ZPD (最近发展区) 动态难度追踪**：(核心待办) `course_progress` 表需增设能力自适应评估指标，让系统每次出题时自动感知受挫与顿悟曲线。
-- [ ] **信源白名单与元注释审查**：推行外部链接与参考资料强制附加元注释法则。
+### <a id="issue-01"></a>[ISSUE-01] `/submit` 判题与沙盒演进的前端深度适配
+- **Status**: `TODO` (高优先级)
+- **User Story**: 作为前端学习用户，当后台 AI 调用 `replace_file_content` 升级练习关卡或更新代码沙盒时，我希望在聊天卡片中清晰看到美观的高亮 Diff 对比与友好的组件命名，而不是晦涩的原始参数。
+- **Affected Files**: [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx), `frontend/src/utils/blockParser.js`
+- **Acceptance Criteria**: 
+  1. `ToolBlock` 正确捕获 `replace_file_content` 并显示为“🛠️ 演进实操沙盒卡片”；
+  2. 点击可展开查看 `Before / After` 差异视图。
+- **Verification Command**: `cd frontend && npm run test`
 
-## [低优先级优化]
-- [ ] **换肤系统**：提供完全独立的皮肤切换体系。
+### <a id="issue-02"></a>[ISSUE-02] 学习决策记录 (LDR) 引擎打通与闭环写入
+- **Status**: `TODO` (高优先级)
+- **User Story**: 作为后端教学引擎，当用户提交正确的题目答案或通过交互实操考核时，系统自动提取证据推论 (`evidence`, `implications`) 并持久化存入 `learning_decision_records` 表。
+- **Affected Files**: [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py), [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+- **Acceptance Criteria**: 
+  1. `/submit` 成功通过后，数据库 `learning_decision_records` 插入一条记录；
+  2. 若已存在冲突记录，能够正确关联 `superseded_by` 字段。
+- **Verification Command**: `pytest backend/tests/test_slash_handler.py`
+
+### <a id="issue-03"></a>[ISSUE-03] ZPD (最近发展区) 动态难度追踪自适应算法
+- **Status**: `TODO` (核心待办)
+- **User Story**: 作为出题导师系统，我希望在每次执行 `/lesson` 生成题目前，自动检索 `course_progress` 表中的 ZPD 能力指标，动态感知用户的受挫与顿悟曲线以调整下一题难度。
+- **Affected Files**: [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py), [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+- **Acceptance Criteria**: 
+  1. `/lesson` 响应体包含当前 ZPD 难度系数；
+  2. 连对两题后系数上升，连错后自动回退降级。
+- **Verification Command**: `pytest backend/tests/test_context_manager.py`
+
+### <a id="issue-04"></a>[ISSUE-04] 信源白名单与参考资料强制附加元注释
+- **Status**: `TODO` (低优先级)
+- **User Story**: 作为平台合规审查机制，当大模型引用外部链接或检索文档回答问题时，强制附带来源元数据注释以保证可溯源。
+- **Affected Files**: [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+- **Acceptance Criteria**: 
+  1. 返回气泡末尾包含规范的引用徽章标签；
+  2. 非白名单链接直接在中间层过滤拦截。
+- **Verification Command**: `pytest backend/tests/test_agent_tools.py`

@@ -72,7 +72,7 @@ def test_finalize_draft_updates_user_mission_and_writes_files(tmp_path):
     assert MissionManager.get_active_draft() is None
     
     # c. 物理验证：文件是否成功写入
-    expected_mission_file = tmp_path / "data" / "materials" / "Settings" / "Mission边界与设定.md"
+    expected_mission_file = tmp_path / "data" / "materials" / "Settings" / "user_mission.md"
     assert expected_mission_file.exists(), "Mission markdown file was not generated on disk!"
     
     with open(expected_mission_file, "r", encoding="utf-8") as f:

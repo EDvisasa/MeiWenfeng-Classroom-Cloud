@@ -1,3 +1,10 @@
+---
+id: PLAN-BUG
+title: 当前缺陷与Bug追踪
+status: active
+created: 2026-06-27
+domain: project-planning
+---
 # 04 - 当前缺陷与Bug追踪
 
 > **目标**：集中记录当前系统已发现的缺陷（Bugs）及需要修正的项点，便于后续进行调查分析与逐一修复。严禁未经调研盲目修改代码。

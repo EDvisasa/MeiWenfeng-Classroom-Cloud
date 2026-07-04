@@ -1,8 +1,15 @@
+---
+id: DOC-00
+title: 文档规范与命名总纲
+status: active
+created: 2026-06-27
+domain: core-architecture
+---
 # 文档规范与命名总纲 (Documentation Standards)
 
 > **生效日期**：2026-06-27  
 > **适用范围**：本仓库 `docs/` 目录下所有当前及未来新建的文件与子文件夹。  
-> **核心宗旨**：消除命名混乱、分隔符混用与文档堆砌，构建清晰、严谨、隔离的文档知识体系。
+> **核心宗旨**：消除命名混乱、分隔符混用与文档堆砌，构建面向 AI 友好 (AI-Native) 的清晰、严谨、隔离的文档知识体系。
 
 ---
 
@@ -13,7 +20,7 @@
 ### 1. 工程研发与系统规范 (`docs/`)
 | 目录路径 | 核心定位 | 存放内容说明 |
 | :--- | :--- | :--- |
-| **`docs/` (根目录)** | **全局指引** | 仅放置全局性的标准规范与开发操作指南（如本文档及《01_开发与测试指南.md》）。 |
+| **`docs/` (根目录)** | **全局指引** | 仅放置全局性的标准规范与开发操作指南（如本文档及 `01_dev_and_test_guide.md`）。 |
 | **`docs/planning/`** | **路线规划与冲刺** | 存放路线图大纲（Roadmap）、当前开发任务清单（Sprint Tracker）、子项架构设计方案等动态演进的规划文档。 |
 | **`docs/architecture/`** | **系统架构决策 (ADRs)** | 存放长期生效、经评审通过的可视化架构决策记录（Architectural Decision Records）。**全量统一为单文件 `.html` 格式，不再保留冗余 `.md` 文件。** |
 | **`docs/reports/`** | **分析与测试报告** | **合并收纳**原有的 `analysis/` 目录及散落在各处的静态 `.html` 报告（如测试覆盖率、Bug 分析、架构自动扫描报告）。实现核心规范与静态快照彻底隔离。 |
@@ -28,26 +35,38 @@
 
 ---
 
-## 二、 文件命名铁律 (Naming Conventions)
+## 二、 面向 AI 友好的文件命名与格式铁律 (AI-Native Naming & Formats)
 
-所有文档必须严格遵循以下命名约定，确保跨操作系统的可排序性与高可读性：
+所有文档必须严格遵循以下命名约定与元数据格式，确保跨操作系统的可排序性、脚本正则可匹配性与 AI 智能体低消耗提取：
 
-### 1. 序列化 / 编号类文档 (Planning & ADRs)
-对于具有顺序、层级或唯一编号的文档，统一采用 **`编号_简明主题.[扩展名]`** 的格式（**编号与主题之间强制使用下划线 `_`**）：
-- **规划类 (`.md`)**：使用两位数字编号，例如：
-  - `00_开发计划总纲.md`
-  - `01_当前开发任务.md`
-  - `02_子项_学习引擎架构.md`
-  - **【特例】永续生命周期文档**：对于不随正常开发阶段演进、需要永远排序垫底的特殊文件（如 Bug 缺陷追踪清单），强制使用 **`XX_`** 作为特殊下标（例如 `XX_当前缺陷与Bug追踪.md`）。
+### 1. 强制 YAML Frontmatter 元数据块 (Machine-Parsable Metadata)
+所有存放在 `docs/` 下的 Markdown 文档（特别是在 `planning/` 和根目录下），**必须在其前 10 行内包含标准的 YAML Frontmatter 头部**。这样智能体在寻址和构建图谱检索时，可极速读取 `id`, `title`, `status`, `domain` 等属性，无需消耗大量 Token 读取正文。例子：
+```yaml
+---
+id: DOC-GUIDELines
+title: 开发与测试指南
+status: active
+created: 2026-06-27
+domain: core-architecture
+---
+```
+
+### 2. 序列化 / 编号类物理文件命名 (Planning & ADRs)
+对于具有顺序、层级或唯一编号的文档，统一采用 **`编号_ASCII短横线/下划线.[扩展名]`** 格式：
+- **规划类 (`.md`)**：强制使用数字编号 + 纯小写 ASCII 英文短横线/下划线命名，例如：
+  - `00_project_roadmap.md`
+  - `01_sprint_tasks.md`
+  - `02_learning_engine_arch.md`
+  - **【AI 与跨系统友好铁律】**：物理文件名必须采用纯英文 ASCII 小写短横线/下划线命名（如 `bug-tracker.md`、`01_sprint_tasks.md`），而将中文完整主题名称展示在文件内部的 YAML Frontmatter 头部与 H1 标题中，彻底消除 CLI 命令与 AI 工具在不同操作系统下的多字节转义摩擦。
 - **架构决策记录 ADR (`.html`)**：统一采用 `ADR-三位数字编号_主题简写.html` 格式，例如：
-  - `ADR-001_联网与长文分页阅读架构决策.html`
-- **🚫 禁止项**：严禁在编号连接符上混用破折号与下划线（例如同时存在 `ADR-001-xxx.html` 和 `ADR-002_xxx.html`）。
+  - `ADR-001_web_search_and_pagination.html` 或保持既定简写。
+- **🚫 禁止项**：严禁在物理文件名中使用中文及特殊字符；严禁在编号连接符上混用破折号与下划线。
 
-### 2. 常规指南与系统说明文档
-使用清晰的中文或英文核心词汇命名，词与词之间若为英文可用连字符 `-` 或下划线 `_`，中文则直接紧凑命名：
-- 例如：`01_开发与测试指南.md`、`CHANGELOG.md`。
+### 3. 常规指南与系统说明文档
+使用清晰的纯英文 ASCII 核心词汇命名，词与词之间使用连字符 `-` 或下划线 `_`：
+- 例如：`01_dev_and_test_guide.md`、`CHANGELOG.md`、`bug-tracker.md`。
 
-### 3. 自动化生成报告 (Reports)
+### 4. 自动化生成报告 (Reports)
 所有自动化工具、脚本或 AI 生成的静态 HTML 分析页面，强制移入 `docs/reports/` 目录，并采用以下格式：
 - `简明主题_report.html` 或 `简明主题_analysis.html`。
 - 例如：`agent_bug_analysis.html`、`architecture_verification_report.html`。
@@ -92,6 +111,21 @@
 - `DB-Transaction`：核心数据库事务闭环
 
 ### 4. 双系统领域用词物理隔离铁律 (Domain Terminology Separation)
-本工程由两个核心子系统交织而成，在代码注释、系统日志、架构决策记录 (ADR) 与官方技术文档中，严禁用词混淆，必须严格恪守以下领域界限：
+本工程由两个核心子系统交织而成，在代码注释、系统日志、架构决策记录 (ADR) 与官方技术文档中，严禁用词混淆，必须严格恪守以下领域界限（全量权威映射与黑名单请强制查阅字典表：[`docs/GLOSSARY.md`](file:///d:/MeiWenfeng-Classroom/docs/GLOSSARY.md)）：
 1. **角色扮演系统 (Roleplay Persona System)**：涉及人物模拟与虚拟互动属性（如 `CSM 状态机`、`好感度 (affection)`、`阶位 (social_status)`、`角色提示词` 等），属于人设模拟器的领域参数，允许使用此类专属属性用词。
 2. **严肃教学与底座架构系统 (Serious Teaching & Core Architecture System)**：涉及教学流程、课程讲义、管线拦截、异步I/O与系统路由，必须严格使用**现代、准确、高效、凝练的技术软件工程术语**（如 `讲义 Markdown 文件持久化`、`结构化参考文档`、`SSE 流式生成`、`架构决策记录 (ADR)`）。**严禁**在技术系统架构阐述中使用任何国风修仙、虚拟魔法或小说叙事化的词汇（例如将文件称为“玉简”，将架构文档称为“法典”等）。
+
+---
+
+## 五、 智能体自动化寻址与文档操作核定矩阵 (Agent Routing & Document Operation Matrix)
+
+为彻底打通跨 IDE 环境与大模型技能（Skills）之间的桥梁，全库实施**“先确立权限与验证规约，再核定修改”**准则。智能体进入本工程时，自动遵循项目根目录全局寻址枢纽 [`AGENTS.md`](file:///d:/MeiWenfeng-Classroom/AGENTS.md)，并对各级文档遵守以下操作权限表：
+
+| 文档层级 | 物理路径说明 | 对照管理 Skill | 允许的操作 (Allowed Operations) | 严禁的操作 (Prohibitions) | 操作核定条件 (Verification) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| **全局宪法** | `docs/00_doc_guidelines.md`<br>`docs/01_dev_and_test_guide.md`<br>`AGENTS.md` | `ubiquitous-language`<br>`doc-coauthoring` | ✅ **严谨修订**：增补通用语言字典、更新单测指引或强化安全护栏。 | ❌ **严禁私自放宽标准**：严禁放宽用词隔离铁律或删除已有安全验证提醒。 | 修改后全栈执行 `pytest backend/tests/test_agent_tools.py` |
+| **不可变决策** | `docs/architecture/*.html` | `decision-mapping`<br>`codebase-design` | ✅ **只能新增 / 状态追加**：新架构生成 HTML 放入；或在旧文件头标记已废弃。 | ❌ **严禁历史篡改**：严禁直接涂改过去的已落地架构拓扑与历史决策。 | 符合单文件 HTML 三段式模板规则 |
+| **动态任务榜** | `docs/planning/01_sprint_tasks.md` | `to-issues`<br>`request-refactor-plan` | ✅ **高频迭代**：按标准工单结构追加新卡片；完成任务打钩 `[x]` 并归档。 | ❌ **严禁长篇大论**：严禁在待办清单中写入长篇理论设计，长篇设计请走 ADR。 | 对应具体任务卡片中声明的单测命令 |
+| **分析缓冲期** | `docs/reports/*.html` | `triage`<br>`diagnosing-bugs` | ✅ **临时存查**：存放排错分析报告；落地后转为 ADR 或直接删除。 | ❌ **严禁永久滞留**：严禁让 `reports/` 堆满无人清理的过期 HTML。 | 阶段任务结束验收时清理或升格 |
+| **用户隔离区** | `data/materials/Sandbox/` | 底层路径防护栏<br>`replace_file_content` | ✅ **仅在练习时受控读写**：AI 仅可在授课与批改环节修改此目录下文件。 | ❌ **严禁写坏边界**：受 `.gitignore` 屏蔽，严禁越界修改或上云。 | 强制通过 `pytest backend/tests/test_agent_tools.py` 校验 |
+
