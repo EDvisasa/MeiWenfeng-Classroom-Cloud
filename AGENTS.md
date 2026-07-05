@@ -19,6 +19,7 @@
 | **交互式缺陷排查与记录** <br>`qa` | [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md) | 交互式 QA 会话或发现新 Bug 时，将缺陷现象、调查方向与复现步骤标准记入缺陷追踪榜。 |
 | **前端 UI 设计与自动化测试** <br>`frontend-design` / `webapp-testing` | [`frontend/src/`](file:///d:/MeiWenfeng-Classroom/frontend/src) <br>*(Playwright E2E)* | 负责 React 交互卡片（如 `ChatPanel`、`QuizBlock`）的设计规范落地与页面端到端测试。 |
 | **文档创建与格式审计** <br>`doc-coauthoring` / `review` | [`docs/00_doc_guidelines.md`](file:///d:/MeiWenfeng-Classroom/docs/00_doc_guidelines.md) | 规范文档层级分类、生命周期流转规约（特别是 `reports/` 到 `architecture/` 的升格淘汰机制）。 |
+| **自动化扫描与静态分析报告** <br>`improve-codebase-architecture` / 阶段性分析 | [`docs/reports/`](file:///d:/MeiWenfeng-Classroom/docs/reports) <br>*(静态分析快照)* | 存放所有工具扫描、架构审查、测试覆盖率生成的静态 HTML 分析页面。严格作为阶段性快照，仅在审批通过后升格至 `architecture/`。 |
 | **安全沙盒文件演进操作** <br>底层工具安全边界 (`replace_file_content`) | [`data/materials/Sandbox/`](file:///d:/MeiWenfeng-Classroom/data/materials/Sandbox) | AI 导师为用户布置实操练习、修改作业代码的唯一授权沙盒空间。受底层路径锁严格防护。 |
 
 ---

@@ -128,3 +128,42 @@ domain: project-planning
   2. 在 Modal 的编辑态修改文本并点击保存，发起到 `POST /api/chat/materials/save` 的请求并在成功后更新本地视图。
 - **Blocked by**: [ISSUE-08]
 - **Verification Command**: `cd frontend && npm run test`
+
+### <a id="issue-10"></a>[ISSUE-10] 上下文管理深模块重构与报文洗净边界建立
+- **Status**: `DONE` (已完成 / 2026-07-05)
+- **Parent**: `ADR-009` (架构深模块解耦) / `Bug #6`
+- **User Story**: 作为系统引擎，通过引入结构化数据契约 (`ContextBundle`) 废除 `=== [DYNAMIC_BOUNDARY] ===` 字符串切割魔法；在 `assemble_messages` 入口建立白名单洗净边界彻底过滤 `system_info` 等 UI 专用报文（解决 Bug #6）；并将 20 行 One-Shot 模板抽离归位至 `prompts.py`，实施标准化三步组装管线，实现高局部性 (Locality) 与“接口即测试表面 (The interface is the test surface)”。
+- **What to build**:
+  1. 引入 `ContextBundle` 结构化契约，重构 `build_base_system_prompt` 返回值与接口接缝。
+  2. 在 `assemble_messages` 入口增加白名单 `{"user", "assistant", "system"}` 报文过滤，彻底拦截 `system_info`。
+  3. 将 `perfect_one_shot` 下沉归位至 `prompts.py`，在 `context_manager.py` 实现①洗净与时序、②动态示教、③尾部夹层三步管线编排。
+- **Affected Files**: [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py), [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py), [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py), [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+- **Acceptance Criteria**:
+  1. `assemble_messages` 能够成功拦截并过滤掉 `role == 'system_info'` 等 UI 卡片报文（彻底解决 Bug #6）；
+  2. 废除魔法字符串切割，`ContextBundle` 强类型传递静态人设、动态尾部、RAG 知识与近期记忆；
+  3. 提示词解耦与三步管线重构后，全量单测绿灯通过，发往大模型的上下文报文 100% 保持结构化纯密。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_context_manager.py`
+
+### <a id="issue-11"></a>[ISSUE-11] 尾部动态夹层 O(1) 边界断言优化与反向扫描废除
+- **Status**: `DONE` (已完成 - 2026-07-05)
+- **Parent**: [Bug #12](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md#L108-L115) / `ADR-009`
+- **User Story**: 作为大模型会话上下文引擎，当在 `assemble_messages` 中执行尾部动态夹层（当前系统时间 `<current_time>` 与底层防错协议）注入时，系统必须通过 O(1) 常数时间边界断言直接操作列表物理最末尾 `[-1]`，彻底废除往回倒序扫描历史 `user` 的循环，既保障对历史对白的绝对零污染与视觉割裂防护，又将组装核心逻辑极简收敛为 4 行清晰代码。
+- **What to build**:
+  1. 在 `backend/services/context_manager.py` 的 `assemble_messages` 中，删去旧版 11 行倒序 `for` 循环与 `injected` 状态变量。
+  2. 落地极简 O(1) 边界条件：
+     ```python
+     if formatted_messages and formatted_messages[-1]["role"] == "user":
+         formatted_messages[-1]["content"] += tail_injection
+     else:
+         formatted_messages.append({"role": "user", "content": "[下一轮提问等待中 / Waiting for next prompt]" + tail_injection})
+     ```
+- **Affected Files**: [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+- **Acceptance Criteria**:
+  1. 彻底移除倒序查找历史 `user` 的循环与冗余状态变量，时间复杂度从最坏 O(N) 降为 O(1)。
+  2. 严格遵循会话三层物理契约：当列表中最后一条消息刚好为 `user` 时，尾部夹层追加于该消息；当最后一条为 `assistant` 待机或仅有 `system` 时，自动追加标准待机容器。
+  3. 全量 12 项后端单测无需修改任何断言，100% 绿灯通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_context_manager.py backend/tests/test_rag_retrieval.py`
+
+

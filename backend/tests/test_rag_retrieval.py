@@ -53,3 +53,58 @@ def test_long_file_rag_retrieval_uses_original_message(tmp_path):
         # This will currently FAIL because chat.py passes last_user_msg (which includes <file_content>...)
         assert "<file_content" not in args[0], "RAG retrieval query contains expanded file content!"
         assert args[0] == original_msg, f"Expected '{original_msg}', got '{args[0][:100]}...'"
+
+
+def test_rag_retrieval_filters_out_irrelevant_casual_chat_bug_10():
+    """
+    TDD [Bug #10] RED step:
+    当用户输入纯闲聊或简单问候（如 "你好呀"、"吃了没"、"呃呃呃"）时，
+    ChromaDB 语义检索必须通过距离阈值（distance threshold，如 distance > 1.2 或 similarity < 0.3）
+    拦截不相关资料的机械召回，返回空列表，防止闲聊时检索出无关代码或专业讲义污染上下文。
+    """
+    from backend.services.chroma_client import chroma_rag_client
+    
+    with patch.object(chroma_rag_client, "_get_collection") as mock_get_coll:
+        mock_coll = MagicMock()
+        mock_get_coll.return_value = mock_coll
+        mock_coll.count.return_value = 5
+        # 模拟 ChromaDB query 返回很大的距离值（例如 1.5 表示极度不相关）
+        mock_coll.query.return_value = {
+            "documents": [["《嵌入式GPIO寄存器配置规范》", "万欲魔宗宗规第三条"]],
+            "distances": [[1.5, 1.6]]
+        }
+        
+        # 检索闲聊语
+        results = chroma_rag_client.retrieve("你好呀，吃了没")
+        
+        # 距离 1.5 > 设定的阈值（例如 1.2 或 1.0），必须被拦截过滤，返回空列表！
+        assert len(results) == 0, f"Expected 0 results for casual chat with high distance, got {results}"
+
+
+def test_chunk_text_uses_natural_boundaries_without_character_truncation_bug_11():
+    """
+    TDD [Bug #11] RED step:
+    验证 _chunk_text 在切块重叠时，不会使用简单的字符串硬截断 [-overlap:]，
+    导致单词或句首被生硬切断（出现半个词或乱码字符）。
+    重叠内容必须保留完整的自然句子或段落边界。
+    """
+    from backend.services.chroma_client import _chunk_text
+    
+    # 构造一段由多个长句组成的文章
+    sent1 = "第一句这是一个非常非常长但是结构完整的中文句子用以测试文本分块逻辑。" * 5  # 175字
+    sent2 = "第二句这是紧接着的另一个完整句子用于验证句界分隔是否会发生乱码或生硬截断。" * 5 # 190字
+    sent3 = "第三句我们希望分块结果在发生重叠时能保持整句完整而不是从句子中间割裂。" * 5  # 185字
+    text = f"{sent1}。{sent2}。{sent3}。"
+    
+    chunks = _chunk_text(text, chunk_size=300, overlap=50)
+    assert len(chunks) >= 2
+    
+    # 验证每一个 chunk 中，绝对不会存在从单句中间字符硬切断产生的残缺片段
+    for i, c in enumerate(chunks):
+        if i > 0:
+            idx = text.find(c[:20])
+            assert idx != -1
+            if idx > 0:
+                prev_char = text[idx - 1]
+                assert prev_char in ["。", "！", "？", "\n"], f"Chunk {i} started at middle of sentence! prev_char='{prev_char}', chunk start='{c[:20]}'"
+

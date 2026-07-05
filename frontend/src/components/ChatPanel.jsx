@@ -400,36 +400,36 @@ export default function ChatPanel({
   const maxTokens = activeModelConfig?.max_context_tokens || 8192;
 
   // 请求后端获取 hidden system context tokens
-  React.useEffect(() => {
-    const fetchSystemTokens = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/api/chat/system_context`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            messages: messages,
-            persona_type: localStorage.getItem('persona_type') || 'simplified',
-            current_file_path: selectedFilePath || '',
-            cursor_line: cursorLine || 0,
-            selection_start_line: selectionStartLine || 0,
-            selection_end_line: selectionEndLine || 0,
-            selected_text: selectedText || '',
-            custom_max_tokens: maxTokens
-          })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setBaseSystemTokens(data.baseSystemTokens || 0);
-          setBaseSystemPromptContent(data.system_prompt || '');
-        }
-      } catch (e) {
-        console.error('Failed to fetch system tokens:', e);
+  const fetchSystemTokens = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/system_context`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          messages: messages,
+          persona_type: localStorage.getItem('persona_type') || 'simplified',
+          current_file_path: selectedFilePath || '',
+          cursor_line: cursorLine || 0,
+          selection_start_line: selectionStartLine || 0,
+          selection_end_line: selectionEndLine || 0,
+          selected_text: selectedText || '',
+          custom_max_tokens: maxTokens
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setBaseSystemTokens(data.baseSystemTokens || 0);
+        setBaseSystemPromptContent(data.system_prompt || '');
       }
-    };
+    } catch (e) {
+      console.error('Failed to fetch system tokens:', e);
+    }
+  };
 
-    // 我们在会话改变或新消息发出后，以及切换具有不同最大 Token 数的模型时，静默刷新底层 Token 占用
+  React.useEffect(() => {
+    // 我们在会话改变、新消息发出后、流式生成完成时，以及切换具有不同最大 Token 数的模型时，静默刷新底层 Token 占用和预设预览
     fetchSystemTokens();
-  }, [messages.length, activeSessionId, selectedFilePath, cursorLine, selectionStartLine, selectionEndLine, selectedText, activeModel, maxTokens]);
+  }, [messages.length, isStreaming, activeSessionId, selectedFilePath, cursorLine, selectionStartLine, selectionEndLine, selectedText, activeModel, maxTokens]);
 
   // 计算前端动态 tokens
   React.useEffect(() => {
@@ -597,8 +597,11 @@ export default function ChatPanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <button
             className="cc-icon-btn"
-            onClick={() => setShowSystemPromptModal(true)}
-            title="查看当前完整系统提示词"
+            onClick={() => {
+              fetchSystemTokens();
+              setShowSystemPromptModal(true);
+            }}
+            title="查看实时组装报文视窗 (Assembled Context Payload)"
             style={{ width: '20px', height: '20px', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid var(--border-color)', borderRadius: '50%', background: 'var(--bg-secondary)' }}
           >
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -1130,7 +1133,7 @@ export default function ChatPanel({
             flexDirection: 'column', boxShadow: 'var(--shadow-lg)'
           }}>
             <div style={{ padding: '16px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontWeight: 'bold', fontSize: '14px', color: 'var(--text-primary)' }}>当前系统预设提示词 (System Prompt Preview)</span>
+              <span style={{ fontWeight: 'bold', fontSize: '14px', color: 'var(--text-primary)' }}>实时组装报文视窗 (Assembled Context Payload)</span>
               <button onClick={() => setShowSystemPromptModal(false)} style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: 'var(--text-secondary)' }}>
                 <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M4.646 4.646a.5.5 0 0 1 .708 0L8 7.293l2.646-2.647a.5.5 0 0 1 .708.708L8.707 8l2.647 2.646a.5.5 0 0 1-.708.708L8 8.707l-2.646 2.647a.5.5 0 0 1-.708-.708L7.293 8 4.646 5.354a.5.5 0 0 1 0-.708z"/></svg>
               </button>
