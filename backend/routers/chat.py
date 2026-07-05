@@ -53,7 +53,7 @@ def get_system_context(payload: ChatRequest):
     system_prompt, _, _ = _build_full_system_prompt(payload, last_user_msg)
     from backend.services.context_manager import assemble_messages
     
-    formatted_messages = [{"role": m.role, "content": m.content} for m in payload.messages]
+    formatted_messages = [{"role": m.role, "content": m.content, "timestamp": m.timestamp} for m in payload.messages]
     assembled = assemble_messages(formatted_messages, system_prompt)
     full_preview_prompt = "\n\n--- [Message Boundary] ---\n\n".join([f"[{m['role'].upper()}]\n{m['content']}" for m in assembled])
     
@@ -74,8 +74,8 @@ def send_message(payload: ChatRequest):
     original_last_user_msg = last_user_msg
 
     # 1. 转换消息格式
-    formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content} for msg in payload.messages]
-    cleaned_messages = [{"role": m["role"], "content": m["content"]} for m in formatted_messages]
+    formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content, "timestamp": msg.timestamp} for msg in payload.messages]
+    cleaned_messages = [{"role": m["role"], "content": m["content"], "timestamp": m.get("timestamp")} for m in formatted_messages]
 
     # 2. 检查是否处于 mission_draft 阻塞状态 (Hard Block)
     try:

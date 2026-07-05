@@ -33,6 +33,22 @@ def _get_embedding_fn():
     except Exception:
         return None  # 让 chromadb 用内置默认嵌入（all-MiniLM-L6-v2）
 
+def _get_overlap_text(text: str, max_overlap: int) -> str:
+    """获取不超过 max_overlap 且保持完整句子或段落边界的末尾文本"""
+    if not text or len(text) <= max_overlap:
+        return text
+    tail = text[-max_overlap:]
+    match = re.search(r'[。！？\.\!\?\n]\s*', tail)
+    if match and match.end() < len(tail):
+        return tail[match.end():]
+    match_all = list(re.finditer(r'[。！？\.\!\?\n]\s*', text))
+    if match_all:
+        for m in reversed(match_all):
+            if m.end() < len(text) and len(text) - m.end() <= max_overlap * 2:
+                return text[m.end():]
+    return ""
+
+
 def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 60) -> List[str]:
     """按句子边界切块，保持一定重叠"""
     # 先按段落切（两个换行为段落分隔）
@@ -53,14 +69,14 @@ def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 60) -> List[str
                 else:
                     if current:
                         chunks.append(current.strip())
-                    current = current[-overlap:] + sent if len(current) > overlap else sent
+                    current = _get_overlap_text(current, overlap) + sent
         else:
             if len(current) + len(para) <= chunk_size:
                 current += "\n" + para
             else:
                 if current:
                     chunks.append(current.strip())
-                current = current[-overlap:] + "\n" + para if len(current) > overlap else para
+                current = _get_overlap_text(current, overlap) + "\n" + para
 
     if current.strip():
         chunks.append(current.strip())
@@ -164,8 +180,11 @@ class ChromaRAGClient(RAGClient):
                     count = collection.count()
                     if count == 0:
                         continue
-                    results = collection.query(query_texts=[query], n_results=min(n_results, count))
+                    results = collection.query(query_texts=[query], n_results=min(n_results, count), include=["documents", "distances"])
                     docs = results.get("documents", [[]])[0]
+                    distances = results.get("distances", [[]])[0]
+                    if distances and len(distances) == len(docs):
+                        docs = [doc for doc, dist in zip(docs, distances) if dist <= 1.2]
                     all_chunks.extend(docs)
                 except Exception:
                     continue
@@ -210,8 +229,12 @@ class ChromaRAGClient(RAGClient):
             count = collection.count()
             if count == 0:
                 return []
-            results = collection.query(query_texts=[query], n_results=min(n_results, count))
-            return results.get("documents", [[]])[0]
+            results = collection.query(query_texts=[query], n_results=min(n_results, count), include=["documents", "distances"])
+            docs = results.get("documents", [[]])[0]
+            distances = results.get("distances", [[]])[0]
+            if distances and len(distances) == len(docs):
+                docs = [doc for doc, dist in zip(docs, distances) if dist <= 1.2]
+            return docs
         except Exception as e:
             print(f"ChromaDB retrieve_memory error: {e}")
             return []

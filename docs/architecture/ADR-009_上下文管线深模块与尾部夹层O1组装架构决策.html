@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>ADR-009: 上下文管线深模块与尾部夹层 O(1) 组装架构决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; align-items: center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+        .seam { stroke-dasharray: 4 4; }
+        .leak { stroke: #dc2626; }
+        .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-009</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                📅 决策时间：2026-07-05 | ✍️ 决策方：媚吻锋架构审查团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            上下文管线深模块与尾部夹层 O(1) 组装架构决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            由候选报告 <code>context_manager_architecture_report</code> 升格列装。践行 Matt Pocock “深模块 (Deep Modules)” 与 DDD “通用语言 (Ubiquitous Language)” 哲学，收纳解决 Bug #6、Bug #7、Bug #9、Bug #12 (ISSUE-11)。彻底解耦 <code>ContextManager</code> 与 <code>prompts.py</code>，设立角色白名单拦截 UI 专属卡片，消除 <code>=== [DYNAMIC_BOUNDARY] ===` 字符串切割，并将尾部人设注入从 O(N) 倒序扫描重构为 O(1) 极速追加。
+        </p>
+        
+        <!-- Badge Row Extensions -->
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-purple-50 text-purple-700 border border-purple-200">🏷️ LLM-Prompt-Injection (人设与系统提示词注入拦截)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">✨ Roleplay-Immersion (酒馆式角色扮演沉浸)</span>
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">⚡ O(1)-Complexity-Engine (O(1) 极速上下文追加)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">演进背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">浅层管线偶合、倒序遍历开销与领域术语歧义</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-red-50/50 rounded-xl p-5 border border-red-100">
+                <div class="font-bold text-red-900 text-sm mb-2 flex items-center gap-2">
+                    <span>⚠️ 浅层管线与 UI 角色泄露</span>
+                </div>
+                <p class="text-xs text-red-700 leading-relaxed">
+                    原有 <code>ContextManager</code> 是典型的浅模块，依赖脆弱的字符串切割 (<code>=== [DYNAMIC_BOUNDARY] ===</code>) 区分提示词边界。此外，管线未对前端专用交互角色 (<code>system_info</code>) 进行清洗拦截，导致其直接泄露发往大模型 API 引发报错（Bug #6 / Bug #9）。
+                </p>
+            </div>
+            <div class="bg-red-50/50 rounded-xl p-5 border border-red-100">
+                <div class="font-bold text-red-900 text-sm mb-2 flex items-center gap-2">
+                    <span>❌ 尾部夹层 O(N) 倒序扫描</span>
+                </div>
+                <p class="text-xs text-red-700 leading-relaxed">
+                    在为对话追加动态尾部人设与 RAG 切片时，旧代码采用 O(N) 倒序遍历整个消息历史寻找最后的 AI 回波，甚至暴力将已存回波篡改为 <code>user</code> 角色。这不仅消耗不必要的 CPU 循环，更割裂了历史上下文问答语境（Bug #12 / ISSUE-11）。
+                </p>
+            </div>
+            <div class="bg-red-50/50 rounded-xl p-5 border border-red-100">
+                <div class="font-bold text-red-900 text-sm mb-2 flex items-center gap-2">
+                    <span>🌀 “系统提示词”语意重载</span>
+                </div>
+                <p class="text-xs text-red-700 leading-relaxed">
+                    前后端长期将“顶部静态规则”和“发往 API 的全量报文”笼统称为“系统提示词 (System Prompt)”。严重语意重载导致开发者和用户在交互预览与排错时发生认知解耦，无法清晰感知尾部夹层与历史轮次的界限。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">三步洗净管线、O(1) 极速追加与 DDD 通用语言硬化</p>
+            </div>
+        </div>
+
+        <!-- 核心解耦方案说明 -->
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-blue-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-900">核心决策一：三步洗净管线与 One-Shot 模板解耦</h3>
+                <p class="text-sm text-slate-600 mt-1">
+                    在 <code>assemble_messages</code> 中确立严谨的三步处理管线：首先通过角色白名单 (<code>{'system', 'user', 'assistant', 'tool'}</code>) 拦截剥离所有非 LLM 原生的 UI 交互消息；随后将原来硬编码在管线中的 20 行 One-Shot 示教模板彻底解耦下沉至 <code>prompts.py</code>，实现业务模板与核心管线的关注点分离。
+                </p>
+            </div>
+            <div class="border-l-4 border-emerald-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-900">核心决策二：O(1) 尾部夹层追加与待机轮次容器</h3>
+                <p class="text-sm text-slate-600 mt-1">
+                    彻底废除 <code>_inject_dynamic_tail</code> 中的 O(N) 倒序循环。改为通过 <code>messages[-1]</code> 进行 O(1) 物理末尾判定：若末尾已经是 <code>user</code> 提问，则直接在其内容后方换行追加动态尾部夹层；若末尾是 <code>assistant</code>（AI 回合刚完结），则在末尾独立构造一个专属的 <strong>待机轮次容器 (Standby Turn Container)</strong> 承载夹层，确保零历史割裂与极速执行。
+                </p>
+            </div>
+            <div class="border-l-4 border-purple-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-900">核心决策三：全库通用语言硬化 (Ubiquitous Language)</h3>
+                <p class="text-sm text-slate-600 mt-1">
+                    严格遵照 <code>/ubiquitous-language</code> 技能规范，消除“系统提示词”语意重载，硬化为以下四大规范概念并在全库文档与前端 UI（<code>ChatPanel.jsx</code>）全量落地：
+                </p>
+            </div>
+        </div>
+
+        <!-- 通用语言规范表格 -->
+        <div class="overflow-x-auto mb-8 border border-slate-200 rounded-xl">
+            <table class="w-full text-left text-sm">
+                <thead class="bg-slate-100 text-slate-700 font-bold border-b border-slate-200">
+                    <tr>
+                        <th class="p-4 w-1/4">规范术语 (Canonical Term)</th>
+                        <th class="p-4 w-1/2">核心定义 (Tight Definition)</th>
+                        <th class="p-4 w-1/4">避免使用的歧义词 (Aliases to avoid)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100">
+                    <tr>
+                        <td class="p-4 font-bold text-slate-900">静态系统预设<br>(Static Persona Prompt)</td>
+                        <td class="p-4 text-slate-600">仅指处于会话物理最顶部的 <code>role: system</code> 报文，承载角色性格、教学守则与常量设定。</td>
+                        <td class="p-4 text-slate-400 font-mono text-xs">系统提示词、全局预设、System Prompt</td>
+                    </tr>
+                    <tr class="bg-slate-50/50">
+                        <td class="p-4 font-bold text-slate-900">动态尾部夹层<br>(Dynamic Tail Injection)</td>
+                        <td class="p-4 text-slate-600">在每次发包前由 <code>ContextManager</code> 动态追加至物理末端的上下文感知块，整合当前时间戳、RAG 检索切片与底层防错指针。</td>
+                        <td class="p-4 text-slate-400 font-mono text-xs">尾部提示词、小尾巴、最后的话、系统尾缀</td>
+                    </tr>
+                    <tr>
+                        <td class="p-4 font-bold text-slate-900">实时组装报文视窗<br>(Assembled Context Payload)</td>
+                        <td class="p-4 text-slate-600">经过洗净、单发示教与尾部夹层组装后，最终全量发往大模型 API 交互的完整会话报文序列展现（前端弹窗透视）。</td>
+                        <td class="p-4 text-slate-400 font-mono text-xs">完整系统提示词、系统预设预览</td>
+                    </tr>
+                    <tr class="bg-slate-50/50">
+                        <td class="p-4 font-bold text-slate-900">待机轮次容器<br>(Standby Turn Container)</td>
+                        <td class="p-4 text-slate-600">在 AI 回合完结后、用户下一轮提问前，为承载尾部夹层而在物理末端独立构造的临时 <code>user</code> 角色占位卡片。</td>
+                        <td class="p-4 text-slate-400 font-mono text-xs">空问答、占位符、假消息</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Before vs After 流程图 -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2">
+            <div class="rounded-xl border border-red-200 bg-red-50/30 p-5 space-y-3">
+                <div class="text-xs uppercase tracking-wider font-mono text-red-700 font-bold flex items-center justify-between">
+                    <span>Before: 浅层管线与 O(N) 倒序扫描</span>
+                    <span class="px-2 py-0.5 bg-red-100 text-red-800 rounded">Deprecated</span>
+                </div>
+                <div class="mermaid">
+                flowchart TD
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    Chat["chat.py Router"] -->|"Raw Messages"| CM["context_manager.py (Shallow)"]
+                    CM -.leak.-> UI["UI 卡片 system_info 泄露 API"]
+                    CM -->|"=== [DYNAMIC_BOUNDARY] ==="| StringSplit["字符串硬切割"]
+                    CM -->|"O(N) 倒序扫描整个数组"| Loop["寻找最后 AI 回复并粗暴改成 user"]
+                    Loop --> Broken["历史问答语境割裂 / 性能开销"]
+                    classDef leak stroke:#dc2626,stroke-width:2px,fill:#fef2f2;
+                    class UI,StringSplit,Loop,Broken leak;
+                </div>
+            </div>
+            <div class="rounded-xl border border-emerald-300 bg-emerald-50/20 p-5 space-y-3">
+                <div class="text-xs uppercase tracking-wider font-mono text-emerald-800 font-bold flex items-center justify-between">
+                    <span>After: 深模块管线与 O(1) 尾部夹层</span>
+                    <span class="px-2 py-0.5 bg-emerald-100 text-emerald-800 rounded font-bold">Active / Authoritative</span>
+                </div>
+                <div class="mermaid">
+                flowchart TD
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    Chat["chat.py Router"] -->|"ContextBundle 契约"| CM["Deep Context Engine Module"]
+                    subgraph CM [ContextEngine 深模块管线]
+                        Seam["1. 洗净接缝：角色白名单拦截"] -->|"过滤 system_info"| Clean["纯净原生对白"]
+                        Clean -->|"2. 注入解耦 One-Shot"| OneShot["prompts.py"]
+                        OneShot -->|"3. O(1) 物理末尾判定"| Tail["末尾是 user ? 直接追加 : 独立待机容器"]
+                    end
+                    Tail --> Out["实时组装报文视窗 (Assembled Payload)"]
+                    classDef deep fill:#0f172a,stroke:#1e293b,color:#fff;
+                    class CM deep;
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">后果与长期收益 (Consequences & Evaluation)</h2>
+                <p class="text-sm text-slate-500">局部性极佳、高杠杆率与 100% 回归测试保障</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-emerald-50/50 rounded-xl p-5 border border-emerald-100">
+                <div class="font-bold text-emerald-900 text-sm mb-2 flex items-center gap-2">
+                    <span>⚡ 极致的算法效率与局部性 (Locality & Speed)</span>
+                </div>
+                <p class="text-xs text-emerald-800 leading-relaxed">
+                    尾部夹层追加时间复杂度从 O(N) 彻底降至 O(1)。在长达数百轮的长上下文课堂对话中，CPU 无需再倒序循环和发生额外内存拷贝。所有消息洗净与注入逻辑 100% 收敛在 <code>ContextManager.assemble_messages</code> 内部，局部性极佳。
+                </p>
+            </div>
+            <div class="bg-emerald-50/50 rounded-xl p-5 border border-emerald-100">
+                <div class="font-bold text-emerald-900 text-sm mb-2 flex items-center gap-2">
+                    <span>🛡️ 零回滚风险与高杠杆率 (Leverage & Safety)</span>
+                </div>
+                <p class="text-xs text-emerald-800 leading-relaxed">
+                    一个 <code>ContextBundle</code> 接口服务于全系统所有模型路由。本次重构及 DDD 通用语言硬化已通过 <code>test_context_manager.py</code> 中 13 个联合回归测试套件（含 Bug #6, #7, #8, #9, #12）100% 验证绿灯。前后端界面与术语保持全量统一，用户互动清晰直观。
+                </p>
+            </div>
+        </div>
+    </section>
+</div>
+
+</body>
+</html>

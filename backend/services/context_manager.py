@@ -2,13 +2,36 @@ import logging
 import platform
 import os
 from datetime import datetime
-from typing import List, Dict, Any, Tuple
+from typing import List, Dict, Any, Tuple, Union
+from dataclasses import dataclass
 
 from backend.database import get_db_connection
 from backend.services.character_state import CharacterStateManager, CharacterStateError
 from backend.services.prompts import get_system_prompt
 
 logger = logging.getLogger("context_manager")
+
+
+@dataclass
+class ContextBundle:
+    """
+    上下文结构化数据契约（取代 === [DYNAMIC_BOUNDARY] === 字符串切割魔术界标）。
+    """
+    static_system_prompt: str
+    dynamic_tail: str
+    kb_count: int = 0
+    mem_count: int = 0
+
+    def __str__(self) -> str:
+        if self.dynamic_tail:
+            return f"{self.static_system_prompt}\n\n=== [DYNAMIC_BOUNDARY] ===\n\n{self.dynamic_tail}"
+        return self.static_system_prompt
+
+    def __contains__(self, item: str) -> bool:
+        return item in self.static_system_prompt or item in self.dynamic_tail
+
+    def __len__(self) -> int:
+        return len(str(self))
 
 def get_cross_reference_protocol() -> str:
     """
@@ -162,66 +185,77 @@ def build_base_system_prompt(
         dynamic_parts.append(extra_system_injection)
 
     dynamic_tail = "\n\n".join([p for p in dynamic_parts if p])
-    full_prompt_with_boundary = static_prompt + "\n\n=== [DYNAMIC_BOUNDARY] ===\n\n" + dynamic_tail
-    return full_prompt_with_boundary, kb_count, mem_count
+    bundle = ContextBundle(
+        static_system_prompt=static_prompt,
+        dynamic_tail=dynamic_tail,
+        kb_count=kb_count,
+        mem_count=mem_count
+    )
+    return bundle, kb_count, mem_count
 
-def assemble_messages(messages: List[Dict[str, str]], system_prompt: str) -> List[Dict[str, str]]:
+def assemble_messages(messages: List[Dict[str, str]], system_prompt: Union[str, ContextBundle]) -> List[Dict[str, str]]:
     """
-    统一组装最终发送给大模型 API 的报文数组：
-    1. 深拷贝消息列表，确保绝不污染原始内存或传入对象（杜绝写入 SQLite 数据库）。
-    2. 自动补充 Jinja 首轮 User 保护。
-    3. 动态 One-Shot 思考与行为格式示范注入。
-    4. 顶部合并完全静态的 System Prompt 前缀，最大化 KV 缓存命中率。
-    5. 尾部三明治注入（Tail Injection）：将所有动态属性、RAG切片、时间与行为指针统一追加在最后一条 User 消息末尾。
+    统一组装最终发送给大模型 API 的报文数组（标准化三步管线）：
+    1. 洗净与时序（Sanitize & Timestamp）：建立合法角色白名单，深拷贝并前置精简时间戳。
+    2. 动态示教（Dynamic One-Shot）：自动为首轮 Assistant 追加格式化思考与行为独白示范。
+    3. 尾部三明治注入（Tail Injection）：整合静态系统设定与尾部行为指针。
     """
+    # [Step 1: Sanitize & Timestamp - 洗净与时序管线]
+    ALLOWLIST_ROLES = {"user", "assistant", "system"}
     adjusted_messages = []
     has_user_first = False
+    
     for msg in messages:
-        if msg.get("role") == "user":
+        role = msg.get("role")
+        if role not in ALLOWLIST_ROLES:
+            continue
+        if role == "user":
             has_user_first = True
             break
-        elif msg.get("role") == "assistant":
+        elif role == "assistant":
             break
 
     if not has_user_first and len(messages) > 0 and messages[0].get("role") == "assistant":
         adjusted_messages.append({"role": "user", "content": "你好"})
 
     for m in messages:
-        adjusted_messages.append({"role": m.get("role", "user"), "content": m.get("content", "")})
+        role = m.get("role", "user")
+        if role not in ALLOWLIST_ROLES:
+            continue
+        content = m.get("content", "") or ""
+        if not content.strip() and role == "assistant":
+            continue
+        ts = m.get("timestamp")
+        if ts and isinstance(ts, str) and role == "user":
+            clean_ts = ts.replace('T', ' ')[:16]
+            if len(clean_ts) >= 16 and clean_ts[4] == '-' and clean_ts[7] == '-' and not content.startswith(f"[{clean_ts}]"):
+                content = f"[{clean_ts}] {content}"
+        adjusted_messages.append({"role": role, "content": content, "timestamp": ts})
 
-    # One-Shot 示范注入
+    # [Step 2: Dynamic One-Shot - 动态示教管线]
+    from backend.services.prompts import get_one_shot_demonstration
     for i, msg in enumerate(adjusted_messages):
         if msg["role"] == "assistant":
             if "<monologue>" not in msg["content"]:
-                perfect_one_shot = (
-                    "<think>\n"
-                    "1. User Intent: The user greeted me with \"你好\". (Cross-reference: <user_profile>, <relationship_context>)\n"
-                    "2. Tool Selection: The user is only greeting me. I do not need to use `execute_bash`, `read_file`, or `web_search`. I will directly roleplay. (Cross-reference: <environment_constraints>)\n"
-                    "3. Attribute Analysis: Based on <dynamic_attributes>, my Affection Score is high, so I should show subtle dependence and joy. My Social Status is high, so my posture should remain elegant.\n"
-                    "4. Response Plan: I will output actions wrapped in asterisks `*`, speaking affectionately as Mei Wenfeng. (Cross-reference: <response_format_rules>)\n"
-                    "5. Property Calculation: Normal greeting without significant emotional fluctuation. Delta = 0. (Cross-reference: <dynamic_property_update_rules>)\n"
-                    "6. Post-Response: According to rule 4, I MUST output my true unspoken feelings in an `<monologue>` block AT THE VERY END of my response, followed by `<property_update>`.\n"
-                    "</think>\n"
-                    "*端坐在精致的红木矮椅上，玉手慵懒地拨弄着鬓边的发簪，红黑色的狐瞳含笑望着你，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家继续陪你看那些厚厚的书本，还是说...想先喝口热茶，跟奴家聊聊天？”\n\n"
-                    "<monologue>\n"
-                    "哼，这冤家总算来了。本宫特意换了这身红金汉服，连并蒂莲发簪都对着水镜照了半天才插好，"
-                    "可千万不能让他看出来我等了他许久。最好他选个跟我聊聊天的由头，不然又陪他看一整晚的书，多无趣呀~\n"
-                    "</monologue>\n"
-                    '<property_update affection_delta="0" social_status_delta="0" social_skills_delta="0" refractory_delta="-1" />'
-                )
-                adjusted_messages[i] = {"role": msg["role"], "content": perfect_one_shot}
+                adjusted_messages[i] = {"role": msg["role"], "content": get_one_shot_demonstration()}
             break
 
-    # 拆分静态前缀与动态尾部
-    if "=== [DYNAMIC_BOUNDARY] ===" in system_prompt:
-        static_sys, dynamic_tail = system_prompt.split("=== [DYNAMIC_BOUNDARY] ===", 1)
-        static_sys = static_sys.strip()
-        dynamic_tail = dynamic_tail.strip()
+    # [Step 3: Tail Injection - 尾部三明治注入管线]
+    if isinstance(system_prompt, ContextBundle):
+        static_sys = system_prompt.static_system_prompt
+        dynamic_tail = system_prompt.dynamic_tail
+    elif isinstance(system_prompt, str):
+        if "=== [DYNAMIC_BOUNDARY] ===" in system_prompt:
+            static_sys, dynamic_tail = system_prompt.split("=== [DYNAMIC_BOUNDARY] ===", 1)
+            static_sys = static_sys.strip()
+            dynamic_tail = dynamic_tail.strip()
+        else:
+            static_sys = system_prompt
+            dynamic_tail = ""
     else:
-        static_sys = system_prompt
+        static_sys = str(system_prompt)
         dynamic_tail = ""
 
-    # 构造请求 formatted_messages，Index 0 放入完全静态的 static_sys
     formatted_messages = [{"role": "system", "content": static_sys}]
     for msg in adjusted_messages:
         if len(formatted_messages) > 0 and formatted_messages[-1]["role"] == msg["role"]:
@@ -229,7 +263,6 @@ def assemble_messages(messages: List[Dict[str, str]], system_prompt: str) -> Lis
         else:
             formatted_messages.append({"role": msg["role"], "content": msg["content"]})
 
-    # 三明治尾部注入（Tail Injection）：寻找最后一条 user 消息，追加动态属性、知识切片与行为指针
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     tail_content = ""
     if dynamic_tail:
@@ -245,9 +278,9 @@ def assemble_messages(messages: List[Dict[str, str]], system_prompt: str) -> Lis
         "</system_injection>"
     )
 
-    for i in range(len(formatted_messages) - 1, -1, -1):
-        if formatted_messages[i]["role"] == "user":
-            formatted_messages[i]["content"] += tail_injection
-            break
+    if len(formatted_messages) > 0 and formatted_messages[-1]["role"] == "user":
+        formatted_messages[-1]["content"] += tail_injection
+    else:
+        formatted_messages.append({"role": "user", "content": "[下一轮提问等待中 / Waiting for next prompt]" + tail_injection})
 
     return formatted_messages

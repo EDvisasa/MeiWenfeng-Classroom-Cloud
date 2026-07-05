@@ -185,5 +185,57 @@ describe('ChatPanel Editing Behavior Tests', () => {
 
     global.fetch = originalFetch;
   });
+
+  it('TDD 5 [Bug #8]: triggers system_context fetch when isStreaming changes from true to false', async () => {
+    const originalFetch = global.fetch;
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ baseSystemTokens: 100, system_prompt: "updated prompt" })
+    });
+    global.fetch = mockFetch;
+
+    const props = {
+      ...getBaseProps(),
+      isStreaming: true,
+      messages: [{ role: 'assistant', content: '流式生成完毕的内容' }]
+    };
+
+    const { rerender } = render(<ChatPanel {...props} />);
+    expect(mockFetch).toHaveBeenCalled();
+    mockFetch.mockClear();
+
+    // Rerender with isStreaming=false while messages.length remains the same
+    rerender(<ChatPanel {...props} isStreaming={false} />);
+    expect(mockFetch).toHaveBeenCalled();
+
+    global.fetch = originalFetch;
+  });
+
+  it('TDD 6 [Bug #9]: triggers system_context fetch when opening system prompt modal or clicking button', async () => {
+    const originalFetch = global.fetch;
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ baseSystemTokens: 200, system_prompt: "latest system prompt" })
+    });
+    global.fetch = mockFetch;
+
+    const props = {
+      ...getBaseProps(),
+      isStreaming: false,
+      messages: [{ role: 'user', content: '现在呢？' }]
+    };
+
+    render(<ChatPanel {...props} />);
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+    mockFetch.mockClear();
+
+    const btn = screen.getByTitle('查看实时组装报文视窗 (Assembled Context Payload)');
+    fireEvent.click(btn);
+
+    expect(mockFetch).toHaveBeenCalledTimes(1);
+
+    global.fetch = originalFetch;
+  });
 });
+
 
