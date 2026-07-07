@@ -89,11 +89,20 @@ domain: project-planning
   2. 弹窗主控即时刷新：在 [ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) 中将 `fetchSystemTokens` 提炼为独立可访问方法，并在点击“查看当前完整系统提示词”按钮（`onClick`）打开弹窗时，强制执行一次 `fetchSystemTokens()`，确保每次弹窗展现的都是 100% 实时同步的最新对白与系统提示词。
   3. TDD 闭环验证：在 [test_context_manager.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 新增 `test_assemble_messages_only_injects_timestamp_to_user_messages_bug_9`；在 [ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 新增 `TDD 6 [Bug #9]: triggers system_context fetch when opening system prompt modal or clicking button`，全量前后端测试绿灯通过。
 
-### 10. [已解决] RAG 知识库语义检索缺乏相似度阈值过滤（闲聊时强制召回无关讲义）
+
+### 10. [已解决 / 物理空间校准] RAG 知识库语义检索缺乏有效相似度阈值过滤（闲聊时仍强制召回无关讲义）
 - **现象描述**：在用户进行日常招呼或发送口语化短语（如 `你好`、`呃呃呃`、`现在呢？`、`依旧没解决`）时，系统右上角仍提示“成功检索并加载：3 个讲义片段”，并在尾部夹层（`<system_injection>`）中强行注入了与对话毫无关系的 STM32 / GPIO 硬件编程讲义切片。
+- **物理空间真实分布调研（通过 `benchmark_rag_threshold.py` 68 组样本实测）**：
+  1. 此前设定的 `dist <= 1.2` 在真实高维向量空间（`paraphrase-multilingual-MiniLM-L12-v2`）中彻底失效；原单测中依靠 `unittest.mock` 凭空伪造 `distances: [[1.5, 1.6]]` 蒙蔽了测试管线。
+  2. 剔除非工科冗余切片、仅保留纯净硬核嵌入式硬件与操作系统的教学语料后，物理空间呈现出清晰的分隔屏障：
+     - **纯闲聊与日常招呼（Suite A）**：欧氏平方距离区间落在 `[0.8038 ~ 0.9806]`，均值 `0.8841`。
+     - **口语状态追问与模糊沟通（Suite B）**：欧氏平方距离区间落在 `[0.7889 ~ 0.9320]`，均值 `0.8764`。
+     - **真实硬核技术提问（Suite C）**：欧氏平方距离区间落在 `[0.1557 ~ 0.6611]`，均值 `0.3637`。
+  3. **绝对安全物理隔离区间**：在物理区间 `[0.68 ~ 0.78]` 内，闲聊/口语误报率降至绝对 **0.0%**（0 False Positives），而技术讲义真召回率高达 **100.0%**！
 - **解决路线**：
-  1. 门控过滤升级：在 [chroma_client.py](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py) 的 `retrieve` 与 `retrieve_memory` 方法中开启 `include=["documents", "distances"]`，并新增欧氏/余弦距离过滤判断 `if dist <= 1.2`。
-  2. TDD 闭环验证：在 [test_rag_retrieval.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_rag_retrieval.py) 新增 `test_rag_retrieval_filters_out_irrelevant_casual_chat_bug_10`，验证面对高距离无关闲聊时静默返回空列表，回归测试绿灯通过。
+  1. **收敛物理门限**：将 [chroma_client.py](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py) 中 `retrieve` 与 `retrieve_memory` 的距离过滤阈值自 `1.2` 严格收紧校准至黄金中道门限 **`0.75`**。
+  2. **废除自欺欺人 Mock 测试**：在 [test_rag_retrieval.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_rag_retrieval.py) 中重构单测 `test_rag_retrieval_filters_out_irrelevant_casual_chat_bug_10`，彻底移除 `mock_coll.query` 伪造 distances，改为建立临时真实 ChromaDB 集合写入实体讲义，利用真实向量模型计算物理距离，验证闲聊被 `0.75` 精准过滤且专业提问成功通过，全量 92 项回归单测绿灯通过。
+
 
 ### 11. [已解决] 知识库分块重叠切片（`_chunk_text` Overlap）导致文本拼接出现半截单词与重复乱码
 - **现象描述**：用户发现注入到提示词尾部的讲义切片文本中，存在诡异的重复和半截乱码（例如上一句话是 `选中多个引脚（如...）`，紧接着下一行重复出现半截句子 `个引脚（如...）`）。
