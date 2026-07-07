@@ -184,7 +184,8 @@ class ChromaRAGClient(RAGClient):
                     docs = results.get("documents", [[]])[0]
                     distances = results.get("distances", [[]])[0]
                     if distances and len(distances) == len(docs):
-                        docs = [doc for doc, dist in zip(docs, distances) if dist <= 1.2]
+                        # 物理区间校准阈值 (Bug #10): 实测技术课件召回范围 [0.15~0.66]，闲聊短句 >0.78，收敛阈值设定为 0.75
+                        docs = [doc for doc, dist in zip(docs, distances) if dist <= 0.75]
                     all_chunks.extend(docs)
                 except Exception:
                     continue
@@ -233,7 +234,8 @@ class ChromaRAGClient(RAGClient):
             docs = results.get("documents", [[]])[0]
             distances = results.get("distances", [[]])[0]
             if distances and len(distances) == len(docs):
-                docs = [doc for doc, dist in zip(docs, distances) if dist <= 1.2]
+                # 物理区间校准阈值 (Bug #10): 收敛阈值设定为 0.75
+                docs = [doc for doc, dist in zip(docs, distances) if dist <= 0.75]
             return docs
         except Exception as e:
             print(f"ChromaDB retrieve_memory error: {e}")

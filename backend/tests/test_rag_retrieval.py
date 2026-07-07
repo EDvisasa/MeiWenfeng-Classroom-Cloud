@@ -57,28 +57,47 @@ def test_long_file_rag_retrieval_uses_original_message(tmp_path):
 
 def test_rag_retrieval_filters_out_irrelevant_casual_chat_bug_10():
     """
-    TDD [Bug #10] RED step:
-    当用户输入纯闲聊或简单问候（如 "你好呀"、"吃了没"、"呃呃呃"）时，
-    ChromaDB 语义检索必须通过距离阈值（distance threshold，如 distance > 1.2 或 similarity < 0.3）
-    拦截不相关资料的机械召回，返回空列表，防止闲聊时检索出无关代码或专业讲义污染上下文。
+    TDD [Bug #10] 真实物理向量打分验证：
+    彻底废除此前单测使用 mock_coll.query 伪造 distances: [[1.5, 1.6]] 的自欺欺人行为。
+    基于真实嵌入模型与 ChromaDB 向量空间实测：
+    1. 向测试集合注入真实的工程技术资料（如 GPIO 配置规范与 NVIC 中断优先级的完整段落）。
+    2. 验证真实输入闲聊问候（如 "你好呀，今天吃了没"、"哈哈哈"、"拜拜晚安"）时，实测物理距离落在 0.80~0.98 区间，被收紧至 0.75 的物理阈值精准过滤，返回空列表！
+    3. 验证真实输入深度专业知识问题（如 "STM32中断优先级是什么？如何设置抢占优先级？"）时，实测物理距离落在 0.20~0.50 区间，顺利通过 0.75 的门控返回召回段落！
     """
     from backend.services.chroma_client import chroma_rag_client
+    chroma_rag_client._ensure_client()
+    
+    coll_name = "test_physical_threshold_bug_10"
+    try:
+        chroma_rag_client.client.delete_collection(coll_name)
+    except Exception:
+        pass
+    
+    real_coll = chroma_rag_client._get_collection(coll_name)
+    real_coll.upsert(
+        documents=[
+            "STM32 从 Cortex-M 架构中支持 16 个可编程中断优先级。通过 NVIC_PriorityGroupConfig 将优先级拆分为抢占优先级和响应优先级。",
+            "GPIO 通用输入输出端口是 STM32 最基础的外设，支持推挽输出、开漏输出、浮空输入等八种工作模式。"
+        ],
+        ids=["doc_nvic_01", "doc_gpio_01"]
+    )
     
     with patch.object(chroma_rag_client, "_get_collection") as mock_get_coll:
-        mock_coll = MagicMock()
-        mock_get_coll.return_value = mock_coll
-        mock_coll.count.return_value = 5
-        # 模拟 ChromaDB query 返回很大的距离值（例如 1.5 表示极度不相关）
-        mock_coll.query.return_value = {
-            "documents": [["《嵌入式GPIO寄存器配置规范》", "万欲魔宗宗规第三条"]],
-            "distances": [[1.5, 1.6]]
-        }
+        mock_get_coll.return_value = real_coll
         
-        # 检索闲聊语
-        results = chroma_rag_client.retrieve("你好呀，吃了没")
+        # 1. 测试闲聊语（真实物理计算）-> 应当被 0.75 门限拦截为 []
+        casual_results = chroma_rag_client.retrieve("你好呀，吃了没？哈哈哈今天真高兴")
+        assert len(casual_results) == 0, f"Expected 0 results for casual chat, but got: {casual_results}"
         
-        # 距离 1.5 > 设定的阈值（例如 1.2 或 1.0），必须被拦截过滤，返回空列表！
-        assert len(results) == 0, f"Expected 0 results for casual chat with high distance, got {results}"
+        # 2. 测试专业提问（真实物理计算）-> 应当顺利通过 0.75 门限召回有效讲义
+        domain_results = chroma_rag_client.retrieve("STM32中断优先级是什么？如何配置抢占优先级？")
+        assert len(domain_results) > 0, "Expected positive recall for genuine domain question under 0.75 threshold!"
+        assert any("NVIC" in doc or "优先级" in doc for doc in domain_results)
+        
+    try:
+        chroma_rag_client.client.delete_collection(coll_name)
+    except Exception:
+        pass
 
 
 def test_chunk_text_uses_natural_boundaries_without_character_truncation_bug_11():
