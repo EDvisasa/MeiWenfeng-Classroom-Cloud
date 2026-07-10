@@ -194,4 +194,25 @@ domain: project-planning
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_context_manager.py backend/tests/test_rag_retrieval.py`
 
-
+### <a id="issue-18"></a>[ISSUE-18] 跨智能体调用返回值精简与动态工具轨迹结果打标摘要保留 (Compact Response & Outcome-Tagged Execution Trace)
+- **Status**: `DONE` (已完成 - 通过 12 项单测回归验证)
+- **Parent**: `ADR-000` / `ISSUE-17`
+- **User Story**: 作为大模型协作底座，当调用 `call_openclaw_agent` 与 OpenClaw 网关节点通信完毕后，返回值既不能把数万字的静态工具 Schema 与提示词遥测噪声塞入上下文窗口导致 Token 剧增，同时又应当为主智能体保留 OpenClaw 内部执行过程中的**带统一结果状态打标的动态运行轨迹摘要（Outcome-Tagged Execution Trace）**，实现高透明度、结果明确与极低 Token 消耗的兼顾。
+- **What to build**:
+  1. 彻底过滤并丢弃 OpenClaw 返回体中的静态 `meta.tools`（38 种内部 Schema）与 `meta.systemPromptReport`（全量系统提示词哈希与声明文件报表）；
+  2. 提取有效回复正文 `result.payloads[].text`；
+  3. 解析提取 OpenClaw 运行记录中的动态执行轨迹并进行统一格式的结果打标摘要（例如：`exec(...) [PASS]` / `search(...) [Hit: N]` / `read(...) [OK]`）；
+  4. 构建紧凑高效的标准结构化输出头：
+     ```text
+     [OpenClaw Agent 'main' Response | runId: <id> | duration: <ms>ms]
+     [Execution Trace: <带结果状态打标的中间工具链摘要, 若纯文本对话则显示 None (Pure reasoning)>]
+     
+     <payloads_text>
+     ```
+- **Affected Files**: [`backend/services/agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py)
+- **Acceptance Criteria**:
+  - [x] 返回报文中绝对不包含任何静态 Schema 字样与系统提示词冗余报告，Token 从 ~20000 压降至数百量级；
+  - [x] 返回报文头部清晰呈现 `runId`、耗时 `durationMs` 及带统一结果打标的执行轨迹摘要；
+  - [x] 自动化单测完整覆盖轨迹保留、结果打标与静态噪声筛除逻辑。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_openclaw_bridge.py -v`

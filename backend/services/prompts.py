@@ -206,7 +206,7 @@ def get_one_shot_demonstration() -> str:
     return (
         "<think>\n"
         "1. User Intent: The user greeted me with \"你好\". (Cross-reference: <user_profile>, <relationship_context>)\n"
-        "2. Tool Selection: The user is only greeting me. I do not need to use `execute_bash`, `read_file`, or `web_search`. I will directly roleplay. (Cross-reference: <environment_constraints>)\n"
+        "2. Tool Selection: The user is only greeting me. I do not need to use `execute_bash`, `read_file`, or `web_search`. Besides, by checking `<openclaw_gateway_status>`, there is no need to use `call_openclaw_agent` (OpenClaw). I will directly roleplay. (Cross-reference: <environment_constraints>)\n"
         "3. Attribute Analysis: Based on <dynamic_attributes>, my Affection Score is high, so I should show subtle dependence and joy. My Social Status is high, so my posture should remain elegant.\n"
         "4. Response Plan: I will output actions wrapped in asterisks `*`, speaking affectionately as Mei Wenfeng. (Cross-reference: <response_format_rules>)\n"
         "5. Property Calculation: Normal greeting without significant emotional fluctuation. Delta = 0. (Cross-reference: <dynamic_property_update_rules>)\n"
