@@ -561,7 +561,63 @@ class OpenClawAgentTool(AgentTool):
             return f"[Status: Offline] 白提子（OpenClaw 网关节点）当前离线或未运行（原因: {reason}）。请向用户说明节点未启动，建议先在终端启动网关后再尝试调用。"
 
         res = send_to_openclaw(task_message, agent=agent_id, json_output=True)
-        return str(res)
+        return self._format_openclaw_compact_response(agent_id, res)
+
+    def _format_openclaw_compact_response(self, agent_id: str, res: dict) -> str:
+        if res.get("status") != "success" or not isinstance(res.get("data"), dict):
+            return str(res)
+
+        data = res["data"]
+        run_id = data.get("runId", "N/A")
+        meta = data.get("meta", {})
+        duration_ms = meta.get("durationMs")
+        duration_str = f"{duration_ms}ms" if duration_ms is not None else "N/A"
+
+        # Build Outcome-Tagged Execution Trace summary
+        result = data.get("result", {})
+        actions = result.get("actions") or result.get("toolCalls") or data.get("executionTrace", {}).get("steps", [])
+        if actions and isinstance(actions, list):
+            tagged_steps = []
+            for item in actions[:4]:
+                if isinstance(item, dict):
+                    tool_name = item.get("tool") or item.get("name") or "tool"
+                    arg = str(item.get("arg") or item.get("query") or item.get("command") or "")
+                    arg_short = arg[:25] + "..." if len(arg) > 25 else arg
+                    status = str(item.get("status") or item.get("outcome") or "OK").upper()
+                    if status in ("SUCCESS", "OK", "PASS"):
+                        tag = "[PASS]"
+                    elif status in ("ERROR", "FAIL", "FAILED"):
+                        tag = "[FAIL]"
+                    else:
+                        tag = f"[{status}]"
+                    step_str = f'{tool_name}("{arg_short}") {tag}' if arg_short else f"{tool_name}() {tag}"
+                    tagged_steps.append(step_str)
+                else:
+                    tagged_steps.append(str(item))
+            trace_summary = " -> ".join(tagged_steps)
+            if len(actions) > 4:
+                trace_summary += f" -> ... (+{len(actions)-4} steps)"
+        else:
+            trace_summary = "None (Pure reasoning)"
+
+        # Extract clean reply content
+        payloads = result.get("payloads", [])
+        reply_texts = []
+        for p in payloads:
+            if isinstance(p, dict) and p.get("text"):
+                reply_texts.append(p["text"])
+
+        if reply_texts:
+            combined = "\n\n".join(reply_texts)
+        elif data.get("text"):
+            combined = data["text"]
+        else:
+            return str(res)
+
+        header = f"[OpenClaw Agent '{agent_id}' Response | runId: {run_id} | duration: {duration_str}]"
+        trace_line = f"[Execution Trace: {trace_summary}]"
+        return f"{header}\n{trace_line}\n\n{combined}"
+
 
 # Register tools
 TOOL_REGISTRY = {

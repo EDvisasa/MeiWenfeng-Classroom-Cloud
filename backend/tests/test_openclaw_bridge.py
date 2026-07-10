@@ -1,6 +1,7 @@
 import os
 import pytest
 import subprocess
+import json
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
@@ -180,5 +181,88 @@ def test_openclaw_agent_tool_online():
         res = tool.execute({"task_message": "test task"})
         assert "success" in res
         assert "ok" in res
+
+
+def test_openclaw_agent_tool_compact_payload_extraction():
+    """Test that OpenClawAgentTool extracts clean payload text and strips out verbose meta/tool telemetry."""
+    from backend.services.agent_tools import TOOL_REGISTRY
+    tool = TOOL_REGISTRY.get("call_openclaw_agent")
+    clear_openclaw_status_cache()
+
+    with patch("subprocess.run") as mock_run:
+        status_mock = MagicMock()
+        status_mock.returncode = 0
+        status_mock.stdout = "OpenClaw CLI version 1.2.0"
+
+        verbose_json = {
+            "runId": "run-1234",
+            "status": "ok",
+            "summary": "completed",
+            "result": {
+                "payloads": [
+                    {"text": "见过姐姐，关于STM32指针和显存问题解法如下..."}
+                ]
+            },
+            "meta": {
+                "durationMs": 1520,
+                "systemPromptReport": {"systemPrompt": "VERBOSE_SYSTEM_PROMPT_CHARS" * 100},
+                "tools": {"schemaChars": 36000, "entries": ["tool1", "tool2"]}
+            }
+        }
+
+        send_mock = MagicMock()
+        send_mock.returncode = 0
+        send_mock.stdout = json.dumps(verbose_json, ensure_ascii=False)
+
+        mock_run.side_effect = [status_mock, send_mock]
+
+        res = tool.execute({"task_message": "hello"})
+        assert "[OpenClaw Agent 'main' Response | runId: run-1234 | duration: 1520ms]" in res
+        assert "[Execution Trace: None (Pure reasoning)]" in res
+        assert "见过姐姐，关于STM32指针和显存问题解法如下..." in res
+        assert "VERBOSE_SYSTEM_PROMPT_CHARS" not in res
+        assert "schemaChars" not in res
+
+
+def test_openclaw_agent_tool_outcome_tagged_execution_trace():
+    """Test that OpenClawAgentTool extracts intermediate tool calls into Outcome-Tagged Execution Trace summary."""
+    from backend.services.agent_tools import TOOL_REGISTRY
+    tool = TOOL_REGISTRY.get("call_openclaw_agent")
+    clear_openclaw_status_cache()
+
+    with patch("subprocess.run") as mock_run:
+        status_mock = MagicMock()
+        status_mock.returncode = 0
+        status_mock.stdout = "OpenClaw CLI version 1.2.0"
+
+        json_with_actions = {
+            "runId": "run-5678",
+            "status": "ok",
+            "summary": "completed",
+            "result": {
+                "actions": [
+                    {"tool": "web_search", "query": "LM Studio MoE", "status": "success"},
+                    {"tool": "exec", "command": "pytest -q", "status": "ok"}
+                ],
+                "payloads": [
+                    {"text": "解决方案已查明..."}
+                ]
+            },
+            "meta": {"durationMs": 3450}
+        }
+
+        send_mock = MagicMock()
+        send_mock.returncode = 0
+        send_mock.stdout = json.dumps(json_with_actions, ensure_ascii=False)
+
+        mock_run.side_effect = [status_mock, send_mock]
+
+        res = tool.execute({"task_message": "check bug"})
+        assert "[OpenClaw Agent 'main' Response | runId: run-5678 | duration: 3450ms]" in res
+        assert 'web_search("LM Studio MoE") [PASS]' in res
+        assert 'exec("pytest -q") [PASS]' in res
+        assert "解决方案已查明..." in res
+
+
 
 
