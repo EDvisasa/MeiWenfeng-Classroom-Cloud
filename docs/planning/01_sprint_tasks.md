@@ -216,3 +216,94 @@ domain: project-planning
   - [x] 自动化单测完整覆盖轨迹保留、结果打标与静态噪声筛除逻辑。
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_openclaw_bridge.py -v`
+
+### <a id="issue-19"></a>[ISSUE-19] 上下文组装末句反转优化：环境协议前置与最新提问物理压轴 (Tail Injection Inversion for Recency Attention)
+- **Status**: `DONE` (已完成 - 经 TDD 12 项单测验证通过)
+- **Parent**: `ADR-009` / `ISSUE-11`
+- **User Story**: 作为报文组装模块，在将最后的动态尾部夹层（RAG 知识、近期日记、当前时间与系统规约）拼装到最后一条 `user` 报文中时，如果将其直接追加到用户文字后方，会造成小模型“注意力近因效应（Recency Bias）”稀释并遗忘真正的用户提问；通过将尾部夹层前置注入、用户真实指令物理压轴的【增强版方案 B】，在不改变任何前缀 KV 缓存命中的前提下，显著提升小模型遵循用户指令的准确率。
+- **What to build**:
+  1. 在 `backend/services/context_manager.py` 的 `assemble_messages()` 中重构末尾拼接次序；
+  2. 当最后一条报文为 `user` 时，将其重新排列为 `f"{tail_injection}\n\n---\n{original_user_content}"`；
+  3. 当最后一条非 `user` 报文时，构造标准待机语句压轴于最后：`f"{tail_injection}\n\n---\n[下一轮提问等待中 / Waiting for next prompt]"`；
+  4. 确保物理报文最末段落在任何场景下均为最终指令或会话状态锚点。
+- **Affected Files**: [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+- **Acceptance Criteria**:
+  - [x] 发往大模型的末条 `user` 报文中，动态系统夹层位于上方，用户输入位于最末尾；
+  - [x] 全部后端上下文管理相关自动化测试无需改动核心断言或能通过结构化校验 100% 绿灯；
+  - [x] KV 缓存命中边界（静态前缀 + 历史轮次）保持绝对无损。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
+
+### <a id="issue-20"></a>[ISSUE-20] 动态尾部夹层与最新提问衔接处增加上下文管线过渡指引 (Context Pipeline Transition Directive)
+- **Status**: `DONE` (已完成 - 经 TDD 13 项单测验证通过)
+- **Parent**: `ISSUE-19`
+- **User Story**: 依据提示词工程规范，区分开发者架构领域术语与 AI 提示语；在动态尾部夹层（Dynamic Tail Injection）前置到最后一条 `user` 消息上方后，在与真实提问交界处增设干净、符合角色认知习惯的 AI 引导提示（System Directive），避免向 AI 泄漏“上下文管线”等开发者后端词汇。
+- **What to build**:
+  1. 在 `backend/services/context_manager.py` 的 `assemble_messages()` 尾部组装区域新增自然语言过渡衔接引导；
+  2. 格式为：`"[系统引导 / System Directive: 请依照上述系统规约与参考背景，严格按角色设定对下方用户的最新对话或指令进行回复。]\n\n"`
+  3. 放置于 `---\n` 之后、用户原始指令或待机卡片文字之前。
+- **Affected Files**: [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+- **Acceptance Criteria**:
+  - [x] `assemble_messages` 生成的最末尾 `user` 报文中，包含干净无技术黑话泄漏的 `System Directive` 过渡行；
+  - [x] 过渡指引必须严格介于 `<system_injection>` 下方与真实用户提问文字上方；
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
+
+### <a id="issue-21"></a>[ISSUE-21] 系统引导句纯英文凝练化改造与提示词编排铁律升格入 GLOSSARY (Pure English System Directive & Glossary Elevation)
+- **Status**: `DONE` (已完成 - 经 TDD 13 项单测验证通过)
+- **Parent**: `ISSUE-20`
+- **User Story**: 依照 `docs/01_dev_and_test_guide.md` 中对于“非人设系统指令英文凝练原则 (Concise English for System Instructions)”的要求，将 `assemble_messages` 中衔接动态夹层与真实用户提问的过渡句完全改写为纯英文；同时将三大提示词编排铁律正式升格写入 `docs/GLOSSARY.md` 作为全局单一点权威准则。
+- **What to build**:
+  1. 在 `backend/services/context_manager.py` 将 transition directive 改造为纯英文：`"[System Directive: Strictly follow the system rules and context above when responding to the user's latest dialogue below.]"`；
+  2. 在 `backend/tests/test_context_manager.py` 中同步更新对应单测断言；
+  3. 在 `docs/GLOSSARY.md` 第四章节增加“提示词与报文编排三大铁律（Prompt & Context Iron Laws）”。
+- **Affected Files**:
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+  - [`docs/GLOSSARY.md`](file:///d:/MeiWenfeng-Classroom/docs/GLOSSARY.md)
+- **Acceptance Criteria**:
+  - [x] `assemble_messages` 注入的过渡句为 100% 纯英文系统引导，零中文元指令；
+  - [x] `docs/GLOSSARY.md` 包含零污染铁律、效率铁律与免责保护框铁律；
+  - [x] 单测 `test_assemble_messages_context_pipeline_transition_directive_issue_20` 及全部套件 100% 通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
+
+### <a id="issue-22"></a>[ISSUE-22] 工具调用反伪 XML 标签幻觉与混合发声防线强化 (Anti-XML Tool Hallucination & Mixed Dialogue Defense)
+- **Status**: `DONE` (已完成 - 经 TDD 13 项回归单测全通过)
+- **Parent**: `ISSUE-21`
+- **User Story**: 针对大模型将原生函数调用（`call_openclaw_agent`）幻觉为文本 XML 标签并在同段混搭对白的问题，根据首位注意力权重法则及凝练英文系统指令准则，在 `<environment_constraints>` 第 1 条顶格规则中显式切断“伪 XML 标签输出”与“混合发声”。
+- **What to build**:
+  1. 优化 `backend/services/context_manager.py` 的 `get_cross_reference_protocol()` 第 1 条规则：`1. You have native function calling tools via the API. Do NOT hallucinate tool results or pseudo-XML tags (<call_openclaw_agent>...), and never mix character dialogue when calling a tool.`；
+  2. 在 `backend/tests/test_context_manager.py` 的 `test_get_cross_reference_protocol_structure` 中增加对应断言；
+  3. 在 `docs/planning/bug-tracker.md` 中登记第 17 项 Bug 解决记录。
+- **Affected Files**:
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+- **Acceptance Criteria**:
+  - [x] 系统提示词顶部第 1 条显式禁止输出伪 XML 工具标签和同段聊天对白；
+  - [x] 单元测试 `test_get_cross_reference_protocol_structure` 及全部 13 个测试通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
+
+### <a id="issue-23"></a>[ISSUE-23] RAG记忆召回与实时对话区隔标注与尾部防幻觉强化 (RAG Memory & Active Dialogue Demarcation Defense)
+- **Status**: `DONE` (已完成 - 经 TDD 13 项单测验证 100% 通过)
+- **Parent**: `ISSUE-22`
+- **User Story**: 针对模型因读取 RAG 检索结果中的“对话记录”旧切片而误以为是用户当前实时指令的问题，遵循 `GLOSSARY.md` 中的零污染铁律与效率铁律，对记忆召回区加装防伪大写英文警告，并在最后一轮将最新指令精准包裹于 `<current_user_instruction>` 内。
+- **What to build**:
+  1. 在 `backend/services/context_manager.py` 的 `_build_dynamic_tail_injection` 中对 RAG 和近期日记外包 `<retrieved_past_memory_archives>` / `<recent_journal_summaries>` 标签及大写防伪通知；
+  2. 升级 `assemble_messages` 的过渡引导句 `directive` 为防记忆幻觉指引，且将用户当轮指令严格包裹于 `<current_user_instruction>`；
+  3. 更新 `backend/tests/test_context_manager.py` 中的回归单测断言。
+- **Affected Files**:
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+- **Acceptance Criteria**:
+  - [x] RAG 和近期日记拥有独立标签和纯英文显式历史归属警告；
+  - [x] 用户的实时最新指令被 `<current_user_instruction>` 物理隔离和包裹；
+  - [x] 全部 13 项单测在 TDD 回归下绿灯通过 (`pytest -v`)。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
+
+
+

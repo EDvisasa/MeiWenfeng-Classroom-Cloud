@@ -8,10 +8,11 @@ def test_get_cross_reference_protocol_structure():
     """
     protocol = get_cross_reference_protocol()
     
-    # 验证核心分流关键字
+    # 验证核心分流关键字与防 XML 标签幻觉规则
     assert "Tool Calling Turn" in protocol
     assert "Final Dialogue Turn" in protocol
     assert "Emit ONLY the native tool call silently" in protocol
+    assert "pseudo-XML tags (`<call_openclaw_agent>...`)" in protocol
     
     # 验证 GPS 导航锚点 (Cross-reference)
     assert "(Cross-reference: <environment_constraints>)" in protocol
@@ -227,3 +228,66 @@ def test_assemble_messages_injects_openclaw_gateway_status():
         assert "<openclaw_gateway_status>" in last_content
         assert "</openclaw_gateway_status>" in last_content
         assert "ONLINE (WSL OpenClaw Gateway ready)" in last_content
+
+
+def test_assemble_messages_tail_injection_inversion_issue_19():
+    """
+    TDD [ISSUE-19]:
+    Verify that in assemble_messages, when injecting dynamic tail data into the last user message,
+    the tail_injection comes BEFORE the original user instruction so that the user's latest
+    instruction sits at the physical end of the message (maximizing recency attention).
+    """
+    from backend.services.context_manager import assemble_messages
+    user_prompt = "请执行方案B修复小模型注意力注意力衰减的问题"
+    messages = [{"role": "user", "content": user_prompt}]
+
+    assembled = assemble_messages(messages, "你是导师")
+    last_msg = assembled[-1]
+    assert last_msg["role"] == "user"
+    content = last_msg["content"]
+
+    # Verify both parts exist
+    assert "<system_injection>" in content
+    assert user_prompt in content
+
+    # Verify ordering: <system_injection> must appear BEFORE user_prompt
+    idx_injection = content.find("<system_injection>")
+    idx_user_prompt = content.find(user_prompt)
+    assert idx_injection < idx_user_prompt, (
+        f"tail_injection (idx={idx_injection}) must precede user instruction (idx={idx_user_prompt})"
+    )
+    assert content.strip().endswith("</current_user_instruction>")
+    assert user_prompt in content
+
+
+def test_assemble_messages_context_pipeline_transition_directive_issue_20():
+    """
+    TDD [ISSUE-20]:
+    Verify that assemble_messages injects canonical transition directive between dynamic tail
+    injection and user's prompt per docs/GLOSSARY.md ubiquitous language.
+    """
+    from backend.services.context_manager import assemble_messages
+    user_prompt = "请回答关于白提子辈分的问题"
+    messages = [{"role": "user", "content": user_prompt}]
+
+    assembled = assemble_messages(messages, "你是导师")
+    last_msg = assembled[-1]
+    content = last_msg["content"]
+
+    directive = (
+        "[System Directive: Distinguish strictly between retrieved past memory archives (`<retrieved_past_memory_archives>`, `<recent_journal_summaries>`) and the real-time active conversation history. "
+        "Generate your response ONLY for the current user instruction inside `<current_user_instruction>` below.]"
+    )
+    assert directive in content
+
+    # Verify exact ordering: <system_injection> -> directive -> user_prompt -> </current_user_instruction>
+    idx_injection = content.find("<system_injection>")
+    idx_directive = content.find(directive)
+    idx_prompt = content.find(user_prompt)
+    idx_end_tag = content.find("</current_user_instruction>")
+
+    assert idx_injection < idx_directive < idx_prompt < idx_end_tag, (
+        f"Order must be <system_injection> ({idx_injection}) -> directive ({idx_directive}) -> user_prompt ({idx_prompt}) -> </current_user_instruction> ({idx_end_tag})"
+    )
+
+
