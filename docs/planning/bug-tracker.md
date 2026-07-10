@@ -21,9 +21,12 @@ domain: project-planning
 - **现象描述**：`slash_handler.py` 内部使用庞大的 `if/elif` 链为每个指令硬塞海量多行 XML 系统指令。难以新增或删除，完全违背删除测试 (Deletion Test)。
 - **调查方向**：提炼 `CommandStrategy` 接口，每条指令独立为类，由核心注册器分发。
 
-
-
 ## 🟢 已闭环归档：Bug 与架构重构成果 (Resolved Archive)
+
+### 16. [已解决] 启动脚本 `start.bat` 清理僵尸进程时提示 `'netstat' 不是内部或外部命令`
+- **现象描述**：执行 `start.bat` 启动应用行进至 `Cleaning up potential zombie processes...` 阶段时，终端连续抛出 3 次 `'netstat' 不是内部或外部命令，也不是可运行的程序或批处理文件。` 导致端口检查与僵尸清理命令失效。
+- **根因分析**：当命令行会话环境变量 `PATH` 丢失 `C:\Windows\System32` 系统目录时，直接调用的简写 `netstat` 与 `taskkill` 无法在 PATH 中寻址。
+- **闭环修复**：在 `start.bat` 第 46~57 行将命令调用全部升级为绝对路径常量 `%SystemRoot%\System32\netstat.exe` 与 `%SystemRoot%\System32\taskkill.exe`，不依赖当前终端环境变量 PATH，保障任何终端环境下均可稳定执行。
 
 ### 2. [已解决] 前端 `.md` 文件渲染导致白屏崩溃
 - **现象描述**：在网页前端的导师状态栏或资源树中，一旦点击 `@data/materials` 目录下的任意 `.md` 文件，不会正常展示文本内容，而是导致整个 React 界面直接变白屏（前端应用崩溃）。

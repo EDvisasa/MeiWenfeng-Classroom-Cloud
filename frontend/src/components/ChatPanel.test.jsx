@@ -236,6 +236,23 @@ describe('ChatPanel Editing Behavior Tests', () => {
 
     global.fetch = originalFetch;
   });
+
+  it('renders call_openclaw_agent tool block friendly name as OpenClaw', () => {
+    const props = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'assistant',
+          blocks: [
+            { type: 'tool', tool_name: 'call_openclaw_agent', status: 'done', output: 'ok' }
+          ]
+        }
+      ]
+    };
+    render(<ChatPanel {...props} />);
+    expect(screen.getByText('OpenClaw')).toBeInTheDocument();
+  });
 });
+
 
 

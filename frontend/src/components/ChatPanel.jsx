@@ -139,6 +139,7 @@ const ToolBlock = ({ block, idx }) => {
         : block.tool_name === 'web_search' ? 'Web'
           : block.tool_name === 'read_url_content' ? 'Browser'
             : block.tool_name === 'default_api:run_command' ? 'Bash'
+              : (block.tool_name === 'call_openclaw_agent' || block.tool_name === 'Call_openclaw_agent') ? 'OpenClaw'
               : block.tool_name;
 
   const [isExpanded, setIsExpanded] = React.useState(false);

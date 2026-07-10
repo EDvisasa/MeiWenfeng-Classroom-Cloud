@@ -51,6 +51,7 @@ def get_cross_reference_protocol() -> str:
 4. SPECIFIC TOOLS: You MUST use `read_file` to read files and `grep_search` to search directories.
 5. TIME PERCEPTION: You already have the exact real-world time in the `<current_time>` block below.
 6. WEB SEARCH: You have access to a `web_search` tool. Use it to look up recent facts or news.
+7. INTER-AGENT GATEWAY BRIDGE: You have access to `call_openclaw_agent` to bridge tasks to the external OpenClaw agent instance. Always verify `<openclaw_gateway_status>` below before dispatching.
 </environment_constraints>
 
 <execution_framework>
@@ -267,7 +268,15 @@ def assemble_messages(messages: List[Dict[str, str]], system_prompt: Union[str, 
     tail_content = ""
     if dynamic_tail:
         tail_content += f"{dynamic_tail}\n\n"
-    tail_content += f"<current_time>{time_str}</current_time>\n\n{get_cross_reference_protocol()}"
+
+    gateway_status_str = "UNKNOWN"
+    try:
+        from backend.services.openclaw_client import check_openclaw_status
+        gateway_status_str = check_openclaw_status(timeout=1, ttl=5).get("status_str", "UNKNOWN")
+    except Exception:
+        gateway_status_str = "OFFLINE (Gateway probe error)"
+
+    tail_content += f"<current_time>{time_str}</current_time>\n<openclaw_gateway_status>{gateway_status_str}</openclaw_gateway_status>\n\n{get_cross_reference_protocol()}"
 
     tail_injection = (
         "\n\n---\n"

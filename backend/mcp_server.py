@@ -59,5 +59,33 @@ def append_new_course(phase: str, topic: str) -> str:
     append_to_syllabus(phase, topic)
     return f"[Success] Successfully appended new course: Phase '{phase}', Topic '{topic}' to the syllabus as pending."
 
+@mcp.tool()
+def talk_to_meiwenfeng(message: str, persona_type: str = "simplified") -> str:
+    """Send a message from OpenClaw or an external agent to MeiWenfeng and receive her clean text response."""
+    from backend.routers.openclaw import talk_endpoint, TalkRequest
+    res = talk_endpoint(TalkRequest(message=message, persona_type=persona_type))
+    return res["reply"]
+
+@mcp.tool()
+def sandbox_list() -> str:
+    """List all available file paths inside the classroom sandbox directory."""
+    from backend.routers.openclaw import list_sandbox
+    res = list_sandbox()
+    return f"Sandbox contains {res['count']} files:\n" + "\n".join(res["files"])
+
+@mcp.tool()
+def sandbox_read(filename: str) -> str:
+    """Read file content from the classroom sandbox directory securely."""
+    from backend.routers.openclaw import read_sandbox, SandboxReadRequest
+    res = read_sandbox(SandboxReadRequest(filename=filename))
+    return res["content"]
+
+@mcp.tool()
+def sandbox_write(filename: str, content: str) -> str:
+    """Write or update file content in the classroom sandbox directory securely."""
+    from backend.routers.openclaw import write_sandbox, SandboxWriteRequest
+    res = write_sandbox(SandboxWriteRequest(filename=filename, content=content))
+    return res["message"]
+
 if __name__ == "__main__":
     mcp.run()

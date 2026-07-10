@@ -31,6 +31,34 @@ domain: project-planning
 - [x] **`/set_mission` 长期目标设定**：已打通前端通信通道（`App.jsx` 的 `fetchStatus` 接收 `data.mission`），并在右侧 `StatusPanel` 实现了常驻的全局学习目标状态与拟定期数据锁定遮罩（`isDrafting`）。
 - [x] **`/lesson` 授课微课流**：后端 `slash_handler.py` 已深度注入授课指令，严格规范 AI 导师基于当前论题吐出短篇极简理论，并**强制附带一个 `<quiz>` 测验块**供前端渲染。
 - [x] **`/submit` 判题反馈流后端逻辑**：已完成基于 Matt Pocock 理念的后端重构：引入“表扬 -> 询问是否迎接下一阶挑战 -> 提取学情洞察存入记忆 -> 调用 `replace_file_content` 演进沙盒”的完整教学与反馈闭环。
+### <a id="issue-00"></a>[ISSUE-00] 双向智能体对话管道 (Bi-directional Agent Bridge)
+- **Status**: `DONE` (已完成)
+- **User Story**: 作为项目工程底座与分布式 AI 网关的连接纽带，建立从课堂后端至 openclaw 网关（白提子）的双向通信管道，规避命令行转义截断与节点安全策略拦截。
+- **What to build**: 
+  1. 在 `backend/services/openclaw_client.py` 封装基于 WSL 命令行调用的推流模块；
+  2. 在 `backend/routers/openclaw.py` 与 `backend/mcp_server.py` 暴露标准 REST 接口与 MCP 工具（支持对话和沙盒读写护栏）。
+- **Affected Files**: [`backend/services/openclaw_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/openclaw_client.py), [`backend/routers/openclaw.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/openclaw.py), [`backend/mcp_server.py`](file:///d:/MeiWenfeng-Classroom/backend/mcp_server.py), [`backend/main.py`](file:///d:/MeiWenfeng-Classroom/backend/main.py)
+- **Acceptance Criteria**: 
+  1. openclaw 客户端可通过 `send_to_openclaw` 安全异步/同步发起通知；
+  2. `/api/openclaw/talk` 与 MCP `talk_to_meiwenfeng` 能够无乱码互通并受沙盒路径护栏保护。
+- **Verification Command**: `pytest backend/tests/test_openclaw_bridge.py`
+
+### <a id="issue-17"></a>[ISSUE-17] 智能体自主调度工具接缝 (`call_openclaw_agent`)、动态尾部夹层网关心跳感知 (`<openclaw_gateway_status>`) 与 `SandboxVFS` 深模块
+- **Status**: `DONE` (已完成 / TDD 验证通过)
+- **User Story**: 作为后端教学导师引擎，我希望在会话发包前于动态尾部夹层 (`tail_injection`) 严格按照 `docs/GLOSSARY.md` 标准工程术语规范实时注入 `<openclaw_gateway_status>ONLINE/OFFLINE</openclaw_gateway_status>`（附带 5 秒 TTL 缓存防卡顿），让大模型吐字前即可感知白提子在线状态；同时提供标准大模型工具 (`call_openclaw_agent`) 与其 3 秒心跳预检护栏；并下沉文件 IO 至 `SandboxVFS` 深模块保障物理防穿透。
+- **What to build**:
+  1. 在 `backend/services/openclaw_client.py` 新设 `check_openclaw_status(timeout=3, ttl=5)` 秒级心跳检测与缓存；
+  2. 在 `backend/services/context_manager.py` 的 `tail_injection` 管线中规范注入 `<openclaw_gateway_status>` 纯净工程标签；
+  3. 在 `backend/services/agent_tools.py` 新设 `OpenClawAgentTool`（内嵌预检护栏）并注册至 `TOOL_REGISTRY`；
+  4. 提取 `SandboxVFS` 深模块实现沙盒物理防穿透 SSOT。
+- **Affected Files**: [`backend/services/openclaw_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/openclaw_client.py), [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py), [`backend/services/agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py), [`backend/routers/openclaw.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/openclaw.py), [`backend/services/sandbox_vfs.py`](file:///d:/MeiWenfeng-Classroom/backend/services/sandbox_vfs.py)
+- **Acceptance Criteria**:
+  1. 每次构建发往大模型的动态尾部夹层 (`tail_injection`) 中准确包含规范的 `<openclaw_gateway_status>`；
+  2. `check_openclaw_status()` 能够以 3 秒超时探测并在 5 秒 TTL 内返回在线/离线状态；
+  3. `call_openclaw_agent` 在遇离线时秒级回退，在线时顺畅发派任务；
+  4. `SandboxVFS` 为所有沙盒读写提供统一安全的越权阻断防御。
+- **Verification Command**: `pytest backend/tests/test_sandbox_vfs.py backend/tests/test_openclaw_bridge.py backend/tests/test_context_manager.py`
+
 ### <a id="issue-01"></a>[ISSUE-01] `/submit` 判题与沙盒演进的前端深度适配
 - **Status**: `TODO` (高优先级)
 - **User Story**: 作为前端学习用户，当后台 AI 调用 `replace_file_content` 升级练习关卡或更新代码沙盒时，我希望在聊天卡片中清晰看到美观的高亮 Diff 对比与友好的组件命名，而不是晦涩的原始参数。
