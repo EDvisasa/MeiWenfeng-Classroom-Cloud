@@ -131,7 +131,7 @@ class AgentExecutor:
                 break
 
             parsed_tools = parser.get_parsed_tool_calls()
-            full_content = parser.get_full_content()
+            full_content = parser.get_clean_content()
             
             # 2. Pipeline Stage 2: Format fake XML for UI
             fake_xml = ToolFormatter.generate_fake_xml(parsed_tools)

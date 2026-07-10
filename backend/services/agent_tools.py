@@ -529,6 +529,40 @@ class ReadUrlContentTool(AgentTool):
         except Exception as e:
             return f"[Error] Failed to read URL: {str(e)}"
 
+class OpenClawAgentTool(AgentTool):
+    name = "call_openclaw_agent"
+    description = "Delegate a task or instruction to the external WSL OpenClaw Gateway agent (BaiTizi). Automatically verifies online status before sending."
+    is_safe = True
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "task_message": {
+                "type": "string",
+                "description": "The task instruction or prompt to delegate to the OpenClaw agent."
+            },
+            "agent_id": {
+                "type": "string",
+                "description": "Optional target agent ID inside OpenClaw (default: 'main')."
+            }
+        },
+        "required": ["task_message"]
+    }
+
+    def execute(self, params: dict) -> str:
+        task_message = params.get("task_message", "").strip()
+        agent_id = params.get("agent_id", "main")
+        if not task_message:
+            return "[Error] No task_message provided for OpenClaw agent."
+
+        from backend.services.openclaw_client import check_openclaw_status, send_to_openclaw
+        status = check_openclaw_status(timeout=3, ttl=5)
+        if not status.get("online", False):
+            reason = status.get("reason", "WSL Gateway Offline")
+            return f"[Status: Offline] 白提子（OpenClaw 网关节点）当前离线或未运行（原因: {reason}）。请向用户说明节点未启动，建议先在终端启动网关后再尝试调用。"
+
+        res = send_to_openclaw(task_message, agent=agent_id, json_output=True)
+        return str(res)
+
 # Register tools
 TOOL_REGISTRY = {
     "read_file": ReadFileTool(),
@@ -538,6 +572,7 @@ TOOL_REGISTRY = {
     "create_file": CreateFileTool(),
     "web_search": WebSearchTool(),
     "read_url_content": ReadUrlContentTool(),
+    "call_openclaw_agent": OpenClawAgentTool(),
 }
 
 

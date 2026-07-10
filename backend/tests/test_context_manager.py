@@ -210,3 +210,20 @@ def test_assemble_messages_o1_tail_injection_no_reverse_scanning_bug_12():
     assert "[下一轮提问等待中 / Waiting for next prompt]" in last_msg["content"], "Should contain waiting prompt container"
     assert "<system_injection>" in last_msg["content"], "New container should carry system_injection"
 
+
+def test_assemble_messages_injects_openclaw_gateway_status():
+    """
+    TDD [ISSUE-17]:
+    Verify assemble_messages injects canonical <openclaw_gateway_status> tag
+    into dynamic tail injection per docs/GLOSSARY.md ubiquitous language.
+    """
+    from unittest.mock import patch
+    from backend.services.context_manager import assemble_messages
+    messages = [{"role": "user", "content": "帮我叫白提子"}]
+
+    with patch("backend.services.openclaw_client.check_openclaw_status", return_value={"online": True, "status_str": "ONLINE (WSL OpenClaw Gateway ready)"}):
+        assembled = assemble_messages(messages, "系统提示")
+        last_content = assembled[-1]["content"]
+        assert "<openclaw_gateway_status>" in last_content
+        assert "</openclaw_gateway_status>" in last_content
+        assert "ONLINE (WSL OpenClaw Gateway ready)" in last_content
