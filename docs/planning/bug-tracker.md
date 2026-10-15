@@ -202,6 +202,14 @@ domain: project-planning
   3. **模型执行协议对齐**：在 [`context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 的 `<agent_execution_protocol>` 明确告知模型 `read_file` 的 PDF/Docx 支持，并写入严禁安装全局库的环境契约。
   4. **TDD 自动化测试闭环**：创建 [`test_pdf_reader_and_guardrails.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_pdf_reader_and_guardrails.py) 进行单测验证（包含真实 `navier-stokes.pdf` 提取与恶意 pip 拦截），25 项全量回归测试绿灯通过。
 
+### 25. [已解决 / 健壮性与防爆] Bash 工具执行海量输出引发 HTTP 413 溢出崩溃
+- **现象描述**：用户提问“现在你多看看，看看有没有啥是冗余的地方？”时，AI 导师触发 Bash 工具执行了 `dir /s /b /a-d` 递归扫描工作区。由于根目录下存在庞大的 `frontend/node_modules` 与 `.venv` 等目录，该命令瞬间产生 8.12 MB（800 万字符、折合超 200 万 tokens）的超大文本。`ExecuteBashTool` 缺乏输出截断保护机制，将完整输出回填给 LLM 上下文发起下一轮请求，触发上游 API 网关拒绝并返回 `HTTP 413 (Payload Too Large)`，导致流式交互中断崩溃。
+- **解决路线**：
+  1. **BashTool 物理熔断双上限保护**：在 [`agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py) 的 `ExecuteBashTool` 中建立输出物理熔断（`MAX_OUTPUT_LINES = 200`，`MAX_OUTPUT_CHARS = 30000`）。任何命令（无论是递归文件扫描还是大规模输出脚本）超出阈值均自动平滑截断，并附加友好的 `[Warning: Output truncated at 200 lines / 30000 characters to prevent context overflow]` 引导提示。
+  2. **ToolExecutionEngine 全局兜底防御**：在 [`tool_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/tool_engine.py) 中引入静态方法 `_sanitize_tool_output(output, max_chars=40000)`，对所有工具的执行结果向消息队列收集时进行第二道纵深防御（Defense-in-depth），杜绝任何第三方或新工具单次输出击穿 API Body 限制。
+  3. **TDD 自动化测试闭环**：在 [`test_agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_tools.py) 中增加 `test_bash_tool_truncates_large_output_lines` 与 `test_bash_tool_truncates_large_output_chars` 专项单测；在 [`test_agent_executor.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_executor.py) 增加 `test_tool_execution_engine_global_safety_ceiling` 专项测试，全量测试绿灯通过。
+
+
 
 
 

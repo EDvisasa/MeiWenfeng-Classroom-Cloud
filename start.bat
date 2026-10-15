@@ -33,13 +33,6 @@ call npm install
 cd ..
 :frontend_ok
 
-if exist backend\claude_engine\node_modules goto engine_ok
-echo [Info] Claude Engine dependencies not found. Installing...
-cd backend\claude_engine
-call npm install
-cd ..\..
-:engine_ok
-
 rem 3. Cleanup Zombie Processes
 echo ==========================================
 echo Cleaning up potential zombie processes...
@@ -47,27 +40,22 @@ for /f "tokens=5" %%a in ('%SystemRoot%\System32\netstat.exe -aon ^| find ":1270
     echo Killing zombie process holding port 12701 PID %%a
     %SystemRoot%\System32\taskkill.exe /f /t /pid %%a >nul 2>&1
 )
-for /f "tokens=5" %%a in ('%SystemRoot%\System32\netstat.exe -aon ^| find ":12702" ^| find "LISTENING"') do (
-    echo Killing zombie process holding port 12702 PID %%a
-    %SystemRoot%\System32\taskkill.exe /f /t /pid %%a >nul 2>&1
-)
 for /f "tokens=5" %%a in ('%SystemRoot%\System32\netstat.exe -aon ^| find ":12703" ^| find "LISTENING"') do (
     echo Killing zombie process holding port 12703 PID %%a
     %SystemRoot%\System32\taskkill.exe /f /t /pid %%a >nul 2>&1
 )
 
-rem 4. Start all services using concurrently
+rem 4. Start core services using concurrently
 echo ==========================================
-echo Starting all services concurrently in a single window...
+echo Starting core services concurrently in a single window...
 echo Frontend will run at http://localhost:12703/
 echo Backend will run at http://127.0.0.1:12701
-echo Node Bridge will run at http://127.0.0.1:12702
-echo MCP Server will be active.
+echo LiteLLM Gateway will run at http://127.0.0.1:12704
 echo.
 echo * Press Ctrl+C to stop all services safely. *
 echo ==========================================
 
-call npx --yes concurrently -n "FastAPI,MCP,Node,React,LiteLLM" -c "bgBlue.bold,bgMagenta.bold,bgGreen.bold,bgCyan.bold,bgYellow.bold" --kill-others ".venv\Scripts\python.exe -m backend.main" ".venv\Scripts\python.exe -m backend.mcp_server" "cd backend\claude_engine && node server.js" "cd frontend && npm run dev" ".venv\Scripts\litellm.exe --config backend/litellm_config.yaml --port 12704"
+call npx --yes concurrently -n "FastAPI,React,LiteLLM" -c "bgBlue.bold,bgCyan.bold,bgYellow.bold" --kill-others ".venv\Scripts\python.exe -m backend.main" "cd frontend && npm run dev" ".venv\Scripts\litellm.exe --config backend/litellm_config.yaml --port 12704"
 
 pause
 

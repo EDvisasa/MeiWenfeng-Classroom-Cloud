@@ -9,7 +9,7 @@
 媚吻锋随身课堂是一个完全独立于 SillyTavern 的本地 Web 角色扮演与教学应用。项目基于 Python (FastAPI) 后端与 React 前端构建，旨在通过构建深度的 `ResponsePipeline` 拦截管道与 `AgentExecutor` 智能体执行器，在保障前端流式打字机平滑体验的同时，实现稳定、安全的多轮本地工具调用（Agentic Tool Flow）和高效的 RAG（检索增强生成）系统。
 
 - ✅ **流式对话渲染** - 内嵌角色设定，自动渲染灰色斜体动作描写
-- ✅ **动态记忆衰减** - 本地 ChromaDB 支持，自动提取核心并按遗忘曲线衰减
+- ✅ **动态记忆衰减与双轨 RAG** - 默认集成开箱即用的本地 ChromaDB 向量库，并支持进阶挂接 RAGFlow 实现复杂排版深度解析；记忆自动按遗忘曲线提炼衰减
 - ✅ **沉浸式双栏布局** - 专为 VS Code 生态深度适配：聚焦中间核心对话区与右侧导师状态面板
 - ✅ **多模型无缝切换** - 完全支持 DeepSeek 以及本地 Ollama (如 gemma-9b)，架构已预留 Claude/Gemini 接入空间
 - ✅ **内网跨屏访问** - 动态 API 寻址与 IP 白名单防黑设计，支持手机端无缝使用
@@ -32,12 +32,10 @@ MeiWenfeng-Classroom/
 │   │   ├── db_viewer.py      # ↳ 内部核心数据库只读检索面板路由
 │   │   └── openclaw.py       # ↳ [NEW] OpenClaw 原生系统通讯桥接操作接口
 │   ├── services/             # 核心服务 (模型路由/记忆衰减算法等)
-│   ├── claude_engine/        # Claude 原生协议适配引擎
-│   ├── openai_adapter/       # OpenAI 标准协议转接层
 │   ├── scripts/              # 辅助维护脚本
 │   ├── tests/                # 自动化测试用例与集成验证脚本 (使用 pytest)
 │   ├── litellm_config.yaml   # LiteLLM 代理网关路由配置
-│   ├── mcp_server.py         # MCP (Model Context Protocol) 服务
+│   ├── mcp_server.py         # MCP (Model Context Protocol) 外部扩展服务
 │   ├── database.py           # SQLite 初始化与操作
 │   └── classroom.db          # 结构化数据库 (好感度/课程进度/系统配置)
 ├── frontend/                 # React 前端
@@ -66,7 +64,6 @@ MeiWenfeng-Classroom/
 │   └── 01_dev_and_test_guide.md # 自动化测试体系与回归单测参考
 ├── AGENTS.md                 # 智能体交接宪法与技能寻址表
 ├── start.bat                 # Windows 一键启动脚本
-├── start.sh                  # Linux/Mac 一键启动脚本
 ├── .env.example              # 环境变量参考模板
 └── README.md                 # 本文件
 ```
@@ -131,8 +128,10 @@ cd MeiWenfeng-Classroom
 - **动态 Token 环形指示器**：实时计算底层隐藏上下文（系统设定/RAG/记忆）与当前对话的 Token 消耗总和，接近模型上限时自动变色预警。
 - **大核心态组件管理**：前端交互用语支持原生 OpenClaw 桥接术语标准化；交互渲染被重构为“深模块 (Deep Module)”，精准追踪大模型流式输出生命周期与多轮工具调用时序。大模型返回的 Tool Calling Payload 已经过精简压缩及 outcome-tag 并行跟踪，彻底解决思考块卡死或 UI 泄漏问题。
 
-### 🧠 记忆系统与 RAG 检索
-内置本地 ChromaDB 向量知识库，RAG 检索阈值已校准至 `0.75` 的最佳余弦距离。同时基于自研的遗忘曲线算法，系统会按天对历史记忆（精确、关键、模糊、里程碑、索引）进行衰减处理和提炼，解决传统扮演 LLM 动辄塞入几万字上下文导致崩溃或幻觉的问题；底层实现了 RAG 与 Memory 档案的严格物理隔离。
+### 🧠 记忆系统与双轨 RAG 架构
+- **默认内嵌 ChromaDB 向量库**：开箱即用，零外部 Docker 容器依赖。启动即自动预热，检索最佳余弦阈值校准至 `0.75`，专为本地 Markdown 讲义与学习记忆提供毫秒级极速向量检索。
+- **支持外部 RAGFlow 实例扩展**：系统底层采用抽象工厂设计（`RAGFactory`），支持在「🔌 API 设置」中无缝切换至外部 Docker RAGFlow 实例，以便利用其强大的深度版面解析能力处理超长排版论文、表格与复杂文档。
+- **四段式遗忘曲线提炼**：基于自研的时间衰减算法，按天对历史记忆（精确、关键、模糊、里程碑、索引）进行周期性提炼与自动浓缩，从根源上杜绝扮演 LLM 上下文堆积导致的幻觉或 Token 溢出；底层实现教学 RAG 与角色 Memory 档案的严格物理隔离。
 
 ### 📚 课程与大纲进度控制
 引入右侧的全局“导师状态栏”，完全图形化展示当前课题、用户理解分数与任务节点。所有交互行为带来的进度改变直接回写至底层的 SQLite `course_progress` 表。
@@ -181,4 +180,4 @@ cd MeiWenfeng-Classroom
 
 ---
 
-*最后更新: 2026-07-10*
+*最后更新: 2026-09-13*

@@ -17,7 +17,7 @@ domain: project-planning
 | 后端语言 | **Python (FastAPI)** |
 | 前端框架 | **React + Vanilla CSS** |
 | 数据存储 | **SQLite**（全量涵盖 11 张核心业务与架构表） |
-| 知识库 | **RAGFlow 本地实例** / **ChromaDB 本地内嵌库** |
+| 知识库 | **ChromaDB 本地内嵌库**（默认推荐） / **RAGFlow 本地实例**（复杂文档深度解析） |
 | UI 布局 | **三栏 IDE 式**：左(文件树) / 中(对话授课区) / 右(状态面板) |
 | 交互特色 | **斜体灰色动作描写**，好感度隐性化处理 |
 
@@ -58,7 +58,7 @@ domain: project-planning
 | `/submit` | 切入"考核模式" | 校验答案，触发 Feedback Loop 或 `execute_bash` |
 | `/set_mission`| 设定大目标 | 将宏大目标存入数据库并常驻状态栏 |
 | `/summarize` | 压缩记忆 | 触发四段式衰减（memory_decay.py） |
-| `/prepare` | 同步知识库 | 将选定的本地文件上传至 ChromaDB/RAGFlow |
+| `/prepare` | 同步知识库 | 将选定的本地讲义上传至 ChromaDB/RAGFlow |
 | `/plan` | 制定学习计划 | 基于大纲进度，输出下一步的栽培任务 |
 
 ## 五、宏观开发阶段定义

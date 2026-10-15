@@ -439,3 +439,4 @@ domain: project-planning
   - [x] `execute_bash` 对 `pip install`、`python -m pip install`、`npm i -g` 等包管理命令实现 100% 物理阻断；
   - [x] 自动化测试用例全部绿灯通过。
 - **Verification Command**: `pytest backend/tests/test_pdf_reader_and_guardrails.py`
+

@@ -121,7 +121,32 @@ class BashTool(AgentTool):
                 
             output = stdout_str + stderr_str
             if not output.strip():
-                output = "[Command executed successfully with no output]"
+                return "[Command executed successfully with no output]"
+
+            # 防爆与上下文溢出保护 (Bug #16 防御 HTTP 413)
+            MAX_OUTPUT_LINES = 200
+            MAX_OUTPUT_CHARS = 30000
+
+            lines = output.splitlines()
+            original_line_count = len(lines)
+            original_char_count = len(output)
+            truncated = False
+
+            if original_line_count > MAX_OUTPUT_LINES:
+                output = "\n".join(lines[:MAX_OUTPUT_LINES])
+                truncated = True
+
+            if len(output) > MAX_OUTPUT_CHARS:
+                output = output[:MAX_OUTPUT_CHARS]
+                truncated = True
+
+            if truncated:
+                output += (
+                    f"\n\n[Warning: Output truncated at {MAX_OUTPUT_LINES} lines / {MAX_OUTPUT_CHARS} characters "
+                    f"to prevent context overflow (Total was {original_line_count} lines, {original_char_count} chars). "
+                    f"👉 Tip: Refine your command with specific paths, grep/findstr, or pagination.]"
+                )
+
             return output
         except subprocess.TimeoutExpired:
             return "[Error] Command timed out after 10 seconds."

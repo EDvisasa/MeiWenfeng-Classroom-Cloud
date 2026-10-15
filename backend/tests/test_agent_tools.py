@@ -78,6 +78,25 @@ def test_bash_tool_executes_commands():
     result = tool.execute({"command": "echo Hello from bash"})
     assert "Hello from bash" in result
 
+def test_bash_tool_truncates_large_output_lines():
+    """Test that BashTool truncates output when lines exceed MAX_OUTPUT_LINES (Bug #16)."""
+    tool = BashTool()
+    cmd = 'python -c "for i in range(300): print(f\'test_line_{i}\')"'
+    result = tool.execute({"command": cmd})
+    assert "test_line_0" in result
+    assert "test_line_199" in result
+    assert "test_line_200" not in result
+    assert "[Warning: Output truncated at 200 lines" in result
+
+def test_bash_tool_truncates_large_output_chars():
+    """Test that BashTool truncates output when characters exceed MAX_OUTPUT_CHARS (Bug #16)."""
+    tool = BashTool()
+    cmd = 'python -c "print(\'X\' * 50000)"'
+    result = tool.execute({"command": cmd})
+    assert "[Warning: Output truncated" in result
+    assert len(result) < 35000
+
+
 def test_tool_registry_contains_expected_tools():
     """Verify that tools are properly registered and retrievable."""
     assert "read_file" in TOOL_REGISTRY

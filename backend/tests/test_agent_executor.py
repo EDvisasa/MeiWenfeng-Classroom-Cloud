@@ -85,3 +85,12 @@ def test_agent_executor_with_tool_call():
         assert last_request_msgs[-2].get("tool_calls")
         assert last_request_msgs[-1]["role"] == "tool"
         assert "hello" in last_request_msgs[-1]["content"]
+
+def test_tool_execution_engine_global_safety_ceiling():
+    """Verify that ToolExecutionEngine enforces a global safety ceiling on tool outputs (Bug #16)."""
+    from backend.services.tool_engine import ToolExecutionEngine
+    huge_str = "A" * 60000
+    sanitized = ToolExecutionEngine._sanitize_tool_output(huge_str)
+    assert len(sanitized) < 45000
+    assert "[Warning: Tool output exceeded global safety ceiling" in sanitized
+

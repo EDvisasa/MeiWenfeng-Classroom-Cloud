@@ -82,3 +82,5 @@ def get_rag_client() -> RAGClient:
     else:  # "chromadb" (default)
         from backend.services.chroma_client import chroma_rag_client
         return chroma_rag_client
+
+

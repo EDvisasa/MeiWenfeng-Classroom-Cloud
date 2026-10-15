@@ -38,6 +38,13 @@ class ToolExecutionEngine:
                     args.append(f"{k}={v}")
             return f"{t_name}({', '.join(args)})"
             
+    @staticmethod
+    def _sanitize_tool_output(output: Any, max_chars: int = 40000) -> str:
+        s = str(output)
+        if len(s) > max_chars:
+            return s[:max_chars] + f"\n\n[Warning: Tool output exceeded global safety ceiling ({max_chars} chars) and was truncated to prevent HTTP 413 / context overflow.]"
+        return s
+
     def execute_tools(self, tools_to_run: List[Dict[str, Any]]) -> Generator[Dict[str, Any], None, None]:
         """
         Executes a batch of tools.
@@ -87,7 +94,7 @@ class ToolExecutionEngine:
                     "role": "tool",
                     "tool_call_id": t["id"],
                     "name": t["name"],
-                    "content": str(output)
+                    "content": self._sanitize_tool_output(output)
                 })
 
         # 2. Execute Unsafe Tools sequentially
@@ -112,7 +119,7 @@ class ToolExecutionEngine:
                     "role": "tool",
                     "tool_call_id": t["id"],
                     "name": t["name"],
-                    "content": str(output)
+                    "content": self._sanitize_tool_output(output)
                 })
                 
         yield {"type": "tool_results", "results": final_results}
