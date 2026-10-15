@@ -383,8 +383,9 @@ export default function FileTree({
 
           {/* 会话列表 */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px' }}>
-            {sessions.map(s => {
+            {[...sessions].sort((a, b) => (a.id === 'openclaw_trio_chat' ? -1 : b.id === 'openclaw_trio_chat' ? 1 : 0)).map(s => {
               const isActive = s.id === activeSessionId;
+              const isTrio = s.id === 'openclaw_trio_chat';
               return (
                 <div 
                   key={s.id}
@@ -397,24 +398,29 @@ export default function FileTree({
                     borderRadius: '8px',
                     marginBottom: '6px',
                     cursor: 'pointer',
-                    background: isActive ? 'rgba(75, 108, 183, 0.08)' : 'transparent',
-                    borderLeft: isActive ? '3px solid var(--accent-pink)' : '3px solid transparent',
+                    background: isTrio
+                      ? (isActive ? 'rgba(234, 179, 8, 0.2)' : 'rgba(234, 179, 8, 0.08)')
+                      : (isActive ? 'rgba(75, 108, 183, 0.08)' : 'transparent'),
+                    borderLeft: isTrio
+                      ? '3px solid #eab308'
+                      : (isActive ? '3px solid var(--accent-pink)' : '3px solid transparent'),
+                    border: isTrio ? '1px solid rgba(234, 179, 8, 0.3)' : undefined,
                     transition: 'all 0.2s'
                   }}
                   className="session-item"
                   onMouseOver={(e) => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
+                    if (!isActive && !isTrio) e.currentTarget.style.backgroundColor = 'var(--bg-tertiary)';
                   }}
                   onMouseOut={(e) => {
-                    if (!isActive) e.currentTarget.style.backgroundColor = 'transparent';
+                    if (!isActive && !isTrio) e.currentTarget.style.backgroundColor = 'transparent';
                   }}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden', flex: 1 }}>
-                    <span style={{ fontSize: '14px' }}>💬</span>
+                    <span style={{ fontSize: '14px' }}>{isTrio ? '🍵' : '💬'}</span>
                     <span style={{ 
                       fontSize: '13px', 
-                      color: isActive ? 'var(--accent-pink)' : 'var(--text-primary)',
-                      fontWeight: isActive ? '600' : 'normal',
+                      color: isTrio ? '#eab308' : (isActive ? 'var(--accent-pink)' : 'var(--text-primary)'),
+                      fontWeight: (isActive || isTrio) ? '600' : 'normal',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                       whiteSpace: 'nowrap'
@@ -423,30 +429,32 @@ export default function FileTree({
                     </span>
                   </div>
                   
-                  <button 
-                    onClick={(e) => onDeleteSession(s.id, e)}
-                    title="删除会话"
-                    style={{
-                      border: 'none',
-                      background: 'transparent',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      color: 'var(--text-secondary)',
-                      padding: '4px',
-                      opacity: isActive ? 1 : 0.6,
-                      transition: 'opacity 0.2s'
-                    }}
-                    onMouseOver={(e) => {
-                      e.stopPropagation();
-                      e.currentTarget.style.opacity = 1;
-                      e.currentTarget.style.color = 'var(--danger)';
-                    }}
-                    onMouseOut={(e) => {
-                      e.currentTarget.style.color = 'var(--text-secondary)';
-                    }}
-                  >
-                    🗑️
-                  </button>
+                  {!isTrio && (
+                    <button 
+                      onClick={(e) => onDeleteSession(s.id, e)}
+                      title="删除会话"
+                      style={{
+                        border: 'none',
+                        background: 'transparent',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        color: 'var(--text-secondary)',
+                        padding: '4px',
+                        opacity: isActive ? 1 : 0.6,
+                        transition: 'opacity 0.2s'
+                      }}
+                      onMouseOver={(e) => {
+                        e.stopPropagation();
+                        e.currentTarget.style.opacity = 1;
+                        e.currentTarget.style.color = 'var(--danger)';
+                      }}
+                      onMouseOut={(e) => {
+                        e.currentTarget.style.color = 'var(--text-secondary)';
+                      }}
+                    >
+                      🗑️
+                    </button>
+                  )}
                 </div>
               );
             })}

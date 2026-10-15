@@ -7,7 +7,7 @@ from typing import List, Dict, Any, Optional
 
 from backend.database import get_db_connection
 from backend.services.character_state import CharacterStateManager, CharacterStateError
-from backend.services.model_router import stream_chat
+from backend.services.model_router import stream_chat, get_active_model
 from backend.services.memory_decay import check_decay_needed, process_memory_decay
 from backend.services.prompts import get_system_prompt
 from backend.services.rag_factory import get_rag_client
@@ -25,6 +25,7 @@ class Message(BaseModel):
     timestamp: Optional[str] = None
 
 class ChatRequest(BaseModel):
+    session_id: Optional[str] = None
     messages: List[Message]
     persona_type: Optional[str] = "simplified"
     current_file_path: Optional[str] = ""
@@ -230,11 +231,30 @@ def send_message(payload: ChatRequest):
 
     system_prompt, kb_count, mem_count = _build_full_system_prompt(payload, original_last_user_msg)
 
+    # 4. 前置上下文防爆检测与 Auto-Compact 触发
+    from backend.services.compact_service import check_and_auto_compact
+    
+    # 动态获取当前激活模型的 max_context_tokens (上下文窗口上限)
+    active_model = get_active_model()
+    context_window_limit = active_model.get("max_context_tokens") or 8192
+    
+    auto_compacted, final_messages_for_llm, auto_compact_hint = check_and_auto_compact(
+        messages=cleaned_messages,
+        session_id=payload.session_id,
+        custom_max_tokens=context_window_limit,
+        threshold_ratio=0.8,
+        keep_recent_turns=10
+    )
+
     pipeline = ResponsePipeline(registry=action_registry)
     pipeline.original_user_msg = original_last_user_msg
 
     def event_generator():
         try:
+            # 推送 Auto-Compact 防爆提示 (如果触发)
+            if auto_compact_hint:
+                yield f"data: {json.dumps(auto_compact_hint, ensure_ascii=False)}\n\n"
+
             if kb_count > 0 or mem_count > 0:
                 parts = []
                 if kb_count > 0: parts.append(f"{kb_count} 个讲义片段")
@@ -242,7 +262,7 @@ def send_message(payload: ChatRequest):
                 hint_text = f"🔍 成功检索并加载：{' 和 '.join(parts)}"
                 yield f"data: {json.dumps({'type': 'system_hint', 'text': hint_text}, ensure_ascii=False)}\n\n"
 
-            content_stream = stream_chat(cleaned_messages, system_prompt, max_tokens=payload.custom_max_tokens)
+            content_stream = stream_chat(final_messages_for_llm, system_prompt, max_tokens=payload.custom_max_tokens)
             yield from pipeline.process_stream(content_stream)
         except Exception as e:
             import traceback

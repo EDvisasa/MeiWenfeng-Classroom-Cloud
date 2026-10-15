@@ -28,7 +28,7 @@ domain: project-planning
 - [x] **测验提交路由拦截 (System Prompt Re-injection)**：经代码审核（`chat.py:163`），当用户点击测验提交发送 `<submit_quiz_result>` 时，已无缝映射为 `/lesson_continue` 隐式指令，确保了 AI 批改作业时不会遗忘排版与出题护栏。
 
 ### <a id="issue-24"></a>[ISSUE-24] 随身课堂会话级上下文压缩引擎 (`/compact` + Auto-Compact) 与「小白有话说...」三人会话治理
-- **Status**: `TODO` (高优先级)
+- **Status**: `DONE` (已完成 - 2026-08-18，经 TDD 6 项单测验证 100% 通过)
 - **User Story**: 作为随身课堂与多智能体长对话系统的用户，当会话（特别是三人小群 `openclaw_trio_chat` 或长时间连续授课）的原始轮次过多、Token 接近模型上限（如达到 75%~80% 动态安全水位）时，系统不仅支持通过 `/compact` 手动触发，更能够在发包前**自动检测并触发 Auto-Compact 静默压缩**；将历史早期对白自适应提炼为多角色结构化 `<compact_summary>` 前情提要并保留最近 10~15 轮真实对话，使吻锋在组装报文时既不遗忘前情，又彻底免疫 Context Overflow 崩溃；同时在历史会话列表置顶固定不可删除的淡金底专属会话「小白有话说...」。
 - **What to build**:
   1. **数据库平滑升级与分水岭索引**：
@@ -55,11 +55,11 @@ domain: project-planning
   - [`backend/tests/test_compact.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact.py)
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
 - **Acceptance Criteria**:
-  1. 用户在前端发送 `/compact` 时，系统触发会话上下文浓缩并流式返回确认提示；
-  2. 当会话总 Token 超过安全水位（默认 80%）时，系统在发包前自动触发 Auto-Compact，前端收到 `system_hint` 友好提示，对话无感继续；
-  3. 历史早期消息被优雅收敛为结构化 `<compact_summary>`，最近 10~15 轮对话完整保留，数据库记录准确更新 `compact_cutoff_id`；
-  4. 历史会话下拉列表顶部常驻淡金底 `小白有话说...` 会话且无删除按钮；
-  5. 新增的 `pytest backend/tests/test_compact.py` 100% 绿灯通过。
+  - [x] 用户在前端发送 `/compact` 时，系统触发会话上下文浓缩并流式返回确认提示；
+  - [x] 当会话总 Token 超过安全水位（默认 80%）时，系统在发包前自动触发 Auto-Compact，前端收到 `system_hint` 友好提示，对话无感继续；
+  - [x] 历史早期消息被优雅收敛为结构化 `<compact_summary>`，最近 10~15 轮对话完整保留，数据库记录准确更新 `compact_cutoff_id`；
+  - [x] 历史会话下拉列表顶部常驻淡金底 `小白有话说...` 会话且无删除按钮；
+  - [x] 新增的 `pytest backend/tests/test_compact.py` 100% 绿灯通过。
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_compact.py -v`
 

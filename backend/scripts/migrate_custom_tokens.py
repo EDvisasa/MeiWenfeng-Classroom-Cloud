@@ -3,10 +3,9 @@ import os
 import sys
 
 # Ensure backend modules can be imported
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
 from backend.routers.models import resolve_max_tokens
-
-DB_PATH = os.path.join(os.path.dirname(__file__), 'classroom.db')
+from backend.database import DB_PATH
 
 def migrate():
     conn = sqlite3.connect(DB_PATH)

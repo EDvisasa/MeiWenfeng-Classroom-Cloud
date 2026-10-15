@@ -158,21 +158,44 @@ def update_persona_stream():
 
 @router.get("/sessions")
 def get_sessions():
-    """获取所有历史会话及其消息"""
+    """获取所有历史会话及其消息（确保 openclaw_trio_chat 始终置顶并存在）"""
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
         
+        # 确保 openclaw_trio_chat 会话在数据库中常驻
+        cursor.execute("SELECT id FROM chat_sessions WHERE id = 'openclaw_trio_chat'")
+        if not cursor.fetchone():
+            cursor.execute(
+                "INSERT INTO chat_sessions (id, title, updated_at) VALUES ('openclaw_trio_chat', '小白有话说...', datetime('now'))"
+            )
+            conn.commit()
+
         # 获取所有会话，按最后更新时间降序排列
         cursor.execute("SELECT id, title, updated_at FROM chat_sessions ORDER BY updated_at DESC")
-        sessions = [dict(row) for row in cursor.fetchall()]
+        raw_sessions = [dict(row) for row in cursor.fetchall()]
         
+        # 将 openclaw_trio_chat 强制固定在第一位
+        trio_sess = None
+        other_sessions = []
+        for s in raw_sessions:
+            if s["id"] == "openclaw_trio_chat":
+                s["title"] = "小白有话说..."
+                trio_sess = s
+            else:
+                other_sessions.append(s)
+        
+        sessions = ([trio_sess] if trio_sess else []) + other_sessions
+
         for sess in sessions:
             cursor.execute(
                 "SELECT role, content, timestamp FROM chat_messages WHERE session_id = ? ORDER BY id ASC", 
                 (sess["id"],)
             )
             sess["messages"] = [dict(row) for row in cursor.fetchall()]
+            
+        conn.close()
+        return sessions
             
         conn.close()
         return sessions
@@ -218,7 +241,10 @@ def save_session(payload: SessionSavePayload):
 
 @router.delete("/sessions/{session_id}")
 def delete_session(session_id: str):
-    """删除指定的聊天会话及其消息"""
+    """删除指定的聊天会话及其消息（openclaw_trio_chat 永久保护不予删除）"""
+    if session_id == "openclaw_trio_chat":
+        raise HTTPException(status_code=403, detail="【小白有话说...】为永久专属三人会话，禁止删除。")
+
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -226,6 +252,12 @@ def delete_session(session_id: str):
         # 删除会话和消息
         cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
         cursor.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
+        conn.commit()
+        conn.close()
+        return {"status": "success", "session_id": session_id}
+    except Exception as e:
+        logger.error(f"Failed to delete session {session_id}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
         
         conn.commit()
         conn.close()

@@ -15,8 +15,9 @@ const COMMANDS = [
   { cmd: '/plan', desc: '生成或更新接下来的具体课程大纲' },
   { cmd: '/submit', desc: '进行课题考核，AI会对你进行提问' },
   { cmd: '/reward', desc: '获取好感奖励，触发狐妖娘溺爱互动' },
-  { cmd: '/summarize', desc: '压缩并保存当前记忆，释放上下文' },
-  { cmd: '/prepare', desc: '将当前选定的讲义文件上传同步至RAGFlow知识库' },
+  { cmd: '/compact', desc: '压缩当前会话历史，防止长对话 Token 溢出' },
+  { cmd: '/summarize', desc: '沉淀并衰变短期记忆，生成全局长期记忆' },
+  { cmd: '/prepare', desc: '将当前选定的文件切块并同步至系统知识库 (RAG)' },
   { cmd: '/update_persona', desc: '根据最新记忆迭代并精简系统人设' }
 ];
 
@@ -1058,6 +1059,7 @@ export default function App() {
         headers: { 'Content-Type': 'application/json' },
         signal: abortControllerRef.current.signal,
         body: JSON.stringify({
+          session_id: activeSessionId,
           messages: apiPayload,
           persona_type: personaType,
           current_file_path: selectedFilePath,
@@ -1524,6 +1526,7 @@ export default function App() {
                     if (res.ok) {
                       const data = await res.json();
                       setPreviewModal({ path: path, content: data.content });
+                      setSelectedFilePath(path);
                     } else {
                       alert("拉取文件失败");
                     }

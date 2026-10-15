@@ -11,6 +11,18 @@ domain: project-planning
 
 ## 🔴 当前处理中：待修复 Bug 与架构重构工单 (Active Issues & Refactorings)
 
+### 19. 上下文 Auto-Compact 阈值未与激活模型上限动态联动及全量消息重传引发每轮重复压缩
+- **现象描述**：
+  在手机端/Web 端实际长对话测试中，当消息累积到一定量（如 8009 tokens）时，系统成功触发了 Auto-Compact 提示（`🧹 检测到会话上下文接近上限（估算 8009 tokens / 阈值 6553），已自动浓缩早期对话记忆...`），但暴露出两个核心缺陷：
+  1. **模型上限矮化误报**：当前激活模型为云端大窗口模型（如 GG公益站 32K~128K 上下文），但后端 `chat.py` 使用了写死的默认 `8192` 作为基准进行 `* 0.8` 计算（阈值 6553），导致在上下文极其充裕的情况下过早触发压缩；
+  2. **压缩死循环与重复弹窗**：由于前端 UI 保留全量气泡，后续每一轮用户发送新消息时依然全量上传 8000+ tokens 的历史列表；后端预检时未根据 `compact_cutoff_id` 分水岭进行增量切片校验，导致每一轮对话发包前都会无脑重复调用大模型重新执行 3 秒压缩并重复弹出黄色扫把提示。
+- **根因分析**：
+  1. `check_and_auto_compact` 接收的 `custom_max_tokens` 在 `chat.py` 路由中硬编码兜底为 `payload.custom_max_tokens or 8192`，未从当前激活的 `model_config` 表中动态查询真实 `max_context_tokens`；
+  2. 会话发包管线在做 Auto-Compact 检测时，直接对全量 `cleaned_messages` 进行 `estimate_messages_tokens`，未基于已落盘的 `compact_cutoff_id` 进行增量计算与分水岭截断，导致每次请求全量重复命中 `> threshold`。
+- **调查与修复方向**：
+  1. **动态模型上限感知**：在 `chat.py` 或 `compact_service.py` 中，根据当前激活模型动态获取 `max_context_tokens`（云端模型 32K~128K，本地模型 8K/16K），以当前模型的真实容量计算 80% 安全水位；
+  2. **分水岭截断与增量压缩机制 (Incremental Rolling Compaction)**：当会话存在有效 `compact_summary` 且近期消息数量/Token 尚未超出分水岭安全范围时，跳过重复压缩，直接复用既有摘要并拼接分水岭之后的近期消息；仅当分水岭后的新对话再次达到增量阈值时，才触发二级增量滚动压缩。
+
 ### 1. 数据目录写入与存储机制异常
 - **现象描述**：系统目前对于如何对 `data/` 文件夹进行合法的写入操作、以及如何标准地存储教学文档，缺乏明确的工作流。
 - **调查方向**：

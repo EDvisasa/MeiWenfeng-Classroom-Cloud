@@ -16,7 +16,7 @@ def get_active_model() -> Dict:
     conn = get_db_connection()
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT id, name, protocol, base_url, api_key, selected_model_id FROM model_config WHERE is_active = 1 LIMIT 1"
+        "SELECT id, name, protocol, base_url, api_key, selected_model_id, max_context_tokens FROM model_config WHERE is_active = 1 LIMIT 1"
     )
     row = cursor.fetchone()
     conn.close()

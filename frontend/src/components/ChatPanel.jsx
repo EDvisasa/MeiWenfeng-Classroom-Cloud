@@ -558,24 +558,37 @@ export default function ChatPanel({
             {showSessionList && (
               <div className="session-list-popover">
                 <div className="session-list-header">历史对话</div>
-                {sessions && sessions.map(s => (
-                  <div
-                    key={s.id}
-                    className={`session-item ${s.id === activeSessionId ? 'active' : ''}`}
-                    onClick={() => { onSwitchSession(s.id); setShowSessionList(false); }}
-                  >
-                    <span className="session-title">{s.title}</span>
-                    <button
-                      className="session-delete-btn"
-                      onClick={(e) => onDeleteSession(s.id, e)}
-                      title="删除"
+                {sessions && [...sessions].sort((a, b) => (a.id === 'openclaw_trio_chat' ? -1 : b.id === 'openclaw_trio_chat' ? 1 : 0)).map(s => {
+                  const isTrio = s.id === 'openclaw_trio_chat';
+                  return (
+                    <div
+                      key={s.id}
+                      className={`session-item ${s.id === activeSessionId ? 'active' : ''}`}
+                      onClick={() => { onSwitchSession(s.id); setShowSessionList(false); }}
+                      style={isTrio ? {
+                        background: s.id === activeSessionId ? 'rgba(234, 179, 8, 0.2)' : 'rgba(234, 179, 8, 0.08)',
+                        border: '1px solid rgba(234, 179, 8, 0.35)',
+                        color: 'var(--text-primary)',
+                        fontWeight: 600,
+                      } : {}}
                     >
-                      <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                        <path d="M2 4h12v1H2V4zm2-2h8v1H4V2zm1 4h1v7H5V6zm4 0h1v7H9V6zM3 5h10l-1 10H4L3 5z" />
-                      </svg>
-                    </button>
-                  </div>
-                ))}
+                      <span className="session-title" style={isTrio ? { color: '#eab308' } : {}}>
+                        {isTrio ? '🍵 ' + s.title : s.title}
+                      </span>
+                      {!isTrio && (
+                        <button
+                          className="session-delete-btn"
+                          onClick={(e) => onDeleteSession(s.id, e)}
+                          title="删除"
+                        >
+                          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M2 4h12v1H2V4zm2-2h8v1H4V2zm1 4h1v7H5V6zm4 0h1v7H9V6zM3 5h10l-1 10H4L3 5z" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -1065,6 +1078,7 @@ export default function ChatPanel({
                       { cmd: '/lesson', label: '/lesson' },
                       { cmd: '/submit', label: '/submit' },
                       { cmd: '/reward', label: '/reward' },
+                      { cmd: '/compact', label: '/compact' },
                       { cmd: '/summarize', label: '/summarize' },
                       { cmd: '/prepare', label: '/prepare' },
                       { cmd: '/update_persona', label: '/update_persona' },

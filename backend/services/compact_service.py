@@ -155,27 +155,76 @@ def compact_conversation_messages(
 
 def check_and_auto_compact(
     messages: List[Dict[str, Any]],
+    session_id: Optional[str] = None,
     custom_max_tokens: int = 8192,
     threshold_ratio: float = 0.8,
     keep_recent_turns: int = 10
 ) -> Tuple[bool, List[Dict[str, Any]], Optional[Dict[str, Any]]]:
     """
     检测当前消息 Token 占用是否超过阈值；超限则触发 Auto-Compact 并返回提示。
+    支持分水岭截断与增量压缩 (Incremental Rolling Compaction)。
     """
-    total_tokens = estimate_messages_tokens(messages)
     threshold = int(custom_max_tokens * threshold_ratio)
+    
+    existing_summary = None
+    cutoff_index = 0
+    
+    if session_id:
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            cursor.execute("SELECT compact_summary, compact_cutoff_id FROM chat_sessions WHERE id = ?", (session_id,))
+            row = cursor.fetchone()
+            conn.close()
+            if row:
+                existing_summary = row["compact_summary"]
+                cutoff_index = row["compact_cutoff_id"] or 0
+        except Exception as e:
+            logger.error(f"Failed to fetch compact state for session {session_id}: {e}")
+            
+    # 防止 cutoff_index 超出当前 messages 的长度
+    if cutoff_index > len(messages):
+        cutoff_index = 0
+        existing_summary = None
 
-    if total_tokens > threshold and len(messages) > keep_recent_turns:
-        logger.info(f"Auto-Compact triggered: {total_tokens} tokens > {threshold} (threshold {threshold_ratio*100}%)")
-        compacted_msgs, summary_xml = compact_conversation_messages(messages, keep_recent_turns=keep_recent_turns)
-        hint = {
-            "type": "system_hint",
-            "icon": "compact",
-            "text": f"🧹 检测到会话上下文接近上限（估算 {total_tokens} tokens / 阈值 {threshold}），已自动浓缩早期对话记忆，会话无缝继续~"
-        }
-        return True, compacted_msgs, hint
+    # 取分水岭之后的未压缩消息
+    uncompressed_messages = messages[cutoff_index:] if cutoff_index > 0 else messages
+    
+    total_tokens = estimate_messages_tokens(uncompressed_messages)
+    if existing_summary:
+        # 补上已有摘要的估算
+        total_tokens += estimate_messages_tokens([{"role": "user", "content": existing_summary}])
 
-    return False, messages, None
+    # 如果还没超标，或者可压缩的消息数太少，直接复用老摘要并放行
+    if total_tokens <= threshold or len(uncompressed_messages) <= keep_recent_turns:
+        if existing_summary and cutoff_index > 0:
+            compacted_msgs = [{"role": "user", "content": existing_summary}] + list(uncompressed_messages)
+            return False, compacted_msgs, None
+        return False, messages, None
+
+    # 超标了！触发滚动增量压缩
+    logger.info(f"Auto-Compact triggered: {total_tokens} tokens > {threshold} (threshold {threshold_ratio*100}%)")
+    
+    messages_to_compact = uncompressed_messages[:-keep_recent_turns]
+    recent_preserved = uncompressed_messages[-keep_recent_turns:]
+    
+    if existing_summary:
+        messages_to_compact = [{"role": "user", "content": existing_summary}] + list(messages_to_compact)
+        
+    new_summary_xml = generate_compact_summary(messages_to_compact)
+    new_cutoff = len(messages) - keep_recent_turns
+    
+    if session_id:
+        save_session_compact_state(session_id, new_summary_xml, new_cutoff)
+        
+    compacted_msgs = [{"role": "user", "content": new_summary_xml}] + list(recent_preserved)
+    
+    hint = {
+        "type": "system_hint",
+        "icon": "compact",
+        "text": f"🧹 检测到会话上下文接近上限（估算 {total_tokens} tokens / 阈值 {threshold}），已自动浓缩早期对话记忆，会话无缝继续~"
+    }
+    return True, compacted_msgs, hint
 
 
 def save_session_compact_state(session_id: str, summary: str, cutoff_id: int):

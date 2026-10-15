@@ -46,6 +46,10 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
     if clean_cmd == "/summarize":
         return _handle_summarize()
 
+    # === 2.1 /compact ===
+    if clean_cmd == "/compact":
+        return _handle_compact(cleaned_messages)
+
     # === 3. /prepare ===
     if clean_cmd == "/prepare":
         return _handle_prepare_lesson(current_file_path)
@@ -248,6 +252,23 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 # 下面保留原有的其他命令处理函数（_handle_reward, _handle_summarize 等）...
+def _handle_compact(cleaned_messages: List[Dict[str, str]]) -> StreamingResponse:
+    def raw_generator():
+        yield {"type": "system_hint", "icon": "info", "text": "正在提炼会话历史上下文纪要..."}
+        from backend.services.compact_service import compact_conversation_messages
+        
+        # 过滤掉最后一条 /compact 自身
+        valid_msgs = [m for m in cleaned_messages if m.get("content", "").strip() != "/compact"]
+        compacted, summary_xml = compact_conversation_messages(valid_msgs, keep_recent_turns=10)
+        
+        if not summary_xml:
+            yield {"type": "system_hint", "icon": "info", "text": "历史会话长度较短，无需压缩~"}
+        else:
+            yield {"type": "system_hint", "icon": "check", "text": "✨ 会话上下文已成功浓缩！早期历史已整理为结构化纪要，保留最近鲜活对白。"}
+
+    pipeline = ResponsePipeline()
+    return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
+
 def _handle_reward() -> StreamingResponse:
     def raw_generator():
         try:

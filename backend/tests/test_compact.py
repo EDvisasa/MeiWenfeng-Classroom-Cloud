@@ -1,5 +1,6 @@
 import pytest
 import sqlite3
+import json
 from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
@@ -100,13 +101,14 @@ def test_assemble_messages_with_compact_summary():
 
 def test_check_and_auto_compact_triggers_when_exceeding_threshold():
     """Verify auto-compact triggers when estimated token count exceeds threshold."""
-    messages = [{"role": "user" if i % 2 == 0 else "assistant", "content": "A" * 500} for i in range(20)]
-    
-    # Total tokens ~ 2500, with threshold 2000 it should trigger
+    # Generate messages with sufficient tokens (20 * 200 words ~ 4000+ tokens)
+    messages = [{"role": "user" if i % 2 == 0 else "assistant", "content": "Hello world from OpenClaw and Mei Wenfeng classroom testing. " * 20} for i in range(20)]
+
+    # Total tokens ~ 4000+, with threshold 1000 * 0.8 = 800 it will trigger
     with patch("backend.services.compact_service.call_llm_for_summary", return_value="【自动浓缩纪要】"):
         needed, compacted_msgs, hint = check_and_auto_compact(
             messages=messages,
-            custom_max_tokens=2000,
+            custom_max_tokens=1000,
             threshold_ratio=0.8,
             keep_recent_turns=4
         )
@@ -119,7 +121,7 @@ def test_check_and_auto_compact_triggers_when_exceeding_threshold():
 def test_slash_compact_command_via_testclient():
     """Test sending /compact command returns streaming compaction confirmation."""
     client = TestClient(app)
-    
+
     payload = {
         "messages": [
             {"role": "user", "content": "你好"},
@@ -128,9 +130,19 @@ def test_slash_compact_command_via_testclient():
         ],
         "persona_type": "simplified"
     }
-    
+
     with patch("backend.services.compact_service.call_llm_for_summary", return_value="【浓缩前情提要】"):
         response = client.post("/api/chat/send", json=payload)
         assert response.status_code == 200
-        content = response.text
-        assert "compact" in content.lower() or "浓缩" in content or "记忆" in content
+        # Parse SSE stream chunks
+        raw_text = response.text
+        # Each chunk is: data: {"text": "..."}
+        full_assembled = ""
+        for line in raw_text.splitlines():
+            if line.startswith("data: "):
+                try:
+                    data = json.loads(line[6:])
+                    full_assembled += data.get("text", "")
+                except Exception:
+                    pass
+        assert "浓缩" in full_assembled or "xml" in full_assembled.lower() or "纪要" in full_assembled
