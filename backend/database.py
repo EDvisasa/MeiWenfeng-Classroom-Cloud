@@ -59,7 +59,10 @@ def init_db():
         phase TEXT,
         topic TEXT,
         status TEXT,
-        score INTEGER DEFAULT 0
+        score INTEGER DEFAULT 0,
+        zpd_coefficient REAL NOT NULL DEFAULT 1.0,
+        consecutive_correct INTEGER NOT NULL DEFAULT 0,
+        consecutive_wrong INTEGER NOT NULL DEFAULT 0
     );
     """)
 
@@ -76,6 +79,16 @@ def init_db():
     """)
 
     # 兼容性升级：如果表已经存在，则尝试动态添加新列
+    try:
+        cursor.execute("ALTER TABLE chat_sessions ADD COLUMN compact_summary TEXT DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE chat_sessions ADD COLUMN compact_cutoff_id INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
     try:
         cursor.execute("ALTER TABLE affection ADD COLUMN social_status INTEGER DEFAULT 50")
     except sqlite3.OperationalError:
@@ -227,6 +240,18 @@ def init_db():
             "INSERT INTO course_progress (phase, topic, status, score) VALUES (?, ?, ?, ?)",
             default_syllabus
         )
+
+    # ZPD 指标列兼容性升级 (ISSUE-03)：为历史库补充最近发展区动态难度追踪列
+    zpd_columns = {
+        "zpd_coefficient": "REAL NOT NULL DEFAULT 1.0",
+        "consecutive_correct": "INTEGER NOT NULL DEFAULT 0",
+        "consecutive_wrong": "INTEGER NOT NULL DEFAULT 0",
+    }
+    for zpd_col, zpd_ddl in zpd_columns.items():
+        try:
+            cursor.execute(f"ALTER TABLE course_progress ADD COLUMN {zpd_col} {zpd_ddl}")
+        except sqlite3.OperationalError:
+            pass
 
     conn.commit()
     conn.close()

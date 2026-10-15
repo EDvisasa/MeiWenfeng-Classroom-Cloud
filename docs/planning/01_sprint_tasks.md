@@ -27,6 +27,42 @@ domain: project-planning
 - [x] **渲染交互组件**：已将解析出的题目动态渲染为 `QuizBlock` React 测验组件（支持单选题、对错判断等），供用户直接在聊天气泡中点击作答并无缝回传判题结果。
 - [x] **测验提交路由拦截 (System Prompt Re-injection)**：经代码审核（`chat.py:163`），当用户点击测验提交发送 `<submit_quiz_result>` 时，已无缝映射为 `/lesson_continue` 隐式指令，确保了 AI 批改作业时不会遗忘排版与出题护栏。
 
+### <a id="issue-24"></a>[ISSUE-24] 随身课堂会话级上下文压缩引擎 (`/compact` + Auto-Compact) 与「小白有话说...」三人会话治理
+- **Status**: `TODO` (高优先级)
+- **User Story**: 作为随身课堂与多智能体长对话系统的用户，当会话（特别是三人小群 `openclaw_trio_chat` 或长时间连续授课）的原始轮次过多、Token 接近模型上限（如达到 75%~80% 动态安全水位）时，系统不仅支持通过 `/compact` 手动触发，更能够在发包前**自动检测并触发 Auto-Compact 静默压缩**；将历史早期对白自适应提炼为多角色结构化 `<compact_summary>` 前情提要并保留最近 10~15 轮真实对话，使吻锋在组装报文时既不遗忘前情，又彻底免疫 Context Overflow 崩溃；同时在历史会话列表置顶固定不可删除的淡金底专属会话「小白有话说...」。
+- **What to build**:
+  1. **数据库平滑升级与分水岭索引**：
+     - 在 `backend/database.py` 中为 `chat_sessions` 表平滑新增 `compact_summary TEXT DEFAULT NULL` 与 `compact_cutoff_id INTEGER DEFAULT 0`；
+     - `compact_cutoff_id` 充当压缩分水岭，前端始终加载全量气泡，发包管线仅读取 `id > compact_cutoff_id` 的近期对话；
+  2. **多角色自适应压缩算法 (`compact_conversation_messages`)**：
+     - 在 `backend/services/slash_handler.py` / `backend/services/compact_service.py` 实现压缩算法，拦截 `/compact` 指令；
+     - 压缩提示词自适应提取四维结构化信息：【阿冯】（学情/诉求/决策）、【吻锋】（授课/引导/羁绊）、【小白】（技术/方案/执行）、【三人共识与关键事件】；
+  3. **发包前置防爆卫士 (Auto-Compact)**：
+     - 在 `backend/routers/chat.py` 发包管线前置引入 `check_and_auto_compact(payload, threshold_ratio=0.8)` 自动预检防爆卫士，并在触发自动压缩时向前端推送 `system_hint` 状态提示；
+  4. **报文组装与 Few-shot 零污染防护**：
+     - 在 `backend/services/context_manager.py` 的 `assemble_messages` 中将 `<compact_summary>` 锚定在历史对白列表最头部，确保与顶部静态人设缓存 (Prompt Caching) 解耦，且尾部保留 10~15 轮原汁原味对白作为格式 Few-shot；
+  5. **前端 UI「小白有话说...」专属置顶**：
+     - 在 `frontend/src/components/ChatPanel.jsx` 与 `FileTree.jsx` 的历史会话下拉中将 `id === 'openclaw_trio_chat'`（标题为 `小白有话说...`）固定置顶、渲染淡金微光样式底色并隐藏删除按钮；
+  6. **自动化回归测试集**：
+     - 编写 `backend/tests/test_compact.py` 覆盖手动 `/compact`、自动防爆、分水岭增量滚动与报文头部组装。
+- **Affected Files**:
+  - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
+  - [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/components/FileTree.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/FileTree.jsx)
+  - [`backend/tests/test_compact.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  1. 用户在前端发送 `/compact` 时，系统触发会话上下文浓缩并流式返回确认提示；
+  2. 当会话总 Token 超过安全水位（默认 80%）时，系统在发包前自动触发 Auto-Compact，前端收到 `system_hint` 友好提示，对话无感继续；
+  3. 历史早期消息被优雅收敛为结构化 `<compact_summary>`，最近 10~15 轮对话完整保留，数据库记录准确更新 `compact_cutoff_id`；
+  4. 历史会话下拉列表顶部常驻淡金底 `小白有话说...` 会话且无删除按钮；
+  5. 新增的 `pytest backend/tests/test_compact.py` 100% 绿灯通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_compact.py -v`
+
 ## [核心开发] 课堂引擎闭环与沙盒演进 (当前冲刺重心)
 - [x] **`/set_mission` 长期目标设定**：已打通前端通信通道（`App.jsx` 的 `fetchStatus` 接收 `data.mission`），并在右侧 `StatusPanel` 实现了常驻的全局学习目标状态与拟定期数据锁定遮罩（`isDrafting`）。
 - [x] **`/lesson` 授课微课流**：后端 `slash_handler.py` 已深度注入授课指令，严格规范 AI 导师基于当前论题吐出短篇极简理论，并**强制附带一个 `<quiz>` 测验块**供前端渲染。
@@ -78,13 +114,13 @@ domain: project-planning
 - **Verification Command**: `pytest backend/tests/test_slash_handler.py`
 
 ### <a id="issue-03"></a>[ISSUE-03] ZPD (最近发展区) 动态难度追踪自适应算法
-- **Status**: `TODO` (核心待办)
+- **Status**: `DONE` (已完成 - 2026-08-01，经 TDD 9 项单测验证通过)
 - **User Story**: 作为出题导师系统，我希望在每次执行 `/lesson` 生成题目前，自动检索 `course_progress` 表中的 ZPD 能力指标，动态感知用户的受挫与顿悟曲线以调整下一题难度。
 - **Affected Files**: [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py), [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
 - **Acceptance Criteria**: 
   1. `/lesson` 响应体包含当前 ZPD 难度系数；
   2. 连对两题后系数上升，连错后自动回退降级。
-- **Verification Command**: `pytest backend/tests/test_context_manager.py`
+- **Verification Command**: `pytest backend/tests/test_zpd_tracking.py`
 
 ### <a id="issue-04"></a>[ISSUE-04] 信源白名单与参考资料强制附加元注释
 - **Status**: `TODO` (低优先级)

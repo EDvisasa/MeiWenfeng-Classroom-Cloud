@@ -18,6 +18,17 @@ import backend.services.side_effects  # Ensure handlers are registered
 
 logger = logging.getLogger(__name__)
 
+_QUIZ_RESULT_TAG_RE = re.compile(r'<submit_quiz_result\b[^>]*?is_correct\s*=\s*"(true|false)"', re.IGNORECASE)
+
+
+def _parse_quiz_result_correct(message: str) -> bool | None:
+    """Extracts the is_correct flag from a <submit_quiz_result> tag; returns None when the tag is absent."""
+    match = _QUIZ_RESULT_TAG_RE.search(message or "")
+    if not match:
+        return None
+    return match.group(1).lower() == "true"
+
+
 def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned_messages: List[Dict[str, str]]) -> StreamingResponse:
     """
     统一处理各种以斜杠开头的纯前端指令。
@@ -66,6 +77,7 @@ Action Required:
 
     # 以下指令均需要由大模型接管输出，因此使用“系统提示词注入”并拉起常规对话流
     system_injection = ""
+    prelude_hint = None
     from backend.services.course_manager import get_active_course, get_formatted_syllabus
 
     active_course = get_active_course()
@@ -76,10 +88,19 @@ Action Required:
         file_context = f"<active_document>The user is currently reviewing the document: {os.path.basename(current_file_path)}</active_document>"
 
     if clean_cmd == "/lesson":
+        from backend.services.course_manager import get_zpd_metrics
+        zpd_metrics = get_zpd_metrics(topic_name)
+        zpd_coefficient = zpd_metrics["coefficient"]
+        prelude_hint = {
+            "type": "system_hint",
+            "icon": "zpd",
+            "text": f"当前 ZPD 难度系数：{zpd_coefficient}（连对两题自动上调，连错自动回调）",
+        }
         system_injection = f"""<system_directive>
 Event: The user just triggered the `/lesson` command.
 User's Ultimate Mission: {user_mission}
 Current Topic: {topic_name}
+Current ZPD Difficulty Coefficient: {zpd_coefficient}
 {file_context}
 
 Action Required: Immediately enter your mentor persona. Proactively start today's lesson focused on the Current Topic.
@@ -87,6 +108,7 @@ Output Format:
 1. The theory explanation part MUST be extremely easy to understand (Reference 极简). Use living analogies, short paragraphs, and simple language.
 2. ALWAYS conclude your lesson segment with a single interactive question to check the user's understanding, using the exact XML format below.
 CRITICAL RULES FOR THE QUIZ (Quiz 刁钻):
+- Scale the quiz trickiness with the Current ZPD Difficulty Coefficient above: a higher coefficient demands noticeably harder, deeper questions; a lower coefficient demands more scaffolded, simpler questions.
 - The quiz MUST be tricky and test deep understanding, not just surface facts.
 - ALL options MUST be exactly the same length in words/characters. You must artificially pad or truncate them so they look identical in length. Do NOT let the longest option be the correct answer!
 - Do not give away the correct answer through formatting.
@@ -100,15 +122,23 @@ CRITICAL RULES FOR THE QUIZ (Quiz 刁钻):
 </quiz>
 </system_directive>"""
     elif clean_cmd == "/lesson_continue":
+        from backend.services.course_manager import get_zpd_metrics, record_quiz_result
+        is_correct = _parse_quiz_result_correct(last_user_msg)
+        if is_correct is not None:
+            zpd_metrics = record_quiz_result(is_correct, topic_name)
+        else:
+            zpd_metrics = get_zpd_metrics(topic_name)
+        zpd_coefficient = zpd_metrics["coefficient"]
         system_injection = f"""<system_directive>
 Event: The user just submitted an answer to your previous quiz.
 User's Ultimate Mission: {user_mission}
 Current Topic: {topic_name}
+Current ZPD Difficulty Coefficient: {zpd_coefficient}
 {file_context}
 
 Action Required: 
 1. Evaluate their answer based on the `<submit_quiz_result>` tag.
-2. Provide a detailed explanation, correcting any misconceptions.
+2. Provide a detailed explanation, correcting any misconceptions. Scale the depth of your explanation and the next question's difficulty with the Current ZPD Difficulty Coefficient.
 3. Keep the mentor persona. Be encouraging or playfully strict depending on whether they got it right.
 4. Continue the lesson on the Current Topic.
 
@@ -148,9 +178,9 @@ Action Required: As a mentor, review their recent progress and outline their upc
 Output Format: If you need to append new topics to the syllabus, embed the following tag in your response: `<new_course phase="Phase Name" topic="Topic Name" />`. The system will automatically add it to the pending progress.
 </system_directive>"""
 
-    return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection)
+    return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, prelude_hint=prelude_hint)
 
-def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: List[Dict[str, str]], persona_type: str, system_injection: str) -> StreamingResponse:
+def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: List[Dict[str, str]], persona_type: str, system_injection: str, prelude_hint: dict | None = None) -> StreamingResponse:
     """
     在原本的大模型对话流基础上，追加特定的 System Prompt 注入，让大模型根据指令自动执行动作。
     采用解耦的 ResponsePipeline。
@@ -199,6 +229,8 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
 
     def event_generator():
         try:
+            if prelude_hint:
+                yield f"data: {json.dumps(prelude_hint, ensure_ascii=False)}\n\n"
             if system_injection and 'mode="interrogation"' in system_injection:
                 warning_json = json.dumps({"type": "draft_warning", "text": "进入设立学习目标模式，若想放弃输入/cancel_mission解除状态"}, ensure_ascii=False)
                 yield f"data: {warning_json}\n\n"

@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ZPD 动态难度追踪 - 架构逻辑解析</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <script>
+        mermaid.initialize({ startOnLoad: true, theme: 'dark' });
+    </script>
+</head>
+<body class="bg-gray-900 text-gray-100 font-sans min-h-screen p-8">
+    <div class="max-w-5xl mx-auto space-y-8">
+        <header class="border-b border-gray-700 pb-6">
+            <h1 class="text-4xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-blue-400 to-emerald-400">
+                ZPD (最近发展区) 动态难度追踪 - 架构解析
+            </h1>
+            <p class="text-gray-400 mt-2">改动逻辑说明与时序梳理 | ISSUE-03</p>
+        </header>
+
+        <section class="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
+            <h2 class="text-2xl font-semibold mb-4 text-blue-300 border-b border-gray-600 pb-2">涉及模块 (Affected Files)</h2>
+            <ul class="list-disc pl-6 space-y-2 text-gray-300">
+                <li><code class="text-pink-400 bg-gray-900 px-2 py-0.5 rounded">backend/database.py</code>: 扩展 <code>course_progress</code> 表结构，下沉 ZPD 状态（连对/连错/难度系数）的持久化。</li>
+                <li><code class="text-pink-400 bg-gray-900 px-2 py-0.5 rounded">backend/services/course_manager.py</code>: 封装深模块 <code>get_zpd_metrics</code> 与 <code>record_quiz_result</code>，将状态演进计算完全隔离。</li>
+                <li><code class="text-pink-400 bg-gray-900 px-2 py-0.5 rounded">backend/services/slash_handler.py</code>: 大模型交互网关。负责连接 ZPD 接口、向 LLM 注入 <code>System Directive</code> 并在流首抛出前端 <code>prelude_hint</code> 通知。</li>
+            </ul>
+        </section>
+
+        <section class="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
+            <h2 class="text-2xl font-semibold mb-4 text-blue-300 border-b border-gray-600 pb-2">架构演进与深模块设计 (Deep Module Design)</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                    <h3 class="text-xl font-medium text-red-400 mb-2">Before: 静态出题 (Shallow Module)</h3>
+                    <p class="text-gray-300 text-sm">过去，出题难度完全依赖模型每次根据上下文随机决定，存在严重的上下文遗忘与难度跳跃问题。系统在宏观视角上是“浅”的，无法记录和追踪用户受挫或顿悟的学习曲线。</p>
+                </div>
+                <div>
+                    <h3 class="text-xl font-medium text-emerald-400 mb-2">After: ZPD 状态机 (Deepening)</h3>
+                    <p class="text-gray-300 text-sm">通过数据库将“连对/连错”状态留痕，并以 0.1 步长计算出 0.5 ~ 3.0 的动态难度系数。业务逻辑像有限状态机一样，根据答题反馈自动升降级，并通过明确的“接缝 (Seam)”传入 LLM 的提示词管道。</p>
+                </div>
+            </div>
+        </section>
+
+        <section class="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
+            <h2 class="text-2xl font-semibold mb-4 text-blue-300 border-b border-gray-600 pb-2">核心流转时序图 (Execution Trace)</h2>
+            <div class="bg-gray-900 p-4 rounded-lg overflow-x-auto">
+                <div class="mermaid">
+                    sequenceDiagram
+                        participant User as 前端用户 / UI
+                        participant Handler as slash_handler
+                        participant Manager as course_manager
+                        participant DB as SQLite 数据库
+                        participant LLM as 大模型推理节点
+
+                        User->>Handler: 输入 /lesson (开启新课)
+                        Handler->>Manager: 调用 get_zpd_metrics()
+                        Manager->>DB: 查询当前主题 ZPD 指标
+                        DB-->>Manager: 返回 (连对=0, 难度=1.0)
+                        Manager-->>Handler: 返回 metrics 字典
+                        
+                        Handler-->>User: (SSE) 返回 prelude_hint "难度:1.0"
+                        Handler->>LLM: 注入 System Directive 约束难度系数
+                        LLM-->>User: 吐出适配该难度的理论知识与 &lt;quiz&gt;
+                        
+                        rect rgb(20, 40, 60)
+                        Note over User, LLM: 用户提交答卷阶段
+                        User->>Handler: 点击提交 &lt;submit_quiz_result is_correct="true"&gt;
+                        Handler->>Manager: 触发 record_quiz_result(True)
+                        Manager->>Manager: 连对+1, 若连对>=2则系数上调
+                        Manager->>DB: UPDATE course_progress 更新状态
+                        Manager-->>Handler: 返回最新的 metrics
+                        Handler->>LLM: 重新注入新系数的 System Directive
+                        LLM-->>User: 根据难度缩放批改深度，出下一题
+                        end
+                </div>
+            </div>
+        </section>
+        
+        <section class="bg-gray-800 rounded-xl p-6 shadow-lg border border-gray-700">
+            <h2 class="text-2xl font-semibold mb-4 text-blue-300 border-b border-gray-600 pb-2">架构级收益评估 (Benefits & Trade-offs)</h2>
+            <div class="text-gray-300 space-y-4">
+                <div>
+                    <strong class="text-emerald-400 block mb-1">高局部性与测试表面 (Locality & Test Surface):</strong>
+                    <p class="text-sm">难度的加减、封顶（3.0）与回退逻辑，全部收敛于深模块 <code>course_manager.py</code> 内，<code>slash_handler.py</code> 完全不关心数学逻辑，只负责粘合接口和拼装 Prompt，极大提高了代码内聚度和单元测试的纯净度。</p>
+                </div>
+                <div>
+                    <strong class="text-emerald-400 block mb-1">零污染铁律实践 (Zero DB Pollution):</strong>
+                    <p class="text-sm">ZPD 指示和难度缩放控制（Prompt Directive）都在后端的动态渲染层按即用即抛（tail injection）生成，未写入 <code>chat_messages</code> 的历史表，杜绝了长期遗留噪声对记忆库的污染。</p>
+                </div>
+            </div>
+        </section>
+    </div>
+</body>
+</html>
