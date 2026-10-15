@@ -85,7 +85,11 @@ class BashTool(AgentTool):
 
                 # Also block common bypasses like tail or head used for full file reading
                 if base_binary in ["tail", "head", "more", "less"]:
-                     return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using shell utilities to read files. You MUST use the <call_tool name=\"read_file\"> tool instead."
+                    return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using shell utilities to read files. You MUST use the <call_tool name=\"read_file\"> tool instead."
+
+                # Block package manager commands (pip, conda, mamba, npm global, etc.)
+                if base_binary in ["pip", "pip3", "conda", "mamba"] and any(arg in ["install", "uninstall", "update", "upgrade"] for arg in parsed_cmd[1:]):
+                    return "[Error] GUARDRAIL BLOCKED: Package management commands ('pip install', etc.) are strictly forbidden in execute_bash to prevent host environment pollution. If you need to read PDF or docx files, please use the native <call_tool name=\"read_file\"> tool which now fully supports them!"
         except ValueError:
             # If shlex fails to parse (e.g. unclosed quotes), we fall back to a strict string check
             pass
@@ -96,6 +100,12 @@ class BashTool(AgentTool):
             return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using 'type' or 'cat' to read files in bash. You MUST use the <call_tool name=\"read_file\"> tool instead."
         if "grep" in cmd_lower or "findstr" in cmd_lower:
             return "[Error] GUARDRAIL BLOCKED: You are strictly forbidden from using 'findstr' or 'grep' in bash. You MUST use the <call_tool name=\"grep_search\"> tool instead."
+
+        blocked_pkg_keywords = ["pip install", "pip3 install", "pip uninstall", "pip3 uninstall",
+                                "conda install", "mamba install", "npm install -g", "npm i -g",
+                                "pnpm add -g", "yarn global add"]
+        if any(kw in cmd_lower for kw in blocked_pkg_keywords) or ("-m pip" in cmd_lower and any(kw in cmd_lower for kw in ["install", "uninstall"])):
+            return "[Error] GUARDRAIL BLOCKED: Package management commands ('pip install', etc.) are strictly forbidden in execute_bash to prevent host environment pollution. If you need to read PDF or docx files, please use the native <call_tool name=\"read_file\"> tool which now fully supports them!"
 
         try:
             result = subprocess.run(command, shell=True, capture_output=True, timeout=10)
@@ -120,7 +130,7 @@ class BashTool(AgentTool):
 
 class ReadFileTool(AgentTool):
     name = "read_file"
-    description = "Read lines from a file. You can specify a range using start_line and end_line."
+    description = "Read lines or pages from a file. Supports text, code, Markdown, PDF, and DOCX documents. For PDFs, you can specify 'page' or 'start_page' and 'end_page'."
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -130,11 +140,23 @@ class ReadFileTool(AgentTool):
             },
             "start_line": {
                 "type": "string",
-                "description": "Optional start line number."
+                "description": "Optional start line number for text files."
             },
             "end_line": {
                 "type": "string",
-                "description": "Optional end line number."
+                "description": "Optional end line number for text files."
+            },
+            "page": {
+                "type": "string",
+                "description": "Optional 1-based page number for PDF documents."
+            },
+            "start_page": {
+                "type": "string",
+                "description": "Optional 1-based start page number for PDF documents."
+            },
+            "end_page": {
+                "type": "string",
+                "description": "Optional 1-based end page number for PDF documents."
             }
         },
         "required": ["path"]
@@ -150,7 +172,25 @@ class ReadFileTool(AgentTool):
         
         if not os.path.isfile(path):
             return f"[Error] Path is not a file: {path}"
-            
+
+        ext = path.lower().split('.')[-1] if '.' in path else ''
+
+        # 原生支持 PDF 文档阅读
+        if ext == 'pdf':
+            return self._read_pdf(path, params)
+
+        # 原生支持 DOCX 文档阅读
+        if ext == 'docx':
+            return self._read_docx(path, params)
+
+        if ext == 'doc':
+            return f"[Error] Legacy binary .doc format is not directly supported. Please convert '{path}' to .docx or .pdf."
+
+        # 二进制文件安全检查（除 PDF 和 DOCX 外）
+        binary_exts = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'ico', 'zip', 'rar', 'tar', 'gz', '7z', 'mp3', 'mp4', 'wav', 'avi', 'mkv', 'exe', 'dll', 'so', 'dylib'}
+        if ext in binary_exts:
+            return f"[Error] Cannot read binary file '{path}' as text. If this is an image, please use vision tools."
+
         start_line = params.get("start_line")
         end_line = params.get("end_line")
         
@@ -162,11 +202,6 @@ class ReadFileTool(AgentTool):
         except ValueError:
             return "[Error] start_line and end_line must be integers."
 
-        ext = path.lower().split('.')[-1] if '.' in path else ''
-        binary_exts = {'png', 'jpg', 'jpeg', 'webp', 'gif', 'bmp', 'ico', 'pdf', 'zip', 'rar', 'tar', 'gz', '7z', 'mp3', 'mp4', 'wav', 'avi', 'mkv', 'exe', 'dll', 'so', 'dylib'}
-        if ext in binary_exts:
-            return f"[Error] Cannot read binary file '{path}' as text. If this is an image, please use vision tools."
-
         try:
             with open(path, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
@@ -176,11 +211,113 @@ class ReadFileTool(AgentTool):
                 with open(path, 'r', encoding='gbk') as f:
                     lines = f.readlines()
                     return self._process_lines(lines, start_line, end_line, path)
-            except:
+            except Exception:
                 return f"[Error] Cannot read file as text: {path}"
         except Exception as e:
             return f"[Error] {str(e)}"
             
+    def _read_pdf(self, path: str, params: dict) -> str:
+        """原生提取 PDF 文本并提供分页与防爆长文保护"""
+        try:
+            import pypdf
+            reader = pypdf.PdfReader(path)
+            total_pages = len(reader.pages)
+            if total_pages == 0:
+                return f"[PDF: {os.path.basename(path)}] Document is empty (0 pages)."
+
+            page = params.get("page")
+            start_page = params.get("start_page")
+            end_page = params.get("end_page")
+
+            sp = None
+            ep = None
+
+            if page is not None:
+                try:
+                    p_num = int(page)
+                    sp = p_num
+                    ep = p_num
+                except ValueError:
+                    return "[Error] 'page' must be an integer."
+            else:
+                if start_page is not None:
+                    try:
+                        sp = int(start_page)
+                    except ValueError:
+                        return "[Error] 'start_page' must be an integer."
+                if end_page is not None:
+                    try:
+                        ep = int(end_page)
+                    except ValueError:
+                        return "[Error] 'end_page' must be an integer."
+
+            # 若未指定页码，默认针对大文档进行防爆分页提示
+            if sp is None and ep is None:
+                if total_pages > 5:
+                    sp = 1
+                    ep = 5
+                    truncated_notice = f"\n\n[Note: PDF '{os.path.basename(path)}' has {total_pages} pages total. Showing pages 1 to 5. 👉 To read more pages, specify page range using <start_page>6</start_page><end_page>10</end_page> or <page>X</page>.]"
+                else:
+                    sp = 1
+                    ep = total_pages
+                    truncated_notice = ""
+            else:
+                sp = 1 if sp is None else sp
+                ep = total_pages if ep is None else ep
+                truncated_notice = ""
+
+            if sp < 1:
+                return f"[Error] start_page ({sp}) must be >= 1."
+            if sp > total_pages:
+                return f"[Error] start_page ({sp}) is beyond total page count ({total_pages})."
+            if ep < sp:
+                return f"[Error] end_page ({ep}) cannot be less than start_page ({sp})."
+
+            actual_ep = min(ep, total_pages)
+
+            # 单次提取页数上限（最大 10 页，防上下文溢出）
+            max_pages_per_call = 10
+            if actual_ep - sp + 1 > max_pages_per_call:
+                actual_ep = sp + max_pages_per_call - 1
+                truncated_notice = f"\n\n[Warning: Output capped at {max_pages_per_call} pages to prevent context overflow. Showing pages {sp} to {actual_ep} of {total_pages}. 👉 Call again with <start_page>{actual_ep + 1}</start_page><end_page>{min(actual_ep + max_pages_per_call, total_pages)}</end_page>]"
+
+            extracted_chunks = []
+            for p_idx in range(sp - 1, actual_ep):
+                page_num = p_idx + 1
+                page_obj = reader.pages[p_idx]
+                text = page_obj.extract_text() or "[No extractable text on this page]"
+                extracted_chunks.append(f"--- [Page {page_num} of {total_pages}] ---\n{text.strip()}")
+
+            result = "\n\n".join(extracted_chunks) + truncated_notice
+            return result
+        except ImportError:
+            return "[Error] pypdf library is not installed in the environment. Please run '.venv\\Scripts\\pip install pypdf'."
+        except Exception as e:
+            return f"[Error reading PDF {os.path.basename(path)}]: {str(e)}"
+
+    def _read_docx(self, path: str, params: dict) -> str:
+        """基于标准库 zipfile + xml 零依赖提取 docx 正文文本"""
+        try:
+            import zipfile
+            import xml.etree.ElementTree as ET
+            with zipfile.ZipFile(path, 'r') as zf:
+                xml_content = zf.read('word/document.xml')
+            tree = ET.fromstring(xml_content)
+            namespaces = {'w': 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'}
+            paragraphs = []
+            for p in tree.findall('.//w:p', namespaces):
+                texts = [node.text for node in p.findall('.//w:t', namespaces) if node.text]
+                if texts:
+                    paragraphs.append("".join(texts))
+            lines = [p + "\n" for p in paragraphs]
+            if not lines:
+                return f"[DOCX: {os.path.basename(path)}] Document has no text content."
+            start_line = params.get("start_line")
+            end_line = params.get("end_line")
+            return self._process_lines(lines, start_line, end_line, path)
+        except Exception as e:
+            return f"[Error reading docx {os.path.basename(path)}]: {str(e)}"
+
     def _process_lines(self, lines: list, start_line: int, end_line: int, path: str) -> str:
         total_lines = len(lines)
         

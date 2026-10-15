@@ -48,10 +48,11 @@ def get_cross_reference_protocol() -> str:
 1. You have native function calling tools via the API. Do NOT hallucinate tool results or pseudo-XML tags (`<call_openclaw_agent>...`), and never mix character dialogue when calling a tool.
 2. {os_instruction}
 3. ERROR RECOVERY: If a tool execution fails, analyze it in your next <think> block and try a different command.
-4. SPECIFIC TOOLS: You MUST use `read_file` to read files and `grep_search` to search directories.
-5. TIME PERCEPTION: You already have the exact real-world time in the `<current_time>` block below.
-6. WEB SEARCH: You have access to a `web_search` tool. Use it to look up recent facts or news.
-7. INTER-AGENT GATEWAY BRIDGE: You have access to `call_openclaw_agent` to bridge tasks to the external OpenClaw agent instance. Always verify `<openclaw_gateway_status>` below before dispatching.
+4. SPECIFIC TOOLS: You MUST use `read_file` to read files (supports text, Markdown, code, PDF documents, and Docx) and `grep_search` to search directories. For PDFs, pass `page` (e.g. <page>1</page>) or `start_page`/`end_page` (e.g. <start_page>1</start_page><end_page>5</end_page>).
+5. PACKAGE INSTALLATION FORBIDDEN: You are strictly FORBIDDEN from running `pip install` or package manager commands in bash. Never install libraries into the host environment.
+6. TIME PERCEPTION: You already have the exact real-world time in the `<current_time>` block below.
+7. WEB SEARCH: You have access to a `web_search` tool. Use it to look up recent facts or news.
+8. INTER-AGENT GATEWAY BRIDGE: You have access to `call_openclaw_agent` to bridge tasks to the external OpenClaw agent instance. Always verify `<openclaw_gateway_status>` below before dispatching.
 </environment_constraints>
 
 <execution_framework>

@@ -13,6 +13,11 @@ import re
 from typing import Dict, List, Any, Optional
 
 CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "rag_index", "chroma")
+LOCAL_MODELS_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "rag_index", "models"))
+
+# 优先锁定工程本地模型目录，防止模型缓存落入系统 C 盘 (C:\Users\<user>\.cache\huggingface)
+if not os.environ.get("HF_HOME"):
+    os.environ["HF_HOME"] = LOCAL_MODELS_DIR
 
 def _get_chroma_client():
     try:
@@ -25,6 +30,8 @@ def _get_chroma_client():
 def _get_embedding_fn():
     """优先用 sentence-transformers 多语言小模型，失败则 fallback 至 chromadb 默认"""
     try:
+        if not os.environ.get("HF_HOME"):
+            os.environ["HF_HOME"] = LOCAL_MODELS_DIR
         from chromadb.utils import embedding_functions
         ef = embedding_functions.SentenceTransformerEmbeddingFunction(
             model_name="paraphrase-multilingual-MiniLM-L12-v2"

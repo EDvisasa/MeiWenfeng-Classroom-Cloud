@@ -194,5 +194,14 @@ domain: project-planning
   3. **局域横向滚动隔离**：为 `.text-block pre`、`.explainer-content-wrapper pre`、`SyntaxHighlighter` 及 `ExplainerBlock` 容器配置 `max-width: 100%; overflow-x: auto; min-width: 0;`，确保任意长代码与标签均在卡片内自适应滚动，杜绝撑破外层布局；
   4. **TDD 自动化看护**：在 [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 补充 `TDD 9 [Bug #23]` 专项测试，25 项前端单元测试与构建全量绿灯通过。
 
+### 24. [已解决 / Agent 环境隔离与工具护栏] AI 导师在 Bash 中越权执行全局包管理器导致宿主 C 盘污染与空间泄露 (`[ISSUE-28]`)
+- **现象描述**：用户让 AI 导师阅读本地 PDF 论文时，系统内置的 `read_file` 因判定为二进制文件直接拒绝；AI 导师随后自主在 `execute_bash` 工具中执行 `pip install PyPDF2` 与 `pip install PyMuPDF`。由于缺少对包管理器的物理 Guardrail，命令直接调用宿主机全局 Python 并将数十兆 C++ 动态库装入了 Windows C 盘系统目录，同时在 pip 缓存和临时目录留存大量数据，造成 C 盘存储持续泄漏。
+- **解决路线**：
+  1. **正向能力增强 (Deep Module)**：在 [`agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py) 的 `ReadFileTool` 中集成轻量级 `pypdf` 与基于内置 `zipfile`+`xml` 的 `.docx` 正文提取器；增加 `page`、`start_page`、`end_page` 精准分页参数，并对超过 5 页的长文档引入智能防溢出翻页指引。
+  2. **物理包管理器沙盒拦截**：在 `BashTool` 中建立严格物理 Guardrail，在命令执行前强力拦截 `pip install`、`python -m pip`、`npm i -g`、`conda` 等全局安装命令，并友好引导大模型直接调用已增强的 `read_file` 工具。
+  3. **模型执行协议对齐**：在 [`context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 的 `<agent_execution_protocol>` 明确告知模型 `read_file` 的 PDF/Docx 支持，并写入严禁安装全局库的环境契约。
+  4. **TDD 自动化测试闭环**：创建 [`test_pdf_reader_and_guardrails.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_pdf_reader_and_guardrails.py) 进行单测验证（包含真实 `navier-stokes.pdf` 提取与恶意 pip 拦截），25 项全量回归测试绿灯通过。
+
+
 
 

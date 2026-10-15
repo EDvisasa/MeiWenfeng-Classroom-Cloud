@@ -11,3 +11,4 @@ tiktoken
 ddgs
 beautifulsoup4
 markdownify
+pypdf>=5.0.0

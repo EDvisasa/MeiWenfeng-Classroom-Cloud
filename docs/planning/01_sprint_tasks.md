@@ -423,6 +423,19 @@ domain: project-planning
 - **Blocked by**: None
 - **Verification Command**: `pytest backend/tests/test_greeting_service.py backend/tests/test_context_manager.py -v`
 
-
-
-
+### <a id="issue-28"></a>[ISSUE-28] Agent 原生文档解析增强 (`read_file` 支持 PDF/Docx) 与命令沙盒包管理器物理护栏
+- **Status**: `DONE` (已完成 / 2026-09-09 通过 25 项全量单测验证)
+- **Parent**: [Bug #24](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+- **User Story**: 作为课堂底层引擎与 AI 导师，我需要通过原生受控的 `read_file` 工具安全阅读本地 PDF 论文和 Word 文档（支持分页提取与超长防爆保护），并在 `BashTool` 中物理封锁对外部包管理器（如 `pip install`、`npm -g`、`conda` 等）的越权调用，彻底防止宿主 C 盘环境被随意污染与磁盘容量持续泄漏。
+- **What to build**:
+  1. 在 `backend/services/agent_tools.py` 的 `ReadFileTool` 中集成 `pypdf`（支持 `page`/`start_page`/`end_page` 参数及大文档默认分页保护）与零依赖 `.docx` 正文提取器；
+  2. 在 `backend/services/agent_tools.py` 的 `BashTool` 中增加包管理器物理拦截规则，拦截并提示使用专项文档工具；
+  3. 在 `backend/services/context_manager.py` 的执行协议中声明文档读取能力与安装禁令；
+  4. 在 `backend/requirements.txt` 中正式纳入 `pypdf>=5.0.0`。
+- **Affected Files**: [`backend/services/agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py), [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py), [`backend/requirements.txt`](file:///d:/MeiWenfeng-Classroom/backend/requirements.txt)
+- **Acceptance Criteria**:
+  - [x] `read_file` 支持读取本地 PDF 并能按 `page` 或 `start_page`/`end_page` 准确提取文本；
+  - [x] `read_file` 对超长未分页 PDF 提供友好的截断与翻页提示；
+  - [x] `execute_bash` 对 `pip install`、`python -m pip install`、`npm i -g` 等包管理命令实现 100% 物理阻断；
+  - [x] 自动化测试用例全部绿灯通过。
+- **Verification Command**: `pytest backend/tests/test_pdf_reader_and_guardrails.py`
