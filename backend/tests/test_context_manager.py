@@ -116,7 +116,8 @@ def test_context_bundle_contract_and_three_step_pipeline(mock_db_path):
     assembled = assemble_messages(messages, bundle)
     assert len(assembled) >= 2
     assert assembled[0]["role"] == "system"
-    assert assembled[0]["content"] == bundle.static_system_prompt
+    assert bundle.static_system_prompt in assembled[0]["content"]
+    assert "<current_session_history>" in assembled[0]["content"]
     assert "<system_injection>" in assembled[-1]["content"]
 
 
@@ -306,12 +307,12 @@ def test_assemble_messages_dynamic_one_shot_preserves_actual_greeting():
     ]
     assembled = assemble_messages(messages, "你是导师")
     
-    # 验证前置注入的 user 垫底角色
-    assert assembled[1]["role"] == "user"
-    assert assembled[1]["content"] == "你好"
+    # 验证不再插入虚假的 [USER] 你好，system 之后直接是 One-Shot Assistant 节点
+    assert assembled[0]["role"] == "system"
+    assert "<current_session_history>" in assembled[0]["content"]
     
-    # 验证 One-Shot Assistant 节点
-    asst_msg = assembled[2]
+    # 验证 One-Shot Assistant 节点 (index 1)
+    asst_msg = assembled[1]
     assert asst_msg["role"] == "assistant"
     content = asst_msg["content"]
     
@@ -325,6 +326,57 @@ def test_assemble_messages_dynamic_one_shot_preserves_actual_greeting():
     assert "<monologue>" in content
     assert "</monologue>" in content
     assert "<property_update" in content
+
+    # 验证最后一条 user 消息闭合会话历史（以分割线与闭合标签起始）
+    assert assembled[2]["role"] == "user"
+    assert assembled[2]["content"].strip().startswith("---\n</current_session_history>")
+
+
+def test_assemble_messages_wraps_current_session_history():
+    """
+    验证 assemble_messages 在处理多轮对话时：
+    1. System 消息末尾放置 <current_session_history> 标签与场域声明；
+    2. 中间历史对话保持纯净，无多余标签污染；
+    3. 最后一轮消息开头使用 --- 与 </current_session_history> 封闭历史对白，并保留 <current_user_instruction> 与层级指引。
+    """
+    from backend.services.context_manager import assemble_messages
+
+    multi_turn_messages = [
+        {"role": "user", "content": "师姐，推挽输出是什么原理？", "timestamp": "2026-10-15T20:00:00"},
+        {"role": "assistant", "content": "<monologue>冤家想学单片机</monologue>*轻笑* 推挽就是一个推高一个拉低。", "timestamp": "2026-10-15T20:01:00"},
+        {"role": "user", "content": "那开漏输出呢？", "timestamp": "2026-10-15T20:05:00"},
+        {"role": "assistant", "content": "<monologue>开漏要讲上拉电阻</monologue>*轻触你的眉心* 开漏只能拉低。", "timestamp": "2026-10-15T20:06:00"},
+        {"role": "user", "content": "上拉电阻选多大？", "timestamp": "2026-10-15T20:10:00"}
+    ]
+
+    assembled = assemble_messages(multi_turn_messages, "你是导师媚吻锋")
+
+    # 1. 结构验证：System 消息末尾包含起始标签与醒目提示词
+    sys_msg = assembled[0]
+    assert sys_msg["role"] == "system"
+    assert "<current_session_history>" in sys_msg["content"]
+    assert "当前窗口实时会话历史开始" in sys_msg["content"]
+
+    # 2. 中间历史对话保持纯净，无多余标签污染
+    first_history_msg = assembled[1]
+    assert first_history_msg["role"] == "user"
+    assert "师姐，推挽输出是什么原理？" in first_history_msg["content"]
+    assert "<current_session_history>" not in first_history_msg["content"]
+
+    last_history_asst_msg = assembled[-2]
+    assert last_history_asst_msg["role"] == "assistant"
+    assert "</current_session_history>" not in last_history_asst_msg["content"]
+
+    # 3. 最后一轮用户消息 (index -1) 前置闭合标签，并保留即时指令与防混淆指引
+    current_prompt_msg = assembled[-1]
+    assert current_prompt_msg["role"] == "user"
+    assert current_prompt_msg["content"].strip().startswith("---\n</current_session_history>")
+    assert "当前窗口实时会话历史结束" in current_prompt_msg["content"]
+    assert "<current_user_instruction>" in current_prompt_msg["content"]
+    assert "上拉电阻选多大？" in current_prompt_msg["content"]
+    assert "<current_session_history>" in current_prompt_msg["content"]
+    assert "Distinguish strictly between retrieved past memory archives" in current_prompt_msg["content"]
+
 
 
 

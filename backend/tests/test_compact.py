@@ -86,9 +86,10 @@ def test_assemble_messages_with_compact_summary():
     
     assembled = assemble_messages(messages, bundle)
     
-    # First message should be system prompt
+    # First message should be system prompt with session history start
     assert assembled[0]["role"] == "system"
-    assert assembled[0]["content"] == static_prompt
+    assert static_prompt in assembled[0]["content"]
+    assert "<current_session_history>" in assembled[0]["content"]
     
     # Second message should be the compact summary
     assert assembled[1]["role"] == "user"

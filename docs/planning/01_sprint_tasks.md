@@ -525,4 +525,29 @@ domain: project-planning
   - [x] 后端 14 项专项单测、全量回归单测 100% 绿灯闭环。
 - **Verification Command**: `.venv\Scripts\pytest backend/tests/test_cooldown_mechanics.py backend/tests/test_character_state.py` & `cd frontend && npm test -- --run`
 
+### <a id="issue-33"></a>[ISSUE-33] 实时会话历史边界隔离与防混淆提示词架构重构 (Current Session History Isolation & Anti-Confusion Prompts Pipeline)
+- **Status**: `DONE` (已完成 / 2026-10-15 通过全量 TDD 红绿灯测试闭环并由用户肉眼验收通过)
+- **User Story**: 作为系统导师，在处理发往大模型的实时组装报文时，我希望当前窗口的活跃对话被显式且无损地包裹在 `<current_session_history>` 边界内，并配以醒目的场域提示词，彻底区分检索出的历史往日记忆归档 (`<retrieved_past_memory_archives>`)、近期日记 (`<recent_journal_summaries>`) 与本窗口实时会话；同时彻底消除陈旧的虚假 `[USER] 你好` 垫底注入，保持真实会话历史各轮次内容绝对纯净。
+- **What to build**:
+  1. **废除伪造首轮问候**: 在 `context_manager.py` 的 `assemble_messages` 中彻底剔除陈旧的 `has_user_first` 自动填充 `你好` 逻辑，杜绝报文生成虚假的 `[USER] 你好`；
+  2. **系统预设末端无缝承接**: 将 `session_history_start`（含中英文导语和 `<current_session_history>`）直接追加至 `[SYSTEM]` 消息最末尾；
+  3. **中间轮次保持原汁原味**: `[ASSISTANT]` 开场白示教、用户提问、后续对白均保持原生内容，不作任何包裹侵入；
+  4. **末轮用户提问首部分割封闭**: 在末尾用户提问头部插入 `\n---\n</current_session_history>\n[CURRENT ACTIVE SESSION CONVERSATION END ...]\n\n`，随后紧接 `[System Override & Execution Pointer]` 与 `<current_user_instruction>`；
+  5. **防混淆提示词强化**: 强化 `<agent_execution_protocol>`、`<retrieved_past_memory_archives>`、`<recent_journal_summaries>` 及尾部 `[System Directive]` 中的交叉引用与隔离指引；
+  6. **单测套件同步升级**: 更新 `test_context_manager.py`、`test_compact.py`、`test_model_router_prompts.py` 断言，确保 47 项核心会话与管线测试全绿。
+- **Affected Files**:
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+  - [`backend/tests/test_compact.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact.py)
+  - [`backend/tests/test_model_router_prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_model_router_prompts.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 彻底消除由开场白触发的伪造 `[USER] 你好` 垫底；
+  - [x] `<current_session_history>` 严格放置在 `[SYSTEM]` 消息末尾；
+  - [x] 中间所有对白轮次纯净无污染；
+  - [x] 最新用户提问开头以 `---` 与 `</current_session_history>` 严密封闭，直接承接执行指针；
+  - [x] 会话测试套件全绿，零数据库污染，前端报文视窗验收通过。
+- **Verification Command**: `.venv\Scripts\pytest backend/tests/test_context_manager.py backend/tests/test_compact.py backend/tests/test_model_router_prompts.py`
+
+
 

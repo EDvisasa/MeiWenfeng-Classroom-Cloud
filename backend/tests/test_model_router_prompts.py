@@ -30,7 +30,8 @@ def test_stream_chat_prompt_assembly():
         # Verify system prompt is at index 0
         assert len(formatted_messages) == 2
         assert formatted_messages[0]["role"] == "system"
-        assert formatted_messages[0]["content"] == system_prompt
+        assert system_prompt in formatted_messages[0]["content"]
+        assert "<current_session_history>" in formatted_messages[0]["content"]
         assert "What are your rules?" in formatted_messages[1]["content"]
         assert "<current_user_instruction>" in formatted_messages[1]["content"]
         assert "<system_injection>" in formatted_messages[1]["content"]
