@@ -325,10 +325,21 @@ body {
   flex: 1;
   overflow: visible;
   min-height: 0;
+  min-width: 0;
   padding: 16px;
   gap: 16px;
   justify-content: flex-start;
   position: relative;
+}
+
+/* 桌面端右侧面板容器保护：锁定 300px 宽度，禁止被中间栏挤压 */
+.right-panel-container {
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+  width: 300px;
+  height: 100%;
+  min-height: 0;
 }
 
 @media (max-width: 800px) {
@@ -512,6 +523,8 @@ body {
   flex-direction: column;
   margin: 0;
   min-height: 0;
+  min-width: 0;
+  max-width: 100%;
   background: var(--bg-panel);
   /* 匹配 JSON 中的 chat_tint_color */
   backdrop-filter: blur(10px);
@@ -524,10 +537,12 @@ body {
 .chat-history {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: 24px;
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-width: 0;
 }
 
 /* 对话气泡 */
@@ -536,6 +551,7 @@ body {
   flex-direction: column;
   width: 100%;
   max-width: 100%;
+  min-width: 0;
   margin-bottom: 24px;
 }
 
@@ -625,7 +641,18 @@ body {
   letter-spacing: 0.5px;
   border-radius: var(--border-radius-md);
   width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  box-sizing: border-box;
   box-shadow: var(--shadow-sm);
+  word-break: break-word;
+}
+
+.message-content {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-wrap: break-word;
   word-break: break-word;
 }
 
@@ -2119,6 +2146,16 @@ body {
 
 .text-block pre {
   margin-bottom: 1.5rem;
+  max-width: 100%;
+  overflow-x: auto;
+  border-radius: 6px;
+}
+
+.text-block div[class*="language-"],
+.explainer-content-wrapper pre,
+.explainer-content-wrapper div[class*="language-"] {
+  max-width: 100%;
+  overflow-x: auto;
 }
 
 /* ==========================================

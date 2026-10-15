@@ -11,22 +11,18 @@ domain: project-planning
 
 ## 🔴 当前处理中：待修复 Bug 与架构重构工单 (Active Issues & Refactorings)
 
-### 1. 数据目录写入与存储机制异常
-- **现象描述**：系统目前对于如何对 `data/` 文件夹进行合法的写入操作、以及如何标准地存储教学文档，缺乏明确的工作流。
-- **调查方向**：
-  - 需要分析现有的 `AgentExecutor` 与沙盒 (`Sandbox`) 工具流中，如何才能合法向 `data/materials/` 等受保护的目录写入数据。
-  - 需要排查后端安全机制（如防注入护栏和路径穿越防御）是否过度拦截了正常的教学文档保存动作。
-
 ### 15. [待重构] 斜杠指令 (Slash Commands) 巨石阵结构
 - **现象描述**：`slash_handler.py` 内部使用庞大的 `if/elif` 链为每个指令硬塞海量多行 XML 系统指令。难以新增或删除，完全违背删除测试 (Deletion Test)。
 - **调查方向**：提炼 `CommandStrategy` 接口，每条指令独立为类，由核心注册器分发。
 
 ## 🟢 已闭环归档：Bug 与架构重构成果 (Resolved Archive)
 
-### 16. [已解决] 启动脚本 `start.bat` 清理僵尸进程时提示 `'netstat' 不是内部或外部命令`
-- **现象描述**：执行 `start.bat` 启动应用行进至 `Cleaning up potential zombie processes...` 阶段时，终端连续抛出 3 次 `'netstat' 不是内部或外部命令，也不是可运行的程序或批处理文件。` 导致端口检查与僵尸清理命令失效。
-- **根因分析**：当命令行会话环境变量 `PATH` 丢失 `C:\Windows\System32` 系统目录时，直接调用的简写 `netstat` 与 `taskkill` 无法在 PATH 中寻址。
-- **闭环修复**：在 `start.bat` 第 46~57 行将命令调用全部升级为绝对路径常量 `%SystemRoot%\System32\netstat.exe` 与 `%SystemRoot%\System32\taskkill.exe`，不依赖当前终端环境变量 PATH，保障任何终端环境下均可稳定执行。
+### 1. [已解决 / 安全沙盒与持久化架构] 数据目录写入与存储机制异常
+- **现象描述**：系统此前对于如何向 `data/` 文件夹进行合法的写入操作、以及如何标准地存储教学文档，缺乏明确规范与统一工作流，导致前端无统一保存端点且 AI 导师操作文件易触发越权或路径混乱。
+- **解决路线**：
+  1. **双通道安全写入模型确立 (ADR-008)**：列装单文件架构决策 [`ADR-008_知识档案预览与编辑弹窗架构决策.html`](file:///d:/MeiWenfeng-Classroom/docs/architecture/ADR-008_知识档案预览与编辑弹窗架构决策.html)，通过 `POST /api/chat/materials/save` 端点与 `MaterialsManager.save_material_content()` 建立前端用户合法编辑、保存与自动后台 RAG 向量重同步管线。
+  2. **AI 导师实操沙盒物理锁**：在 [`agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py) 中，使用 `os.path.commonpath` 严格建立以 `data/materials/Sandbox/` 为边界的安全沙盒，将 AI 导师的 `replace_file_content` 和 `create_file` 工具权限锁死在沙盒内，彻底封死路径穿越风险，同时保障教学闭环中的练习演进。
+  3. **自动化测试闭环**：在 `backend/tests/test_materials_save.py` 与 `backend/tests/test_sandbox_vfs.py`、`test_path_traversal_vulnerability.py` 中建立全链路安全与功能回归测试，全量绿灯通过。
 
 ### 2. [已解决] 前端 `.md` 文件渲染导致白屏崩溃
 - **现象描述**：在网页前端的导师状态栏或资源树中，一旦点击 `@data/materials` 目录下的任意 `.md` 文件，不会正常展示文本内容，而是导致整个 React 界面直接变白屏（前端应用崩溃）。
@@ -166,5 +162,37 @@ domain: project-planning
   1. 重构 `prompts.py:get_one_shot_demonstration(actual_content)`，透传 `actual_content` 放置于对白主体位置，在其外层规范包裹 `<think>`、`<monologue>` 与 `<property_update>` 示范结构；
   2. 在 `context_manager.py` 第 2 步传入 `actual_content=msg["content"]` 并保留 `timestamp`；
   3. 新增 `test_assemble_messages_dynamic_one_shot_preserves_actual_greeting` 专项单测并通过 14 项全套回归。
+
+### 21. [已解决] 启动脚本 `start.bat` 清理僵尸进程时提示 `'netstat' 不是内部或外部命令`
+- **现象描述**：执行 `start.bat` 启动应用行进至 `Cleaning up potential zombie processes...` 阶段时，终端连续抛出 3 次 `'netstat' 不是内部或外部命令，也不是可运行的程序或批处理文件。` 导致端口检查与僵尸清理命令失效。
+- **根因分析**：当命令行会话环境变量 `PATH` 丢失 `C:\Windows\System32` 系统目录时，直接调用的简写 `netstat` 与 `taskkill` 无法在 PATH 中寻址。
+- **闭环修复**：在 `start.bat` 第 46~57 行将命令调用全部升级为绝对路径常量 `%SystemRoot%\System32\netstat.exe` 与 `%SystemRoot%\System32\taskkill.exe`，不依赖当前终端环境变量 PATH，保障任何终端环境下均可稳定执行。
+
+### 22. [已解决 / 前端架构解耦] 斜杠指令双浮窗数据源割裂与排版锯齿（违背 SSOT 单一信源铁律）
+- **现象描述**：
+  1. 数据源割裂：输入框键入 `/` 呼出的快速补全面板包含 10 个全量指令（含 `/set_mission`、`/cancel_mission`、`/plan`）；而左下角 `[/]` 按钮弹出的气泡仅包含早期写死的 7 个指令，丢失了核心教学规划指令。
+  2. 排版锯齿：键入 `/` 的浮窗使用 `display: flex; justify-content: space-between` 且撑满输入栏，将长短不一的中文说明强制右对齐，导致描述文字左边缘呈参差锯齿状且中间存在大面积视觉断层。
+- **根因分析**：
+  1. 架构违规：前端缺乏统一的指令常量契约层，`ChatPanel.jsx:L1077` 内部硬编码了局部孤岛数组，违背单一真实信源（SSOT）原则；
+  2. 表现层缺陷：缺乏基于 Modern CSS Grid 的双列对齐基准线与设计系统规范约束。
+- **闭环修复**：
+  1. **单一信源下沉**：新增 [`frontend/src/constants/commands.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/constants/commands.js) 模块，统一定义包含 10 项全量指令契约（包含 `cmd`, `label`, `desc`）；
+  2. **孤岛彻底消除**：`App.jsx` 与 `ChatPanel.jsx` 全面引入 `COMMANDS` 单一信源，废除任何局部写死数组，确保数据源 100% 恒等；
+  3. **Modern Grid 双列左对齐**：将 `command-list-popover` 与 `shortcuts-popover` 全面升级为基于 CSS Grid 的双列左对齐布局（指令列等宽加粗，说明列紧随其后左对齐并优雅截断），彻底消除右对齐锯齿与留白断层；
+  4. **TDD 自动化看护**：在 [`ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 补充 `TDD 7` 与 `TDD 8` 专项断言，24 项单元测试全量绿灯通过。
+
+### 23. [已解决 / 前端布局与容器隔离] 长代码块与XML内容触发 Flexbox min-width 膨胀撑爆会话框体 (Flex Child Blowout)
+- **现象描述**：
+  当导师吐出长篇设定（如包含长行不可折行文本的 `<explainer>` XML 卡片或代码块）时，中间会话框打破正常宽度上限并无限制向右拉伸撑爆；右侧“导师与授课状态”边栏被完全挤死并推出可视区外，甚至导致输入框右下角发送按钮 `[ ↑ ]` 超出屏幕边界不可见。
+- **根因分析**：
+  1. **Flex 规范 `min-width: auto` 膨胀陷阱**：`.main-layout` 下的 `.center-panel` 设有 `flex: 1` 但缺失 `min-width: 0`。Flexbox 规范规定子项最小宽度不得小于子内容的不可拆分最小内在宽度（`min-content`），长代码行向上强行推高了 `.center-panel` 的最小尺寸；
+  2. **右侧栏缺乏伸缩防御**：`.right-panel-container` 默认继承 `flex-shrink: 1` 且无显式约束，在中间栏膨胀时被压为 0 或挤出屏幕；
+  3. **代码块缺乏局部横向滚动隔离**：`.text-block pre`、`<SyntaxHighlighter>` 及 `<ExplainerBlock>` 内部容器未指定 `max-width: 100%; overflow-x: auto;`，不可换行文本直接向外穿透撑大父级。
+- **闭环修复**：
+  1. **双向阻断 Flex 恶性膨胀**：在 [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 为 `.center-panel`、`.chat-history`、`.message-item`、`.message-bubble` 与 `.message-content` 全面补齐 `min-width: 0; max-width: 100%;`；
+  2. **右侧面板物理锁定**：在桌面端为 `.right-panel-container` 建立专属样式，锁定 `flex-shrink: 0; width: 300px;`，保障侧边栏永不被挤扁；
+  3. **局域横向滚动隔离**：为 `.text-block pre`、`.explainer-content-wrapper pre`、`SyntaxHighlighter` 及 `ExplainerBlock` 容器配置 `max-width: 100%; overflow-x: auto; min-width: 0;`，确保任意长代码与标签均在卡片内自适应滚动，杜绝撑破外层布局；
+  4. **TDD 自动化看护**：在 [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 补充 `TDD 9 [Bug #23]` 专项测试，25 项前端单元测试与构建全量绿灯通过。
+
 
 

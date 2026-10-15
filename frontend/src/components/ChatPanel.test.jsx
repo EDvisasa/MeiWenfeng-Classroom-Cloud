@@ -3,6 +3,7 @@ import { render, screen, fireEvent, act } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ChatPanel from './ChatPanel';
+import { COMMANDS } from '../constants/commands';
 
 // Mock heavy child components and utilities to isolate ChatPanel behavior
 
@@ -251,6 +252,73 @@ describe('ChatPanel Editing Behavior Tests', () => {
     };
     render(<ChatPanel {...props} />);
     expect(screen.getByText('OpenClaw')).toBeInTheDocument();
+  });
+
+  it('TDD 7 [Bug #21]: shortcuts-popover honors SSOT and renders all commands with descriptions', () => {
+    const executeSlashCommand = vi.fn();
+    const props = {
+      ...getBaseProps(),
+      executeSlashCommand
+    };
+
+    render(<ChatPanel {...props} />);
+
+    const triggerBtn = screen.getByTitle('快捷工具');
+    expect(triggerBtn).toBeInTheDocument();
+
+    fireEvent.click(triggerBtn);
+
+    expect(screen.getByText('⚡ 快捷指令菜单')).toBeInTheDocument();
+
+    COMMANDS.forEach(cmdItem => {
+      expect(screen.getByText(cmdItem.cmd)).toBeInTheDocument();
+      expect(screen.getByText(cmdItem.desc)).toBeInTheDocument();
+    });
+
+    const missionCmd = screen.getByText('/set_mission');
+    fireEvent.click(missionCmd);
+    expect(executeSlashCommand).toHaveBeenCalledWith('/set_mission');
+  });
+
+  it('TDD 8 [Bug #21]: command-list-popover renders filteredCommands with aligned grid layout', () => {
+    const selectCommand = vi.fn();
+    const props = {
+      ...getBaseProps(),
+      showCommandList: true,
+      filteredCommands: COMMANDS,
+      activeCommandIndex: 0,
+      selectCommand
+    };
+
+    render(<ChatPanel {...props} />);
+
+    expect(screen.getByText('⚡ Quick Commands')).toBeInTheDocument();
+    COMMANDS.forEach(cmdItem => {
+      expect(screen.getByText(cmdItem.cmd)).toBeInTheDocument();
+      expect(screen.getByText(cmdItem.desc)).toBeInTheDocument();
+    });
+
+    fireEvent.click(screen.getByText('/plan'));
+    expect(selectCommand).toHaveBeenCalledWith(expect.objectContaining({ cmd: '/plan' }));
+  });
+
+  it('TDD 9 [Bug #23]: ExplainerBlock renders with strict containment (maxWidth 100% and minWidth 0) preventing flex blowout', () => {
+    const props = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'assistant',
+          content: 'Here is the setting:\n<explainer title="凡人修仙传同人设定">\n```xml\n<媚吻锋_凡妻角色基础>\n测试超长单行代码不折行\n</媚吻锋_凡妻角色基础>\n```\n</explainer>'
+        }
+      ]
+    };
+
+    const { container } = render(<ChatPanel {...props} />);
+
+    expect(screen.getByText('凡人修仙传同人设定')).toBeInTheDocument();
+    const explainerCard = container.querySelector('[style*="max-width: 100%"]');
+    expect(explainerCard).toBeInTheDocument();
+    expect(explainerCard).toHaveStyle({ maxWidth: '100%', minWidth: '0px' });
   });
 });
 

@@ -8,6 +8,7 @@ import QuizBlock from './QuizBlock';
 import ReactMarkdown from 'react-markdown';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { COMMANDS } from '../constants/commands';
 
 const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
   const [timeLeft, setTimeLeft] = React.useState(60);
@@ -227,7 +228,7 @@ const ExplainerBlock = ({ block, idx, markdownComponents }) => {
   const cleanTitle = (block.title || '').replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{1F700}-\u{1F77F}\u{1F780}-\u{1F7FF}\u{1F800}-\u{1F8FF}\u{1F900}-\u{1F9FF}\u{1FA00}-\u{1FA6F}\u{1FA70}-\u{1FAFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{2300}-\u{23FF}]/gu, '').trim();
 
   return (
-    <div key={`exp_${idx}`} style={{ margin: '28px 0', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
+    <div key={`exp_${idx}`} style={{ margin: '28px 0', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', maxWidth: '100%', minWidth: 0, boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
       <div
         onClick={() => setIsExpanded(!isExpanded)}
         style={{ background: 'var(--bg-secondary)', padding: '10px 14px', fontSize: '14px', fontWeight: 'bold', borderBottom: isExpanded ? '1px solid var(--border-color)' : 'none', display: 'flex', alignItems: 'center', justifyContent: 'space-between', color: 'var(--text-primary)', cursor: 'pointer', transition: 'background 0.2s ease' }}
@@ -247,7 +248,7 @@ const ExplainerBlock = ({ block, idx, markdownComponents }) => {
         </div>
       </div>
       {isExpanded && (
-        <div style={{ padding: '16px', background: 'var(--bg-panel)', fontSize: '14px', lineHeight: '1.7', color: 'var(--text-primary)' }}>
+        <div style={{ padding: '16px', background: 'var(--bg-panel)', fontSize: '14px', lineHeight: '1.7', color: 'var(--text-primary)', maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
           <div className="text-block explainer-content-wrapper"><ReactMarkdown components={markdownComponents}>{block.text}</ReactMarkdown></div>
         </div>
       )}
@@ -488,13 +489,13 @@ export default function ChatPanel({
           style={syntaxStyle}
           language={match[1]}
           PreTag="div"
-          customStyle={{ borderRadius: '6px', margin: '1em 0' }}
+          customStyle={{ borderRadius: '6px', margin: '1em 0', maxWidth: '100%', overflowX: 'auto' }}
           {...props}
         >
           {String(children).replace(/\n$/, '')}
         </SyntaxHighlighter>
       ) : (
-        <code className={className} style={{ background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-primary)', fontFamily: 'Consolas, Monaco, monospace', fontSize: '0.9em' }} {...props}>
+        <code className={className} style={{ background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '4px', color: 'var(--text-primary)', fontFamily: 'Consolas, Monaco, monospace', fontSize: '0.9em', wordBreak: 'break-word', overflowWrap: 'break-word' }} {...props}>
           {children}
         </code>
       );
@@ -897,7 +898,7 @@ export default function ChatPanel({
 
       {/* 对话输入框 - Claude Code 风格双行卡片 */}
       <div className="input-area" style={{ position: 'relative' }}>
-        {/* 自动补全浮窗 */}
+        {/* 自动补全浮窗 - 现代两列栅格左对齐 */}
         {showCommandList && (
           <div
             className="command-list-popover"
@@ -906,44 +907,62 @@ export default function ChatPanel({
               bottom: '100%',
               marginBottom: '8px',
               left: '24px',
-              right: '24px',
+              maxWidth: '640px',
+              width: 'calc(100% - 48px)',
               backgroundColor: 'var(--bg-secondary)',
               border: '1px solid var(--border-color)',
               borderRadius: '8px',
               zIndex: 9999,
-              boxShadow: 'var(--shadow-lg)'
+              boxShadow: 'var(--shadow-lg)',
+              overflow: 'hidden'
             }}
           >
             <div
               style={{
-                padding: '8px 12px',
+                padding: '8px 14px',
                 fontSize: '11px',
                 color: 'var(--text-secondary)',
                 borderBottom: '1px solid var(--border-color)',
-                fontWeight: 'bold'
+                fontWeight: 'bold',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
               }}
             >
-              ⚡ Quick Commands
+              <span>⚡ Quick Commands</span>
+              <span style={{ fontSize: '10px', opacity: 0.7 }}>↑↓ 切换，Enter 选中</span>
             </div>
-            <ul style={{ listStyle: 'none' }}>
+            <ul style={{ listStyle: 'none', margin: 0, padding: '4px 0', maxHeight: '320px', overflowY: 'auto' }}>
               {filteredCommands.map((item, idx) => (
                 <li
                   key={item.cmd}
                   onClick={() => selectCommand(item)}
                   className={`command-item ${idx === activeCommandIndex ? 'active' : ''}`}
                   style={{
-                    padding: '10px 16px',
+                    padding: '9px 14px',
                     fontSize: '13px',
                     cursor: 'pointer',
-                    display: 'flex',
-                    justifyContent: 'space-between',
+                    display: 'grid',
+                    gridTemplateColumns: '160px 1fr',
+                    gap: '12px',
+                    alignItems: 'center',
                     backgroundColor: idx === activeCommandIndex ? 'rgba(244, 114, 182, 0.15)' : 'transparent',
                     color: idx === activeCommandIndex ? 'var(--accent-pink)' : 'var(--text-primary)',
-                    borderLeft: idx === activeCommandIndex ? '3px solid var(--accent-pink)' : '3px solid transparent'
+                    borderLeft: idx === activeCommandIndex ? '3px solid var(--accent-pink)' : '3px solid transparent',
+                    transition: 'background-color 0.15s ease'
                   }}
                 >
-                  <span style={{ fontWeight: '600' }}>{item.cmd}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>{item.desc}</span>
+                  <span style={{ fontWeight: '600', fontFamily: 'monospace' }}>{item.cmd}</span>
+                  <span style={{
+                    fontSize: '12px',
+                    color: idx === activeCommandIndex ? 'var(--text-primary)' : 'var(--text-secondary)',
+                    textAlign: 'left',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis'
+                  }}>
+                    {item.desc}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -1065,44 +1084,59 @@ export default function ChatPanel({
                       background: 'var(--bg-panel)',
                       border: '1px solid var(--border-color)',
                       borderRadius: '8px',
-                      padding: '8px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: '4px',
+                      padding: '6px',
                       boxShadow: 'var(--shadow-lg)',
                       zIndex: 9999,
-                      width: '140px'
+                      width: '380px',
+                      maxHeight: '340px',
+                      overflowY: 'auto'
                     }}
                   >
-                    {[
-                      { cmd: '/lesson', label: '/lesson' },
-                      { cmd: '/submit', label: '/submit' },
-                      { cmd: '/reward', label: '/reward' },
-                      { cmd: '/compact', label: '/compact' },
-                      { cmd: '/summarize', label: '/summarize' },
-                      { cmd: '/prepare', label: '/prepare' },
-                      { cmd: '/update_persona', label: '/update_persona' },
-                    ].map(item => (
-                      <div
-                        key={item.cmd}
-                        onClick={() => {
-                          executeSlashCommand(item.cmd);
-                          setShowShortcuts(false);
-                        }}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          cursor: 'pointer',
-                          borderRadius: '4px',
-                          transition: 'background 0.2s',
-                          color: 'var(--text-primary)'
-                        }}
-                        onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
-                        onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
-                      >
-                        {item.label}
-                      </div>
-                    ))}
+                    <div
+                      style={{
+                        padding: '6px 8px',
+                        fontSize: '11px',
+                        fontWeight: 'bold',
+                        color: 'var(--text-secondary)',
+                        borderBottom: '1px solid var(--border-color)',
+                        marginBottom: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between'
+                      }}
+                    >
+                      <span>⚡ 快捷指令菜单</span>
+                      <span style={{ fontSize: '10px', opacity: 0.7 }}>点击立即执行</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                      {COMMANDS.map(item => (
+                        <div
+                          key={item.cmd}
+                          onClick={() => {
+                            executeSlashCommand(item.cmd);
+                            setShowShortcuts(false);
+                          }}
+                          style={{
+                            padding: '7px 10px',
+                            fontSize: '12px',
+                            cursor: 'pointer',
+                            borderRadius: '6px',
+                            transition: 'background 0.15s ease',
+                            display: 'grid',
+                            gridTemplateColumns: '130px 1fr',
+                            gap: '8px',
+                            alignItems: 'center'
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.background = 'var(--bg-tertiary)'}
+                          onMouseOut={(e) => e.currentTarget.style.background = 'transparent'}
+                        >
+                          <span style={{ fontWeight: '600', color: 'var(--accent-pink)', fontFamily: 'monospace' }}>{item.cmd}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', textAlign: 'left' }}>
+                            {item.desc}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>
