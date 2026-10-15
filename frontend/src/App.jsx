@@ -186,7 +186,12 @@ export default function App() {
 
     // 截断到 index
     const truncated = messages.slice(0, index);
-    const editedMessage = { role: 'user', content: newContent };
+    const originalImages = messages[index]?.images;
+    const editedMessage = {
+      role: 'user',
+      content: newContent,
+      ...(originalImages && originalImages.length > 0 ? { images: originalImages } : {})
+    };
     const nextMessages = [...truncated, editedMessage];
 
     setMessages(nextMessages);
@@ -346,6 +351,8 @@ export default function App() {
   const [tempBaseUrl, setTempBaseUrl] = useState('');
   const [tempApiKey, setTempApiKey] = useState('');
   const [tempMaxContextTokens, setTempMaxContextTokens] = useState('');
+  const [tempSupportsVision, setTempSupportsVision] = useState(true);
+  const [chatSelectedImages, setChatSelectedImages] = useState([]);
   const [tempSelectedSubModel, setTempSelectedSubModel] = useState('');
   const [availableModels, setAvailableModels] = useState([]);
   const [loadingModels, setLoadingModels] = useState(false);
@@ -358,6 +365,7 @@ export default function App() {
   const [newConfigBaseUrl, setNewConfigBaseUrl] = useState('');
   const [newConfigApiKey, setNewConfigApiKey] = useState('');
   const [newConfigMaxContextTokens, setNewConfigMaxContextTokens] = useState('');
+  const [newConfigSupportsVision, setNewConfigSupportsVision] = useState(true);
   const [renameConfigName, setRenameConfigName] = useState('');
 
   // RAG 知识库后端配置
@@ -544,6 +552,7 @@ export default function App() {
       setTempApiKey(active.api_key || '');
       setTempSelectedSubModel(active.selected_model_id || '');
       setTempMaxContextTokens(active.max_context_tokens || '');
+      setTempSupportsVision(active.supports_vision !== 0);
     }
   }, [models]);
 
@@ -663,6 +672,7 @@ export default function App() {
       setTempApiKey(selected.api_key || '');
       setTempMaxContextTokens(selected.max_context_tokens || '');
       setTempSelectedSubModel(selected.selected_model_id || '');
+      setTempSupportsVision(selected.supports_vision !== 0);
       setAvailableModels([]);
     }
   };
@@ -683,7 +693,8 @@ export default function App() {
           api_key: tempApiKey,
           max_context_tokens: tempMaxContextTokens ? parseInt(tempMaxContextTokens, 10) : null,
           protocol: selected.protocol,
-          selected_model_id: tempSelectedSubModel
+          selected_model_id: tempSelectedSubModel,
+          supports_vision: tempSupportsVision ? 1 : 0
         })
       });
       if (res.ok) {
@@ -716,7 +727,8 @@ export default function App() {
           api_key: tempApiKey,
           max_context_tokens: tempMaxContextTokens ? parseInt(tempMaxContextTokens, 10) : null,
           protocol: selected.protocol,
-          selected_model_id: tempSelectedSubModel
+          selected_model_id: tempSelectedSubModel,
+          supports_vision: tempSupportsVision ? 1 : 0
         })
       });
 
@@ -759,7 +771,8 @@ export default function App() {
           protocol: newConfigProtocol,
           base_url: newConfigBaseUrl.trim(),
           api_key: newConfigApiKey.trim(),
-          max_context_tokens: newConfigMaxContextTokens ? parseInt(newConfigMaxContextTokens, 10) : null
+          max_context_tokens: newConfigMaxContextTokens ? parseInt(newConfigMaxContextTokens, 10) : null,
+          supports_vision: newConfigSupportsVision ? 1 : 0
         })
       });
       const data = await res.json();
@@ -770,6 +783,7 @@ export default function App() {
         setNewConfigApiKey('');
         setNewConfigProtocol('openai');
         setNewConfigMaxContextTokens('');
+        setNewConfigSupportsVision(true);
 
         // 刷新列表并选中新创建的配置
         await fetchModels();
@@ -778,6 +792,7 @@ export default function App() {
         setTempApiKey(newConfigApiKey.trim());
         setTempMaxContextTokens(newConfigMaxContextTokens ? parseInt(newConfigMaxContextTokens, 10) : '');
         setTempSelectedSubModel('');
+        setTempSupportsVision(newConfigSupportsVision);
         setAvailableModels([]);
 
         setMessages(prev => [
@@ -917,6 +932,15 @@ export default function App() {
 
   // 处理右侧面板的基础模型切换
   const handleModelChange = async (modelId) => {
+    const switchedObj = models.find(m => m.id === parseInt(modelId));
+    if (switchedObj && switchedObj.supports_vision === 0 && chatSelectedImages.length > 0) {
+      const confirmed = window.confirm("当前待发列表中包含图片，目标模型不支持识图，切换将移除已选图片，是否继续？");
+      if (!confirmed) {
+        return;
+      }
+      setChatSelectedImages([]);
+    }
+
     try {
       const res = await fetch(`${API_BASE}/api/chat/switch_model`, {
         method: 'POST',
@@ -929,13 +953,13 @@ export default function App() {
         fetchModels();
         fetchStatus();
 
-        const switchedObj = models.find(m => m.id === parseInt(modelId));
         if (switchedObj) {
           setSelectedConfigId(switchedObj.id);
           setTempBaseUrl(switchedObj.base_url);
           setTempApiKey(switchedObj.api_key || '');
           setTempMaxContextTokens(switchedObj.max_context_tokens || '');
           setTempSelectedSubModel(switchedObj.selected_model_id || '');
+          setTempSupportsVision(switchedObj.supports_vision !== 0);
         }
 
         setMessages(prev => [
@@ -1014,24 +1038,45 @@ export default function App() {
 
   // 发送对话消息
   const sendMessage = async (customMessage) => {
-    const isCustom = typeof customMessage === 'string';
-    const textToSend = isCustom ? customMessage : inputText.trim();
+    const isCustomString = typeof customMessage === 'string';
+    const isCustomObject = customMessage && typeof customMessage === 'object' && !customMessage.nativeEvent;
     
-    if (!textToSend || isStreaming) return;
+    const textToSend = isCustomString 
+      ? customMessage 
+      : isCustomObject 
+        ? (customMessage.text || '') 
+        : inputText.trim();
+        
+    const imagesToSend = isCustomObject && Array.isArray(customMessage.images)
+      ? customMessage.images
+      : [];
 
-    if (!isCustom) {
+    if ((!textToSend && imagesToSend.length === 0) || isStreaming) return;
+
+    if (!isCustomString) {
       setInputText('');
       setShowCommandList(false);
     }
 
-    const handled = await dispatchSystemCommand(textToSend, {
-        setMessages,
-        API_BASE,
-        getNowStr: _getNowStr
-    });
-    if (handled) return;
+    if (textToSend && imagesToSend.length === 0) {
+      const handled = await dispatchSystemCommand(textToSend, {
+          setMessages,
+          API_BASE,
+          getNowStr: _getNowStr
+      });
+      if (handled) return;
+    }
 
-    const nextMessages = [...messages, { role: 'user', content: textToSend, timestamp: _getNowStr() }];
+    const userMsg = {
+      role: 'user',
+      content: textToSend,
+      timestamp: _getNowStr()
+    };
+    if (imagesToSend.length > 0) {
+      userMsg.images = imagesToSend;
+    }
+
+    const nextMessages = [...messages, userMsg];
     setMessages(nextMessages);
     await triggerAIResponse(nextMessages);
   };
@@ -1482,6 +1527,7 @@ export default function App() {
             selectCommand={selectCommand}
             inputRef={inputRef}
             inputText={inputText}
+            setInputText={setInputText}
             handleInputChange={handleInputChange}
             handleKeyDown={handleKeyDown}
             sendMessage={sendMessage}
@@ -1501,6 +1547,8 @@ export default function App() {
             selectedFilePath={selectedFilePath}
             pendingApproval={pendingApproval}
             setPendingApproval={setPendingApproval}
+            selectedImages={chatSelectedImages}
+            setSelectedImages={setChatSelectedImages}
           />
 
           {/* 右侧面板：导师人设与课程大纲 */}
@@ -1803,15 +1851,26 @@ export default function App() {
                     />
                   </div>
 
-                  {/* Max Tokens (Output) */}
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                    <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>最大返回 Tokens (推荐8192, 0表示无限制)</label>
-                    <input
-                      type="number"
-                      value={maxTokens}
-                      onChange={handleMaxTokensChange}
-                      style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
-                    />
+                  {/* Max Tokens (Output) & Supports Vision */}
+                  <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      <label style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>最大返回 Tokens (推荐8192, 0表示无限制)</label>
+                      <input
+                        type="number"
+                        value={maxTokens}
+                        onChange={handleMaxTokensChange}
+                        style={{ padding: '6px', fontSize: '12px', borderRadius: '4px', border: '1px solid var(--border-color)', outline: 'none' }}
+                      />
+                    </div>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', cursor: 'pointer', paddingBottom: '8px', userSelect: 'none', color: 'var(--text-primary)' }}>
+                      <input
+                        type="checkbox"
+                        checked={tempSupportsVision}
+                        onChange={(e) => setTempSupportsVision(e.target.checked)}
+                        style={{ cursor: 'pointer' }}
+                      />
+                      <span>📷 支持图片输入</span>
+                    </label>
                   </div>
 
 
@@ -2065,6 +2124,18 @@ export default function App() {
                     placeholder="留空自动探测。填入将永久锁定该限界 (如 131072)"
                     style={{ padding: '8px', fontSize: '13px', borderRadius: '4px', border: '1px solid var(--border-color)', background: 'var(--bg-primary)', color: 'var(--text-primary)', outline: 'none' }}
                   />
+                </div>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px' }}>
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '13px', cursor: 'pointer', userSelect: 'none', color: 'var(--text-primary)' }}>
+                    <input
+                      type="checkbox"
+                      checked={newConfigSupportsVision}
+                      onChange={(e) => setNewConfigSupportsVision(e.target.checked)}
+                      style={{ cursor: 'pointer' }}
+                    />
+                    <span>📷 支持图片输入 (Vision)</span>
+                  </label>
                 </div>
               </div>
 

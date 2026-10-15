@@ -1,10 +1,11 @@
+import json
 import logging
 import os
 import re
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional, Any
 from backend.database import get_db_connection
 from backend.services.memory_decay import check_decay_needed
 from backend.services.action_registry import action_registry
@@ -18,8 +19,9 @@ router = APIRouter(prefix="/api/chat", tags=["memory", "sessions"])
 
 class Message(BaseModel):
     role: str
-    content: str = ""
-    timestamp: str = None
+    content: Optional[str] = ""
+    timestamp: Optional[str] = None
+    images: Optional[List[str]] = None
 
 class SessionSavePayload(BaseModel):
     id: str
@@ -189,13 +191,26 @@ def get_sessions():
 
         for sess in sessions:
             cursor.execute(
-                "SELECT role, content, timestamp FROM chat_messages WHERE session_id = ? ORDER BY id ASC", 
+                "SELECT role, content, timestamp, images FROM chat_messages WHERE session_id = ? ORDER BY id ASC", 
                 (sess["id"],)
             )
-            sess["messages"] = [dict(row) for row in cursor.fetchall()]
-            
-        conn.close()
-        return sessions
+            sess_messages = []
+            for row in cursor.fetchall():
+                msg_dict = {
+                    "role": row["role"],
+                    "content": row["content"],
+                    "timestamp": row["timestamp"]
+                }
+                raw_images = row["images"]
+                if raw_images:
+                    try:
+                        msg_dict["images"] = json.loads(raw_images)
+                    except Exception:
+                        msg_dict["images"] = []
+                else:
+                    msg_dict["images"] = []
+                sess_messages.append(msg_dict)
+            sess["messages"] = sess_messages
             
         conn.close()
         return sessions
@@ -221,15 +236,16 @@ def save_session(payload: SessionSavePayload):
         
         # 3. 批量插入新消息
         for msg in payload.messages:
+            images_json = json.dumps(msg.images, ensure_ascii=False) if msg.images else None
             if msg.timestamp:
                 cursor.execute(
-                    "INSERT INTO chat_messages (session_id, role, content, timestamp) VALUES (?, ?, ?, ?)",
-                    (payload.id, msg.role, msg.content, msg.timestamp)
+                    "INSERT INTO chat_messages (session_id, role, content, images, timestamp) VALUES (?, ?, ?, ?, ?)",
+                    (payload.id, msg.role, msg.content, images_json, msg.timestamp)
                 )
             else:
                 cursor.execute(
-                    "INSERT INTO chat_messages (session_id, role, content) VALUES (?, ?, ?)",
-                    (payload.id, msg.role, msg.content)
+                    "INSERT INTO chat_messages (session_id, role, content, images) VALUES (?, ?, ?, ?)",
+                    (payload.id, msg.role, msg.content, images_json)
                 )
             
         conn.commit()

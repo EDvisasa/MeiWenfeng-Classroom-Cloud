@@ -27,17 +27,47 @@ def _get_chroma_client():
     except ImportError:
         raise RuntimeError("chromadb 未安装，请运行: pip install chromadb sentence-transformers")
 
+def _check_hf_reachable(timeout: float = 2.0) -> bool:
+    """快速探测 Hugging Face 是否可达（超时默认 2 秒，避免阻塞启动）"""
+    import socket
+    try:
+        s = socket.create_connection(("huggingface.co", 443), timeout=timeout)
+        s.close()
+        return True
+    except Exception:
+        return False
+
+
 def _get_embedding_fn():
-    """优先用 sentence-transformers 多语言小模型，失败则 fallback 至 chromadb 默认"""
+    """优先用本地已缓存的 sentence-transformers 模型（纯离线秒级启动），未缓存时探测网络与自动降级"""
     try:
         if not os.environ.get("HF_HOME"):
             os.environ["HF_HOME"] = LOCAL_MODELS_DIR
         from chromadb.utils import embedding_functions
-        ef = embedding_functions.SentenceTransformerEmbeddingFunction(
-            model_name="paraphrase-multilingual-MiniLM-L12-v2"
-        )
-        return ef
-    except Exception:
+
+        # 1. 优先直接读取本地磁盘模型缓存（秒级加载，免除向 HuggingFace Hub 联网校验导致的 20s 卡顿与未授权警告）
+        try:
+            ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name="paraphrase-multilingual-MiniLM-L12-v2",
+                local_files_only=True
+            )
+            return ef
+        except Exception:
+            pass  # 本地尚无完整缓存
+
+        # 2. 本地无模型缓存时，先快速探测 Hugging Face 连通性（2 秒超时）
+        print("[Embedding] 本地未检测到模型缓存，正在探测 Hugging Face 网络连通性...")
+        if _check_hf_reachable(timeout=2.0):
+            print("[Embedding] Hugging Face 连通正常，开始拉取模型权重...")
+            ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+                model_name="paraphrase-multilingual-MiniLM-L12-v2"
+            )
+            return ef
+        else:
+            print("[Embedding Warning] Hugging Face 连接超时或无法访问，跳过联网，回退至内置默认嵌入。")
+            return None
+    except Exception as e:
+        print(f"[Embedding Warning] 初始化嵌入模型异常 ({e})，回退至内置默认嵌入。")
         return None  # 让 chromadb 用内置默认嵌入（all-MiniLM-L6-v2）
 
 def _get_overlap_text(text: str, max_overlap: int) -> str:

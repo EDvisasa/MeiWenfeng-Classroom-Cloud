@@ -209,7 +209,52 @@ domain: project-planning
   2. **ToolExecutionEngine 全局兜底防御**：在 [`tool_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/tool_engine.py) 中引入静态方法 `_sanitize_tool_output(output, max_chars=40000)`，对所有工具的执行结果向消息队列收集时进行第二道纵深防御（Defense-in-depth），杜绝任何第三方或新工具单次输出击穿 API Body 限制。
   3. **TDD 自动化测试闭环**：在 [`test_agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_tools.py) 中增加 `test_bash_tool_truncates_large_output_lines` 与 `test_bash_tool_truncates_large_output_chars` 专项单测；在 [`test_agent_executor.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_executor.py) 增加 `test_tool_execution_engine_global_safety_ceiling` 专项测试，全量测试绿灯通过。
 
+### 26. [已解决 / 前端状态副作用与剪贴板聚合] 聊天框复制粘贴截图单次触发重复添加两张图片
+- **现象描述**：用户在聊天输入框按下 Ctrl+V 粘贴单张截图或复制的图片时，输入框上方会瞬间出现两张完全相同的图片缩略图。
+- **根因分析**：
+  1. **React StrictMode 双重调用纯函数陷阱**：在 `ChatPanel.jsx` 的 `addFilesAsImages` 中，将异步文件压缩逻辑和内层 `setSelectedImages` 直接写在 `setSelectedImages(prev => ...)` 状态更新函数内部。在 `<StrictMode>` 下 React 故意双重调用 updater 函数，导致异步压缩流程与追加任务被调度执行了两次，向列表推入了两张一模一样的预览卡片；
+  2. **剪贴板数据流未批次聚合**：`handlePaste` 对 `e.clipboardData.items` 采用了逐项 `forEach`，当某些截图软件或操作系统剪贴板向剪贴板同时暴露多种 image mime 时，可能触发多次状态变更。
+- **解决路线**：
+  1. **异步任务移出纯函数状态更新器**：将 `compressImage` 提升至 `setSelectedImages` 外部并发执行（`Promise.all`），压缩完全就绪后，执行单次原子纯函数批量追加；
+  2. **剪贴板数据批次聚合去重**：优化 `handlePaste`，优先读取 `clipboardData.files`，缺失时回退并聚合 `items`，单次传导至处理函数；
+  3. **环境兼容与 TDD 验证**：在 `ChatPanel.jsx` 中增加 Canvas 2D 上下文环境回退保护，并在 [`ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 建立 `TDD 11 [Bug #26]` 自动化测试用例，27 项前端测试全量绿灯通过。
 
+### 27. [已解决 / 前端状态流与受控输入] 消息发送后输入框内容未自动清空残留
+- **现象描述**：用户在聊天输入框内输入文字（或附带图片）并点击发送按钮或按 Enter 发送后，消息虽已成功发送并在会话区渲染，但输入框（`<textarea>`）内的文字依然保留在框中，未被重置为空字符串，导致需要手动逐字删除才能输入下一句。
+- **根因分析**：在支持多模态图片发送重构时，`ChatPanel.jsx` 的 `handleSend` 将载荷封装为 `{ text, images }` 的复合对象并传给 `sendMessage`。而在 `App.jsx` 的 `sendMessage` 中，清空输入框的守卫条件被误写为了 `if (!isCustomString && !isCustomObject) { setInputText(''); }`。由于正常聊天发送的对象载荷被判定为 `isCustomObject = true`，导致 `setInputText('')` 被无意中跳过，造成 React 受控状态 `inputText` 残留。
+- **解决路线**：
+  1. **双重保障清空流（Defense-in-depth）**：在 `frontend/src/App.jsx` 中将清空守卫纠正为 `if (!isCustomString) { setInputText(''); setShowCommandList(false); }`，确保常规聊天发送（无论无参还是复合对象载荷）必清空输入框；同时将 `setInputText` prop 透传给 `ChatPanel.jsx`，在 `handleSend` 中也主动调用 `setInputText('')` 提供双保险；
+  2. **TDD 自动化测试验证**：在 [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 落地 `TDD 15 [Bug #27]`，覆盖点击发送按钮与键盘 Enter 触发的双重清空断言，全量 31 项前端测试 100% 绿灯通过。
 
+### 28. [已解决 / 提示词拟真与女性生理内分泌对齐] “绝对贤者/贤者之态”男性向标签导致 AI 人设跑偏出戏
+- **现象描述**：用户在调用 `/cooldown` 或触发高好感事后转场时，大模型在生成回复时输出“语气像是深秋里叮嘱晚辈莫要贪凉的老祖母”、“九条狐尾垂在榻边，纹丝不动，尽显贤者之态”，导致九尾天狐道侣娇妻人设严重跑偏为老僧入定或老祖母念经，击碎用户沉浸感。
+- **根因分析**：
+  1. **男性视角俚语与女性内分泌错位**：“贤者模式（Kenja Time）”是男性射精后多巴胺骤降的冷淡期，而女性高潮后体内催产素（Oxytocin）与依恋达到顶峰，表现为身子酥软、依赖抚慰与余韵温存，绝非四大皆空；
+  2. **提示词词义污染**：`prompts.py` 中的 `[绝对贤者]` 诱导 LLM 激活了老成持重、出家入定、长辈哲人的联想空间，甚至将系统标签词直接输出为正文动作。
+- **解决路线**：
+  1. **全面更名为【余韵温存】与【静心专注】**：
+     - 在 `backend/services/prompts.py` 中，将 `refractory_period > 20` 定义重构为 `[余韵温存] (Afterglow & Languid Cuddle)`，强调催产素主导的甜美疲乏、骨软筋麻与怀抱依偎，并追加负面约束禁言“贤者之态”；
+     - 在 `backend/services/slash_handler.py` 中，根据 `refractory_period > 0` 动态输出 `已进入【余韵温存】状态` 或 `已进入【静心专注】模式`；
+  2. **指令契约与意图对齐**：在 `frontend/src/constants/commands.js`、`context_manager.py` 和测试用例中将指令描述与匹配规则全面更新为“静心专注 / 余韵温存”；
+  3. **自动化测试验证**：全量 20 项后端单测与 33 项前端测试全部绿灯通过。
 
-
+### 29. [已解决 / 女性生理内分泌梯级与多轮连战累加] 多次高潮生理不应期停滞于二阶且实战对话被覆盖降级
+- **现象描述**：用户在 QA 审查中提出，在短时间内多次让吻峰经历性高潮时：
+  1. 状态机在第 2 次高潮累加至 18 后，第 3 次高潮依然停留在 18，无法进入系统设定的第 3 阶生理保护极限（`refractory > 20` 的【余韵温存】）；
+  2. 在实战自然对话中，大模型高潮时输出 `<property_update set_refractory="10" />`，由于直接调用了 `modify_state(set_refractory=10)`，导致原本累积的 18 甚至更高数值被无脑覆盖回 10，完全无法体现连战疲劳累加。
+- **根因分析**：
+  1. **状态机阶梯二元断层**：`CharacterStateManager.trigger_climax` 仅实现了 `< 10` 与 `>= 10` 的二元判断，缺乏对第三次高潮及更高连战状态（`refractory >= 18` 跃迁至 24）的梯度支持；
+  2. **副作用拦截器绕过拟人算法**：`PropertyUpdateHandler` 缺乏对高潮标签的识别分流，将大模型给出的基准高潮信号 `set_refractory="10"` 作为绝对值强行 set 写入，破坏了状态机的自适应累加性。
+- **解决路线**：
+  1. **三阶拟人生理内分泌梯级列装**：
+     - 在 `backend/services/character_state.py` 的 `trigger_climax` 中构建三阶跃迁梯度：
+       - 初次高潮（`refractory == 0`）：置为 **10**【事后温存】（约 5 轮平复）；
+       - 二次连战（`0 < refractory <= 12`）：累加至 **18**【精力透支】（约 9 轮平复）；
+       - 三次及以上（`refractory > 12`）：累加至 **24**【余韵温存 / 骨酥肉麻】（约 12 轮长效休止，与 `prompts.py` 中 `refractory > 20` 的顶级余韵人设 100% 呼应）；
+       - 超过 24 的紧急冷却（如 `/cooldown` 设为 25）则保持极值保护不回退。
+  2. **对话全链路自适应分流**：
+     - 在 `backend/services/side_effects.py` 中，拦截大模型输出的 `set_refractory="10"` 或 `is_climax="true"`，自动转入 `trigger_climax(intensity=10)` 执行拟人累加，彻底避免实战对话中被降级覆盖；
+  3. **TDD 自动化测试闭环**：
+     - 在 `backend/tests/test_cooldown_mechanics.py` 中升级 `test_multi_climax_refractory_accumulation`（断言 10 -> 18 -> 24 -> 24）；
+     - 新增 `test_property_update_handler_climax_accumulation`（模拟自然会话多轮属性更新断言 10 -> 18 -> 24）；
+     - 修复该测试文件中的异步测试执行流，全量 14 项专项单测 100% 绿灯通过。

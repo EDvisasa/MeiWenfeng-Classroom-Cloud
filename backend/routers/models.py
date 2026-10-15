@@ -92,6 +92,7 @@ class ModelUpdateRequest(BaseModel):
     protocol: str = "openai"
     selected_model_id: str = ""
     max_context_tokens: Optional[int] = None
+    supports_vision: Optional[int] = None
 
 class ModelCreateRequest(BaseModel):
     name: str
@@ -99,6 +100,7 @@ class ModelCreateRequest(BaseModel):
     base_url: str = ""
     api_key: str = ""
     max_context_tokens: Optional[int] = None
+    supports_vision: Optional[int] = 1
 
 @router.get("/models")
 def list_models():
@@ -106,7 +108,7 @@ def list_models():
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, protocol, base_url, api_key, is_active, selected_model_id, max_context_tokens, is_custom_tokens FROM model_config")
+        cursor.execute("SELECT id, name, protocol, base_url, api_key, is_active, selected_model_id, max_context_tokens, is_custom_tokens, supports_vision FROM model_config")
         rows = cursor.fetchall()
         conn.close()
         return [dict(r) for r in rows]
@@ -128,19 +130,26 @@ def update_model_config(payload: ModelUpdateRequest, background_tasks: Backgroun
 
         is_custom = 1 if payload.max_context_tokens else 0
         
+        # Fetch current supports_vision if not specified
+        vision_val = payload.supports_vision
+        if vision_val is None:
+            cursor.execute("SELECT supports_vision FROM model_config WHERE id = ?", (payload.id,))
+            vrow = cursor.fetchone()
+            vision_val = vrow["supports_vision"] if vrow and vrow["supports_vision"] is not None else 1
+
         if is_custom:
             cursor.execute(
                 """UPDATE model_config 
-                   SET name = ?, base_url = ?, api_key = ?, protocol = ?, selected_model_id = ?, max_context_tokens = ?, is_custom_tokens = ? 
+                   SET name = ?, base_url = ?, api_key = ?, protocol = ?, selected_model_id = ?, max_context_tokens = ?, is_custom_tokens = ?, supports_vision = ? 
                    WHERE id = ?""",
-                (payload.name, payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, payload.max_context_tokens, is_custom, payload.id)
+                (payload.name, payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, payload.max_context_tokens, is_custom, vision_val, payload.id)
             )
         else:
             cursor.execute(
                 """UPDATE model_config 
-                   SET name = ?, base_url = ?, api_key = ?, protocol = ?, selected_model_id = ?, is_custom_tokens = 0 
+                   SET name = ?, base_url = ?, api_key = ?, protocol = ?, selected_model_id = ?, is_custom_tokens = 0, supports_vision = ? 
                    WHERE id = ?""",
-                (payload.name, payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, payload.id)
+                (payload.name, payload.base_url, payload.api_key, payload.protocol, payload.selected_model_id, vision_val, payload.id)
             )
         conn.commit()
         conn.close()
@@ -166,11 +175,12 @@ def create_model_config(payload: ModelCreateRequest, background_tasks: Backgroun
             
         is_custom = 1 if payload.max_context_tokens else 0
         max_tokens = payload.max_context_tokens if payload.max_context_tokens else 8192
+        vision_val = 1 if payload.supports_vision is None or payload.supports_vision == 1 else 0
         
         cursor.execute(
-            """INSERT INTO model_config (name, base_url, api_key, protocol, max_context_tokens, is_custom_tokens) 
-               VALUES (?, ?, ?, ?, ?, ?)""",
-            (payload.name, payload.base_url, payload.api_key, payload.protocol, max_tokens, is_custom)
+            """INSERT INTO model_config (name, base_url, api_key, protocol, max_context_tokens, is_custom_tokens, supports_vision) 
+               VALUES (?, ?, ?, ?, ?, ?, ?)""",
+            (payload.name, payload.base_url, payload.api_key, payload.protocol, max_tokens, is_custom, vision_val)
         )
         model_id = cursor.lastrowid
         conn.commit()

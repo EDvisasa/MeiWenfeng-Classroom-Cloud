@@ -72,3 +72,39 @@ def test_custom_tokens_lock():
     conn.execute("DELETE FROM model_config WHERE id = ?", (model_id,))
     conn.commit()
     conn.close()
+
+def test_supports_vision_field_and_update():
+    """Test that models have supports_vision field and it can be updated."""
+    res = client.get("/api/chat/models")
+    assert res.status_code == 200
+    models = res.json()
+    assert len(models) > 0
+    first = models[0]
+    assert "supports_vision" in first
+
+    # Update supports_vision to 0
+    model_id = first["id"]
+    update_res = client.post("/api/chat/models/update", json={
+        "id": model_id,
+        "name": first["name"],
+        "base_url": first["base_url"],
+        "api_key": first.get("api_key", ""),
+        "protocol": first.get("protocol", "openai"),
+        "supports_vision": 0
+    })
+    assert update_res.status_code == 200
+
+    # Verify it updated to 0
+    res2 = client.get("/api/chat/models")
+    updated = next(m for m in res2.json() if m["id"] == model_id)
+    assert updated["supports_vision"] == 0
+
+    # Restore to 1
+    client.post("/api/chat/models/update", json={
+        "id": model_id,
+        "name": first["name"],
+        "base_url": first["base_url"],
+        "api_key": first.get("api_key", ""),
+        "protocol": first.get("protocol", "openai"),
+        "supports_vision": 1
+    })

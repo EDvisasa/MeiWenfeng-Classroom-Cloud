@@ -95,9 +95,24 @@ class PropertyUpdateHandler(SideEffectHandler):
         social_skills_delta = int(attrs.get("social_skills_delta", 0))
         refractory_delta = int(attrs.get("refractory_delta", 0))
 
+        is_climax = str(attrs.get("climax", "")).lower() in ("true", "1") or str(attrs.get("is_climax", "")).lower() in ("true", "1")
+
         set_refractory = attrs.get("set_refractory")
         if set_refractory is not None:
             set_refractory = int(set_refractory)
+            # 大模型高潮触发规范为输出 set_refractory="10"
+            # 此时路由至 trigger_climax 进行拟人生理累加 (10 -> 18 -> 24)，防止连战被降级覆盖
+            if set_refractory == 10:
+                CharacterStateManager.trigger_climax(intensity=10)
+                set_refractory = None
+        elif is_climax:
+            CharacterStateManager.trigger_climax(intensity=10)
+
+        set_affection = attrs.get("set_affection")
+        if set_affection is not None:
+            set_affection = int(set_affection)
+
+        is_cooldown = str(attrs.get("is_cooldown", "")).lower() in ("true", "1")
 
         CharacterStateManager.modify_state(
             affection_delta=affection_delta,
@@ -105,6 +120,8 @@ class PropertyUpdateHandler(SideEffectHandler):
             social_skills_delta=social_skills_delta,
             refractory_delta=refractory_delta,
             set_refractory=set_refractory,
+            set_affection=set_affection,
+            is_cooldown=is_cooldown,
             enforce_daily_cap=True
         )
         logger.info(f"动态属性已自动更新: {attrs}")

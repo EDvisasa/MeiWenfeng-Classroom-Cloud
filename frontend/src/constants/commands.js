@@ -10,6 +10,7 @@ export const COMMANDS = [
   { cmd: '/plan', label: '/plan', desc: '生成或更新接下来的具体课程大纲' },
   { cmd: '/submit', label: '/submit', desc: '进行课题考核，AI会对你进行提问' },
   { cmd: '/reward', label: '/reward', desc: '获取好感奖励，触发狐妖娘溺爱互动' },
+  { cmd: '/cooldown', label: '/cooldown', desc: '降温转场，好感阻尼回退并进入【静心专注 / 余韵温存】状态' },
   { cmd: '/compact', label: '/compact', desc: '压缩当前会话历史，防止长对话 Token 溢出' },
   { cmd: '/summarize', label: '/summarize', desc: '沉淀并衰变短期记忆，生成全局长期记忆' },
   { cmd: '/prepare', label: '/prepare', desc: '将当前选定的文件切块并同步至系统知识库 (RAG)' },

@@ -77,6 +77,23 @@ CRITICAL: The `<property_update>` tag MUST be the very last thing in your final 
 </execution_framework>
 </agent_execution_protocol>"""
 
+_COOLDOWN_INTENT_PATTERNS = [
+    "干完了", "做完了", "搞完了", "办完了", "完事了", "折腾完了",
+    "脑袋清醒", "脑子清醒", "清醒了", "清醒一下",
+    "余韵温存", "静心专注", "温存休止", "静心学习", "看正事", "聊正事",
+    "贤者模式", "进入贤者", "贤者状态",
+    "收拾一下", "平复一下", "歇息了", "平静下来",
+]
+
+def is_cooldown_intent_detected(user_msg: str) -> bool:
+    """
+    识别用户输入中是否包含行房/事后清醒转场、进入贤者模式或切回正题的意图。
+    """
+    if not user_msg:
+        return False
+    msg = user_msg.strip().lower()
+    return any(pattern in msg for pattern in _COOLDOWN_INTENT_PATTERNS)
+
 def build_base_system_prompt(
     last_user_msg: str = "",
     current_file_path: str = None,
@@ -224,6 +241,15 @@ def build_base_system_prompt(
     if reunion_injection:
         dynamic_parts.append(reunion_injection)
 
+    # 4.2 事后清醒转场与好感潮汐回退提示 (Post-intimacy Cooldown Directive)
+    if last_user_msg and is_cooldown_intent_detected(last_user_msg):
+        cooldown_injection = (
+            "<post_intimacy_cooldown_directive>\n"
+            "[POST-INTIMACY COOLDOWN: Intimate interaction concluded. Tenderly transition into study or calm conversation. Output `<property_update is_cooldown=\"true\" />`.]\n"
+            "</post_intimacy_cooldown_directive>"
+        )
+        dynamic_parts.append(cooldown_injection)
+
     # 5. 额外临时注入
     if extra_system_injection:
         dynamic_parts.append(extra_system_injection)
@@ -237,10 +263,10 @@ def build_base_system_prompt(
     )
     return bundle, kb_count, mem_count
 
-def assemble_messages(messages: List[Dict[str, str]], system_prompt: Union[str, ContextBundle]) -> List[Dict[str, str]]:
+def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, ContextBundle]) -> List[Dict[str, Any]]:
     """
     统一组装最终发送给大模型 API 的报文数组（标准化三步管线）：
-    1. 洗净与时序（Sanitize & Timestamp）：建立合法角色白名单，深拷贝并前置精简时间戳。
+    1. 洗净与时序（Sanitize & Timestamp）：建立合法角色白名单，深拷贝并前置精简时间戳，支持多模态图文内容。
     2. 动态示教（Dynamic One-Shot）：自动为首轮 Assistant 追加格式化思考与行为独白示范。
     3. 尾部三明治注入（Tail Injection）：整合静态系统设定与尾部行为指针。
     """
@@ -266,26 +292,50 @@ def assemble_messages(messages: List[Dict[str, str]], system_prompt: Union[str, 
         role = m.get("role", "user")
         if role not in ALLOWLIST_ROLES:
             continue
-        content = m.get("content", "") or ""
-        if not content.strip() and role == "assistant":
-            continue
+        content = m.get("content", "")
+        if content is None:
+            content = ""
+
         ts = m.get("timestamp")
+        clean_ts = ""
         if ts and isinstance(ts, str) and role == "user":
-            clean_ts = ts.replace('T', ' ')[:16]
-            if len(clean_ts) >= 16 and clean_ts[4] == '-' and clean_ts[7] == '-' and not content.startswith(f"[{clean_ts}]"):
+            c_ts = ts.replace('T', ' ')[:16]
+            if len(c_ts) >= 16 and c_ts[4] == '-' and c_ts[7] == '-':
+                clean_ts = c_ts
+
+        if isinstance(content, str):
+            if not content.strip() and role == "assistant":
+                continue
+            if clean_ts and not content.startswith(f"[{clean_ts}]"):
                 content = f"[{clean_ts}] {content}"
+        elif isinstance(content, list):
+            # 视觉多模态内容列表，深拷贝避免外部副作用
+            copied_content = []
+            for item in content:
+                copied_content.append(dict(item) if isinstance(item, dict) else item)
+            content = copied_content
+            if clean_ts:
+                for item in content:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        t_val = item.get("text", "")
+                        if not t_val.startswith(f"[{clean_ts}]"):
+                            item["text"] = f"[{clean_ts}] {t_val}"
+                        break
+
         adjusted_messages.append({"role": role, "content": content, "timestamp": ts})
 
     # [Step 2: Dynamic One-Shot - 动态示教管线]
     from backend.services.prompts import get_one_shot_demonstration
     for i, msg in enumerate(adjusted_messages):
         if msg["role"] == "assistant":
-            if "<monologue>" not in msg["content"]:
-                adjusted_messages[i] = {
-                    "role": msg["role"],
-                    "content": get_one_shot_demonstration(actual_content=msg["content"]),
-                    "timestamp": msg.get("timestamp")
-                }
+            c = msg.get("content", "")
+            if isinstance(c, str):
+                if "<monologue>" not in c:
+                    adjusted_messages[i] = {
+                        "role": msg["role"],
+                        "content": get_one_shot_demonstration(actual_content=c),
+                        "timestamp": msg.get("timestamp")
+                    }
             break
 
     # [Step 3: Tail Injection - 尾部三明治注入管线]
@@ -307,7 +357,16 @@ def assemble_messages(messages: List[Dict[str, str]], system_prompt: Union[str, 
     formatted_messages = [{"role": "system", "content": static_sys}]
     for msg in adjusted_messages:
         if len(formatted_messages) > 0 and formatted_messages[-1]["role"] == msg["role"]:
-            formatted_messages[-1]["content"] += "\n\n" + msg["content"]
+            prev_c = formatted_messages[-1]["content"]
+            curr_c = msg["content"]
+            if isinstance(prev_c, str) and isinstance(curr_c, str):
+                formatted_messages[-1]["content"] += "\n\n" + curr_c
+            elif isinstance(prev_c, list) and isinstance(curr_c, list):
+                formatted_messages[-1]["content"] = prev_c + curr_c
+            elif isinstance(prev_c, list) and isinstance(curr_c, str):
+                formatted_messages[-1]["content"] = prev_c + [{"type": "text", "text": curr_c}]
+            elif isinstance(prev_c, str) and isinstance(curr_c, list):
+                formatted_messages[-1]["content"] = [{"type": "text", "text": prev_c}] + curr_c
         else:
             formatted_messages.append({"role": msg["role"], "content": msg["content"]})
 
@@ -340,7 +399,25 @@ def assemble_messages(messages: List[Dict[str, str]], system_prompt: Union[str, 
     )
     if len(formatted_messages) > 0 and formatted_messages[-1]["role"] == "user":
         original_user_content = formatted_messages[-1]["content"]
-        formatted_messages[-1]["content"] = f"{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n{original_user_content}\n</current_user_instruction>"
+        if isinstance(original_user_content, str):
+            formatted_messages[-1]["content"] = f"{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n{original_user_content}\n</current_user_instruction>"
+        elif isinstance(original_user_content, list):
+            new_content = []
+            text_injected = False
+            for item in original_user_content:
+                if isinstance(item, dict) and item.get("type") == "text":
+                    orig_t = item.get("text", "")
+                    injected_text = f"{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n{orig_t}\n</current_user_instruction>"
+                    new_content.append({"type": "text", "text": injected_text})
+                    text_injected = True
+                else:
+                    new_content.append(item)
+            if not text_injected:
+                new_content.insert(0, {
+                    "type": "text",
+                    "text": f"{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n[图片输入]\n</current_user_instruction>"
+                })
+            formatted_messages[-1]["content"] = new_content
     else:
         formatted_messages.append({"role": "user", "content": f"{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n[下一轮提问等待中 / Waiting for next prompt]\n</current_user_instruction>"})
 

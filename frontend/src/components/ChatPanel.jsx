@@ -2,7 +2,7 @@ import React from 'react';
 import { encode } from 'gpt-tokenizer';
 import { API_BASE } from '../config';
 import { parseAndMergeBlocks } from '../utils/blockParser';
-import { AlertTriangle, Check, X } from 'lucide-react';
+import { AlertTriangle, Check, X, Image as ImageIcon } from 'lucide-react';
 import MissionProposalCard from './MissionProposalCard';
 import QuizBlock from './QuizBlock';
 import ReactMarkdown from 'react-markdown';
@@ -329,6 +329,7 @@ export default function ChatPanel({
   selectCommand,
   inputRef,
   inputText,
+  setInputText,
   handleInputChange,
   handleKeyDown,
   sendMessage,
@@ -348,7 +349,9 @@ export default function ChatPanel({
   selectedFilePath,
   stopGeneration,
   pendingApproval,
-  setPendingApproval
+  setPendingApproval,
+  selectedImages: propSelectedImages,
+  setSelectedImages: propSetSelectedImages
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -356,6 +359,203 @@ export default function ChatPanel({
   const [editContent, setEditContent] = React.useState('');
   const [showSystemPromptModal, setShowSystemPromptModal] = React.useState(false);
   const [baseSystemPromptContent, setBaseSystemPromptContent] = React.useState('');
+
+  // 图像输入与画廊模态状态
+  const [internalSelectedImages, setInternalSelectedImages] = React.useState([]);
+  const selectedImages = propSelectedImages !== undefined ? propSelectedImages : internalSelectedImages;
+  const setSelectedImages = propSetSelectedImages !== undefined ? propSetSelectedImages : setInternalSelectedImages;
+  const [previewImageModal, setPreviewImageModal] = React.useState(null);
+  const [isDragging, setIsDragging] = React.useState(false);
+  const [visionToast, setVisionToast] = React.useState(null);
+  const visionToastTimeoutRef = React.useRef(null);
+  const chatFileInputRef = React.useRef(null);
+
+  const showVisionWarningToast = (msg = "当前模型不支持识图，请先在右上角切换至支持视觉的模型") => {
+    if (visionToastTimeoutRef.current) clearTimeout(visionToastTimeoutRef.current);
+    setVisionToast(msg);
+    visionToastTimeoutRef.current = setTimeout(() => {
+      setVisionToast(null);
+    }, 3000);
+  };
+
+  const compressImage = (file, maxDimension = 1536, quality = 0.85) => {
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        const dataUrl = e.target.result;
+        if (typeof window === 'undefined' || typeof Image === 'undefined') {
+          return resolve(dataUrl);
+        }
+        const testCanvas = document.createElement('canvas');
+        if (!testCanvas.getContext || !testCanvas.getContext('2d')) {
+          return resolve(dataUrl);
+        }
+        const img = new Image();
+        img.onload = () => {
+          try {
+            let width = img.width;
+            let height = img.height;
+            if (!width || !height) return resolve(dataUrl);
+            if (width > maxDimension || height > maxDimension) {
+              if (width > height) {
+                height = Math.round((height * maxDimension) / width);
+                width = maxDimension;
+              } else {
+                width = Math.round((width * maxDimension) / height);
+                height = maxDimension;
+              }
+            }
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            if (!ctx) return resolve(dataUrl);
+            ctx.drawImage(img, 0, 0, width, height);
+            const mime = file.type === 'image/png' ? 'image/png' : 'image/jpeg';
+            resolve(canvas.toDataURL(mime, quality));
+          } catch (err) {
+            resolve(dataUrl);
+          }
+        };
+        img.onerror = () => resolve(dataUrl);
+        img.src = dataUrl;
+      };
+      reader.onerror = () => resolve('');
+      reader.readAsDataURL(file);
+    });
+  };
+
+  const addFilesAsImages = async (fileList) => {
+    if (!fileList || fileList.length === 0) return;
+    const allValid = Array.from(fileList).filter(f => f.type && f.type.startsWith('image/'));
+    if (allValid.length === 0) return;
+
+    const remainingSlots = 4 - selectedImages.length;
+    if (remainingSlots <= 0) return;
+    const filesToProcess = allValid.slice(0, remainingSlots);
+
+    const processedItems = await Promise.all(
+      filesToProcess.map(async (file) => {
+        try {
+          const compressedDataUrl = await compressImage(file, 1536, 0.85);
+          if (compressedDataUrl) {
+            return {
+              id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              name: file.name || 'image.png',
+              dataUrl: compressedDataUrl,
+              size: file.size
+            };
+          }
+        } catch (err) {
+          console.error('Failed to compress image:', err);
+        }
+        return null;
+      })
+    );
+
+    const validNewItems = processedItems.filter(Boolean);
+    if (validNewItems.length > 0) {
+      setSelectedImages(curr => {
+        const available = 4 - curr.length;
+        if (available <= 0) return curr;
+        return [...curr, ...validNewItems.slice(0, available)];
+      });
+    }
+  };
+
+  const handleImageSelect = (e) => {
+    if (e.target.files) {
+      addFilesAsImages(e.target.files);
+      e.target.value = '';
+    }
+  };
+
+  const handleRemoveImage = (id) => {
+    setSelectedImages(prev => prev.filter(img => img.id !== id));
+  };
+
+  const handlePaste = (e) => {
+    const clipboardData = e.clipboardData;
+    if (!clipboardData) return;
+
+    let files = [];
+    if (clipboardData.files && clipboardData.files.length > 0) {
+      files = Array.from(clipboardData.files).filter(f => f.type && f.type.startsWith('image/'));
+    }
+
+    if (files.length === 0 && clipboardData.items && clipboardData.items.length > 0) {
+      for (const item of clipboardData.items) {
+        if (item.type && item.type.startsWith('image/')) {
+          const file = item.getAsFile();
+          if (file) files.push(file);
+        }
+      }
+    }
+
+    if (files.length > 0) {
+      e.preventDefault();
+      if (!supportsVision) {
+        showVisionWarningToast();
+        return;
+      }
+      addFilesAsImages(files);
+    }
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    if (e.dataTransfer && e.dataTransfer.types && Array.from(e.dataTransfer.types).includes('Files')) {
+      setIsDragging(true);
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    if (e.currentTarget && e.relatedTarget && e.currentTarget.contains(e.relatedTarget)) return;
+    setIsDragging(false);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragging(false);
+    if (e.dataTransfer && e.dataTransfer.files) {
+      const files = Array.from(e.dataTransfer.files).filter(f => f.type && f.type.startsWith('image/'));
+      if (files.length > 0) {
+        if (!supportsVision) {
+          showVisionWarningToast();
+          return;
+        }
+        addFilesAsImages(files);
+      }
+    }
+  };
+
+  const handleSend = () => {
+    if ((!inputText.trim() && selectedImages.length === 0) || isStreaming) return;
+    if (sendMessage) {
+      sendMessage({
+        text: inputText.trim(),
+        images: selectedImages.map(img => img.dataUrl)
+      });
+      setSelectedImages([]);
+      if (setInputText) {
+        setInputText('');
+      }
+    }
+  };
+
+  const onInputKeyDown = (e) => {
+    if (showCommandList) {
+      if (handleKeyDown) handleKeyDown(e);
+    } else {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSend();
+      } else if (handleKeyDown) {
+        handleKeyDown(e);
+      }
+    }
+  };
 
 
   const pendingMission = React.useMemo(() => {
@@ -397,9 +597,10 @@ export default function ChatPanel({
   const [dynamicTokens, setDynamicTokens] = React.useState(0);
   const [decayStates, setDecayStates] = React.useState({});
 
-  // 获取当前激活模型的 max_context_tokens
+  // 获取当前激活模型的 max_context_tokens 与 supports_vision
   const activeModelConfig = models?.find(m => m.name === activeModel);
   const maxTokens = activeModelConfig?.max_context_tokens || 8192;
+  const supportsVision = activeModelConfig ? (activeModelConfig.supports_vision !== 0) : true;
 
   // 请求后端获取 hidden system context tokens
   const fetchSystemTokens = async () => {
@@ -761,9 +962,30 @@ export default function ChatPanel({
             );
           }
 
-          const blocks = msg.blocks || [{ type: 'text', text: msg.content || '' }];
-          const mergedBlocks = parseAndMergeBlocks(blocks, msg.streaming);
           const isUser = msg.role === 'user';
+          let extractedSystemHint = null;
+          let blocks = msg.blocks || [{ type: 'text', text: msg.content || '' }];
+
+          if (!isUser) {
+            const firstBlock = blocks[0];
+            if (firstBlock && firstBlock.type === 'text' && typeof firstBlock.text === 'string' && firstBlock.text.startsWith('[系统提示]')) {
+              const parts = firstBlock.text.split('\n\n');
+              if (parts.length > 1) {
+                extractedSystemHint = parts[0].replace(/^\[系统提示\]\s*/, '').trim();
+                const remaining = parts.slice(1).join('\n\n').trim();
+                blocks = [{ ...firstBlock, text: remaining }, ...blocks.slice(1)];
+              }
+            } else if (typeof msg.content === 'string' && msg.content.startsWith('[系统提示]')) {
+              const parts = msg.content.split('\n\n');
+              if (parts.length > 1) {
+                extractedSystemHint = parts[0].replace(/^\[系统提示\]\s*/, '').trim();
+                const remaining = parts.slice(1).join('\n\n').trim();
+                blocks = [{ type: 'text', text: remaining }];
+              }
+            }
+          }
+
+          const mergedBlocks = parseAndMergeBlocks(blocks, msg.streaming);
 
           const handleStartEdit = () => {
             setEditingIndex(index);
@@ -787,7 +1009,32 @@ export default function ChatPanel({
           };
 
           return (
-            <div key={index} className={`message-item ${isUser ? 'user-msg' : 'assistant-msg'}`}>
+            <React.Fragment key={index}>
+              {extractedSystemHint && (
+                <div
+                  className="system-info-msg"
+                  style={{
+                    alignSelf: 'center',
+                    backgroundColor: 'var(--bg-tertiary)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '6px',
+                    padding: '6px 14px',
+                    fontSize: '11px',
+                    color: 'var(--text-secondary)',
+                    margin: '8px 0',
+                    maxWidth: '90%',
+                    textAlign: 'center',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  <svg style={{ color: '#10b981' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                  {extractedSystemHint}
+                </div>
+              )}
+              <div className={`message-item ${isUser ? 'user-msg' : 'assistant-msg'}`}>
 
               {/* Header Row: Avatar + Name + Edit Button */}
               <div className="message-header">
@@ -860,8 +1107,22 @@ export default function ChatPanel({
               ) : (
                 <>
                   <div className="message-bubble">
-                    {msg.blocks && msg.blocks.length > 0 ? (
-                      renderNormalizedBlocks(parseAndMergeBlocks(msg.blocks).filter(b => b.type !== 'retry'))
+                    {msg.images && Array.isArray(msg.images) && msg.images.length > 0 && (
+                      <div className="chat-bubble-images">
+                        {msg.images.map((imgUrl, imgIdx) => (
+                          <div
+                            key={imgIdx}
+                            className="chat-bubble-img-wrapper"
+                            onClick={() => setPreviewImageModal(imgUrl)}
+                            title="点击放大查看图片"
+                          >
+                            <img src={imgUrl} alt={`Attached ${imgIdx}`} className="chat-bubble-img" />
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                    {blocks && blocks.length > 0 ? (
+                      renderNormalizedBlocks(parseAndMergeBlocks(blocks).filter(b => b.type !== 'retry'))
                     ) : (
                       <div className="message-content">
                         {renderNormalizedBlocks(parseAndMergeBlocks(msg.content))}
@@ -891,7 +1152,8 @@ export default function ChatPanel({
               )}
 
             </div>
-          );
+          </React.Fragment>
+        );
         })}
         <div ref={chatEndRef} />
       </div>
@@ -1013,23 +1275,84 @@ export default function ChatPanel({
             </div>
           )}
 
+          {/* 视觉不支持轻量警告 Toast */}
+          {visionToast && (
+            <div
+              className="vision-warning-toast"
+              style={{
+                position: 'absolute',
+                bottom: '100%',
+                left: '12px',
+                right: '12px',
+                marginBottom: '8px',
+                padding: '8px 12px',
+                backgroundColor: 'var(--bg-panel, #252526)',
+                border: '1px solid #f59e0b',
+                borderRadius: '6px',
+                color: '#f59e0b',
+                fontSize: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.25)',
+                zIndex: 10000
+              }}
+            >
+              <span>⚠️</span>
+              <span>{visionToast}</span>
+            </div>
+          )}
+
           {/* 卡片式输入框 */}
-          <div className="input-wrapper" style={{ borderTopLeftRadius: isVsCode && selectedFilePath ? '0' : '8px', borderTopRightRadius: isVsCode && selectedFilePath ? '0' : '8px' }}>
+          <div
+            className={`input-wrapper ${isDragging ? 'drag-active' : ''}`}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            style={{ borderTopLeftRadius: isVsCode && selectedFilePath ? '0' : '8px', borderTopRightRadius: isVsCode && selectedFilePath ? '0' : '8px', position: 'relative' }}
+          >
+            {isDragging && (
+              <div className="drag-drop-overlay">
+                <ImageIcon size={28} />
+                <span>松开以添加图片</span>
+              </div>
+            )}
+
+            {/* 待发送图片缩略图横排 */}
+            {selectedImages.length > 0 && (
+              <div className="input-image-previews">
+                {selectedImages.map((img) => (
+                  <div key={img.id} className="input-image-chip" title={img.name}>
+                    <img src={img.dataUrl} alt={img.name} />
+                    <button
+                      type="button"
+                      className="input-image-chip-remove"
+                      onClick={() => handleRemoveImage(img.id)}
+                      title="移除图片"
+                    >
+                      <X size={12} />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+
             {/* 行1：文字输入区 */}
             <textarea
               ref={inputRef}
               className="chat-input"
-              placeholder="Chat with tutor..."
+              placeholder={selectedImages.length > 0 ? "输入对图片的疑问或直接发送..." : "Chat with tutor..."}
               value={inputText}
               onChange={handleInputChange}
-              onKeyDown={handleKeyDown}
+              onKeyDown={onInputKeyDown}
+              onPaste={handlePaste}
               rows={1}
             />
 
             {/* 行2：工具栏 */}
             <div className="input-toolbar">
-              {/* 左侧：快捷指令按钮 */}
-              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              {/* 左侧：快捷指令按钮 与 图片上传 */}
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
                   className="shortcuts-trigger-btn"
                   onClick={() => setShowShortcuts(!showShortcuts)}
@@ -1039,6 +1362,33 @@ export default function ChatPanel({
                     <path d="M2.5 1A1.5 1.5 0 0 0 1 2.5v11A1.5 1.5 0 0 0 2.5 15h11A1.5 1.5 0 0 0 15 13.5v-11A1.5 1.5 0 0 0 13.5 1h-11zm-.5 1.5a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 .5.5v11a.5.5 0 0 1-.5.5h-11a.5.5 0 0 1-.5-.5v-11zM10 4.5L6 11.5h1L11 4.5h-1z" />
                   </svg>
                 </button>
+
+                {/* 图片上传按钮 */}
+                <label
+                  className="image-upload-btn"
+                  title={
+                    !supportsVision
+                      ? '当前模型未开启识图能力'
+                      : selectedImages.length >= 4
+                      ? '最多同时上传 4 张图片'
+                      : '上传图片 (支持点击选择、拖拽或截图 Ctrl+V)'
+                  }
+                  style={{
+                    cursor: (!supportsVision || selectedImages.length >= 4) ? 'not-allowed' : 'pointer',
+                    opacity: !supportsVision ? 0.35 : selectedImages.length >= 4 ? 0.5 : 1
+                  }}
+                >
+                  <input
+                    type="file"
+                    ref={chatFileInputRef}
+                    accept="image/png,image/jpeg,image/webp,image/gif"
+                    multiple
+                    style={{ display: 'none' }}
+                    onChange={handleImageSelect}
+                    disabled={!supportsVision || selectedImages.length >= 4}
+                  />
+                  <ImageIcon size={16} />
+                </label>
 
                 {/* 环形 Token 指示器 */}
                 <div
@@ -1155,8 +1505,8 @@ export default function ChatPanel({
               ) : (
                 <button
                   className="send-button"
-                  onClick={sendMessage}
-                  disabled={!inputText.trim()}
+                  onClick={handleSend}
+                  disabled={!inputText.trim() && selectedImages.length === 0}
                   title="发送消息"
                 >
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
@@ -1192,6 +1542,17 @@ export default function ChatPanel({
                 {baseSystemPromptContent || "加载中..."}
               </pre>
             </div>
+          </div>
+        </div>
+      )}
+      {/* 全屏大图 Lightbox 预览弹窗 */}
+      {previewImageModal && (
+        <div className="image-lightbox-overlay" onClick={() => setPreviewImageModal(null)}>
+          <div className="image-lightbox-content" onClick={(e) => e.stopPropagation()}>
+            <button className="image-lightbox-close-btn" onClick={() => setPreviewImageModal(null)} title="关闭预览">
+              <X size={20} />
+            </button>
+            <img src={previewImageModal} alt="Preview" className="image-lightbox-img" />
           </div>
         </div>
       )}

@@ -440,3 +440,89 @@ domain: project-planning
   - [x] 自动化测试用例全部绿灯通过。
 - **Verification Command**: `pytest backend/tests/test_pdf_reader_and_guardrails.py`
 
+### <a id="issue-30"></a>[ISSUE-30] 聊天多模态图片输入与前端降采样压缩管线 (Multimodal Chat Image Pipeline)
+- **Status**: `DONE` (已完成 / 2026-09-13 通过专项单测与前端测试)
+- **User Story**: 作为随身课堂用户，我希望在聊天输入框通过点击工具栏按钮、Ctrl+V 粘贴剪贴板截图或文件拖拽快速上传图片并向 AI 提问；系统需在前端自动利用 Canvas 将图片按比例降采样（长边 ≤ 1536px，quality 0.85），避免暴增 Token 和 SQLite 数据库膨胀；AI 导师应能够理解图片并结合人设回答，且会话历史完整保留图片并在前端支持缩略图查看与 Lightbox 原图弹窗预览。
+- **What to build**:
+  1. **前端图片输入与压缩**: 在 `ChatPanel.jsx` 中增加图片上传按钮、剪贴板粘贴监听、拖拽上传，并基于 HTML5 Canvas 自动降采样至长边 ≤ 1536px、quality 0.85（限制单次至多 4 张，空文本时自动补全默认提示语“请分析这张图片”）；
+  2. **消息协议与后端适配**: 在 `backend/routers/chat.py` 中扩展 `Message.images: Optional[List[str]]`，在 `assemble_messages` 中组装为标准 OpenAI Vision 多模态结构 `[{"type": "text", ...}, {"type": "image_url", ...}]`；
+  3. **数据持久化与会话记录**: 在 `backend/database.py` 中为 `chat_messages` 表增加 `images TEXT` 字段并提供平滑迁移，在 `memory.py` 会话保存/加载中序列化该字段；
+  4. **编辑重发与图片查看**: 在 `App.jsx` 的 `handleEditAndResend` 中保留已有图片附带，并在 `ChatPanel.jsx` 提供图片缩略图气泡与全屏 Lightbox 弹窗；
+  5. **自动化测试**: 编写 `backend/tests/test_image_chat_api.py` 与前端 `ChatPanel.test.jsx`。
+- **Affected Files**:
+  - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
+  - [`backend/routers/memory.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`backend/tests/test_image_chat_api.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_image_chat_api.py)
+  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 前端支持工具栏点击选择、剪贴板粘贴与文件拖拽上传图片（单次上限 4 张）；
+  - [x] 图片上传前自动通过 Canvas 降采样（最大长边 1536px，quality 0.85），纯图片发送时自动填充“请分析这张图片”；
+  - [x] 后端组装 OpenAI Vision 标准多模态格式，历史会话在 SQLite 中可靠存取并支持会话级级联删除；
+  - [x] 气泡中展示图片缩略图，点击可全屏 Lightbox 预览，编辑重发能保留原图附带；
+  - [x] 自动化测试用例（后端与前端）全部绿灯通过。
+- **Verification Command**: `pytest backend/tests/test_image_chat_api.py` & `cd frontend && npm test -- --run`
+
+### <a id="issue-31"></a>[ISSUE-31] 模型视觉能力（Vision）动态感知、置灰拦截与管理配置
+- **Status**: `DONE` (已完成 / 2026-09-13 全量 TDD 与单测验证通过)
+- **User Story**: 作为随身课堂用户，我希望当当前激活的大语言模型不支持多模态识图时，输入框工具栏图片按钮自动置灰禁用，粘贴或拖拽图片时能弹出轻量 Toast 拦截提示，避免向不支持视觉的模型误发请求导致接口抛错；同时，我能在“模型管理”中自主开启或关闭每个模型的“支持图片输入”开关，并与本地网关元数据嗅探深度联动，且在输入框已有待发图片时切换到纯文本模型会有二次确认保护。
+- **What to build**:
+  1. **数据模型与网关嗅探**: 在 `database.py` 中为 `model_config` 表增设 `supports_vision INTEGER DEFAULT 1` 字段；在 `backend/routers/models.py` 的探测管线中联动网关元数据，并在 `GET /api/chat/models` 和 `POST /models/update` 中透传；
+  2. **模型管理设置开关**: 在 `App.jsx` 的模型管理面板中，于“最大返回 Tokens”旁增设“支持图片输入”复选框，允许用户自由配置；
+  3. **工具栏置灰与 Tooltip**: 在 `ChatPanel.jsx` 中，当激活模型的 `supports_vision === 0` 时，上传按钮呈现置灰禁用状态（`opacity: 0.35, cursor: not-allowed`），悬停显示提示；
+  4. **粘贴/拖拽拦截 Toast**: 当向不支持视觉的模型执行 Ctrl+V 粘贴或拖拽图片时，触发平滑自动消失的 Toast 警告，不添加图片；
+  5. **待发图片切换确认**: 当存在待发图片且用户尝试切换至不支持视觉的模型时，前置弹窗确认是否清空图片。
+- **Affected Files**:
+  - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+  - [`backend/routers/models.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/models.py)
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
+  - [`backend/tests/test_models_api.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_models_api.py)
+  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
+- **Acceptance Criteria**:
+  - [x] `model_config` 表及相关 API 支持 `supports_vision` 字段读写；
+  - [x] 当前模型不支持视觉时，图片上传按钮处于禁用样式并显示相应提示；
+  - [x] 当前模型不支持视觉时，粘贴/拖拽图片被拦截并展示轻量 Toast 提示；
+  - [x] 含有待发图片切换至不支持视觉的模型时提供二次确认保护；
+  - [x] 后端与前端 TDD 测试用例 100% 绿灯。
+- **Verification Command**: `.venv\Scripts\pytest backend/tests/test_models_api.py` & `cd frontend && npm test -- --run`
+
+### <a id="issue-32"></a>[ISSUE-32] 事后清醒转场与好感潮汐回退机制 (Post-Intimacy Cooldown & Tidal Affection Fallback)
+- **Status**: `DONE` (已完成 / 2026-09-13 通过全量 TDD 红绿灯测试闭环)
+- **User Story**: 作为随身课堂用户与角色扮演者，当行夫妻之事/NSFW后好感度达到 100 时，系统常因极端高好感陷入过度撩拨与沉溺循环，无法正常清醒地探讨代码或聊正事。我希望拥有全套符合人体生理学与情感动力学的拟人化回退保护体系：
+  1. **方案 B 比例阻尼衰减制 (SSOT)**：摒弃固定 80/60 吸附点，采用 `max(current_affection - 8, stage_floor)`，单调不增、不破心境阶梯、不发生低位反弹倒涨；
+  2. **生理不应期三阶自然累加与应急熔断解耦**：单次高潮置为 10（【事后温存】，5轮自然平复）；二次高潮累加跃迁至 18（【精力透支】）；三次高潮累加跃迁至 24（【余韵温存 / 骨酥肉麻】）；日常事后转场保持温存值，仅 `/cooldown` 斜杠指令作为紧急制动阀才拉满至 25（【绝对制动】）；
+  3. **双态自适应防穿模台词**：依据底层 `refractory_period > 0` 智能分流：真事后（`> 0`）伏在怀中喘息看代码，日常专注（`== 0`）端庄名师抚袖授业，绝不在白天工作时说“刚折腾完腿软”；
+  4. **单一受控源法则**：好感度纯由大模型/业务指令显式控制，不应期日常自然衰减（每轮 -2，保底 0）彻底由后台状态机管道统一流转；
+  5. **单日获取上限扩容**：将 `DAILY_GAIN_CAP` 由 3 提升为 4，形成健康的一周情感潮汐周期。
+- **What to build**:
+  1. **方案 B 阻尼算式与状态机接口**: 在 `CharacterStateManager` 实现 `get_cooldown_target(current_affection)` 为 `max(affection - 8, stage_floor)`；
+  2. **高潮多重累加与自然事后保持**: `trigger_climax` 首次设为 10，二次跃迁至 18，三次跃迁至 24；`modify_state(is_cooldown=True)` 保持当前温存值不变；
+  3. **双态自适应斜杠台词**: 在 `slash_handler.py` 根据 `refractory_period > 0` 自适应输出真事后怀中娇软台词或日常专注名师台词；
+  4. **提示词与转场律令优化**: 在 `prompts.py` 与 `context_manager.py` 废除下床倒茶断电动作，规范怀中依偎回渡微观三阶段，示例标签更新为 `<property_update is_cooldown="true" />`；
+  5. **全栈 TDD 验证闭环**: 在 `backend/tests/test_cooldown_mechanics.py` 补充 14 项完整红绿灯测试并实现至 100% 绿灯。
+- **Affected Files**:
+  - [`backend/services/character_state.py`](file:///d:/MeiWenfeng-Classroom/backend/services/character_state.py)
+  - [`backend/services/side_effects.py`](file:///d:/MeiWenfeng-Classroom/backend/services/side_effects.py)
+  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)
+  - [`backend/tests/test_cooldown_mechanics.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_cooldown_mechanics.py)
+  - [`docs/architecture/ADR-011_好感度潮汐阻尼衰减与拟人生理冷却架构决策.html`](file:///d:/MeiWenfeng-Classroom/docs/architecture/ADR-011_好感度潮汐阻尼衰减与拟人生理冷却架构决策.html)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 方案 B 阻尼衰减算式测试通过（100->92，85->77，78->75，76->75 保底不倒吸）；
+  - [x] 多重高潮累加测试通过（首次 10，二次连战跃迁至 18，三次连战跃迁至 24，四次封顶保持 24）；
+  - [x] 自然事后降温保留当前温存值，不暴力置为 25；
+  - [x] `/cooldown` 斜杠指令双态自适应台词测试通过（真事后娇软怀中看代码，日常专注端庄授业绝不说腿软）；
+  - [x] `prompts.py` 阶段四与转场律令更新为怀中依偎回渡微观三阶段；
+  - [x] `DAILY_GAIN_CAP` 升级为 4；
+  - [x] 后端 14 项专项单测、全量回归单测 100% 绿灯闭环。
+- **Verification Command**: `.venv\Scripts\pytest backend/tests/test_cooldown_mechanics.py backend/tests/test_character_state.py` & `cd frontend && npm test -- --run`
+
+

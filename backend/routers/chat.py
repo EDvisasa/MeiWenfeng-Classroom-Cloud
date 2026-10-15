@@ -21,8 +21,9 @@ router = APIRouter(prefix="/api/chat", tags=["chat"])
 
 class Message(BaseModel):
     role: str
-    content: Optional[str] = ""
+    content: Optional[Any] = ""
     timestamp: Optional[str] = None
+    images: Optional[List[str]] = None
 
 class ChatRequest(BaseModel):
     session_id: Optional[str] = None
@@ -50,13 +51,23 @@ def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str)
 @router.post("/system_context")
 def get_system_context(payload: ChatRequest):
     """前端调用以获取当前状态下隐藏上下文（系统设定、RAG、好感度等）所占用的准确 Token 数"""
-    last_user_msg = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+    raw_last = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+    if isinstance(raw_last, list):
+        last_user_msg = " ".join(item.get("text", "") for item in raw_last if isinstance(item, dict) and item.get("type") == "text")
+    elif isinstance(raw_last, str):
+        last_user_msg = raw_last
+    else:
+        last_user_msg = str(raw_last or "")
+
     system_prompt, _, _ = _build_full_system_prompt(payload, last_user_msg)
     from backend.services.context_manager import assemble_messages
     
-    formatted_messages = [{"role": m.role, "content": m.content, "timestamp": m.timestamp} for m in payload.messages]
+    formatted_messages = [{"role": m.role, "content": m.content, "timestamp": m.timestamp, "images": m.images} for m in payload.messages]
     assembled = assemble_messages(formatted_messages, system_prompt)
-    full_preview_prompt = "\n\n--- [Message Boundary] ---\n\n".join([f"[{m['role'].upper()}]\n{m['content']}" for m in assembled])
+    full_preview_prompt = "\n\n--- [Message Boundary] ---\n\n".join([
+        f"[{m['role'].upper()}]\n{m['content'] if isinstance(m['content'], str) else json.dumps(m['content'], ensure_ascii=False)}"
+        for m in assembled
+    ])
     
     try:
         encoding = tiktoken.get_encoding("cl100k_base")
@@ -71,12 +82,49 @@ def get_system_context(payload: ChatRequest):
 def send_message(payload: ChatRequest):
     """发送对话消息，返回流式 EventSource"""
     # 提取最后一条用户消息
-    last_user_msg = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+    raw_last = next((m.content for m in reversed(payload.messages) if m.role == "user"), "")
+    if isinstance(raw_last, list):
+        last_user_msg = " ".join(item.get("text", "") for item in raw_last if isinstance(item, dict) and item.get("type") == "text")
+    elif isinstance(raw_last, str):
+        last_user_msg = raw_last
+    else:
+        last_user_msg = str(raw_last or "")
     original_last_user_msg = last_user_msg
 
-    # 1. 转换消息格式
-    formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content, "timestamp": msg.timestamp} for msg in payload.messages]
-    cleaned_messages = [{"role": m["role"], "content": m["content"], "timestamp": m.get("timestamp")} for m in formatted_messages]
+    # 1. 转换消息格式并注入用户上传的图片 (视觉多模态格式转换)
+    formatted_messages = [{"role": msg.role, "role_original": msg.role, "content": msg.content, "timestamp": msg.timestamp, "images": msg.images} for msg in payload.messages]
+    cleaned_messages = []
+    for m in formatted_messages:
+        item_content = m["content"]
+        msg_images = m.get("images")
+        if msg_images and isinstance(msg_images, list) and len(msg_images) > 0:
+            text_str = ""
+            existing_images = []
+            if isinstance(item_content, str):
+                text_str = item_content
+            elif isinstance(item_content, list):
+                for sub in item_content:
+                    if isinstance(sub, dict):
+                        if sub.get("type") == "text":
+                            text_str += sub.get("text", "")
+                        elif sub.get("type") == "image_url":
+                            existing_images.append(sub)
+            
+            new_content = []
+            if text_str:
+                new_content.append({"type": "text", "text": text_str})
+            else:
+                new_content.append({"type": "text", "text": "请看这张图片"})
+            
+            new_content.extend(existing_images)
+            for img_url in msg_images:
+                new_content.append({
+                    "type": "image_url",
+                    "image_url": {"url": img_url}
+                })
+            item_content = new_content
+
+        cleaned_messages.append({"role": m["role"], "content": item_content, "timestamp": m.get("timestamp")})
 
     # 2. 检查是否处于 mission_draft 阻塞状态 (Hard Block)
     try:

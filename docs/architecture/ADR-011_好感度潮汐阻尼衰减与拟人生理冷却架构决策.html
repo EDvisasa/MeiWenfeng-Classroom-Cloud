@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADR-011: 好感度潮汐阻尼衰减与拟人生理冷却架构决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; align-items: center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+        .seam { stroke-dasharray: 4 4; }
+        .leak { stroke: #dc2626; }
+        .deep { background: linear-gradient(135deg, #0f172a, #1e293b); }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto space-y-8">
+    <!-- Header -->
+    <header class="bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-011</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                📅 决策时间：2026-09-13 | ✍️ 决策方：随身课堂架构审查组 / 媚吻锋人设工程团队
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4 font-serif">
+            好感度潮汐阻尼衰减与拟人生理冷却架构决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            由候选审查报告 <code>affection_and_intimacy_architecture_review.html</code> 升格列装。针对角色在好感度达到 100 行夫妻房事后大模型持续过拟合暧昧火热、缺乏事后清醒降温与代码教学过渡的沉浸式体验摩擦，提出并落地<strong>方案 B 比例阻尼衰减制（$\max(A - 8, \text{stage\_floor})$）</strong>、<strong>拟人生理不应期梯度（10 温存 / 18 透支 / 25 紧急熔断）</strong>、以及<strong>基于生理状态天然分流的双态自适应台词架构</strong>，彻底消除因果倒置反向跃迁与白天学习场景的“腿软”穿模幻觉。
+        </p>
+        
+        <!-- Badge Row Extensions -->
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-rose-50 text-rose-700 border border-rose-200">✨ Roleplay-Immersion (情感沉浸与心流保真)</span>
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">🎛️ Dynamic-State-Machine (动态拟人状态机)</span>
+            <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">🛡️ Anti-Hallucination-Guardrail (双态语境防幻觉屏障)</span>
+            <span class="badge bg-purple-50 text-purple-700 border border-purple-200">⚡ In-Process-Decoupling (进程内深模块零锁解耦)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card space-y-6">
+        <div class="flex items-center gap-3 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">演进背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">固定锚点倒涨越阶穿模、粗暴拉满绝对贤者与语境泄露幻觉</p>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+            <div class="p-4 rounded-xl bg-red-50/60 border border-red-200/60 space-y-2">
+                <h3 class="font-bold text-red-900 flex items-center gap-1.5">
+                    <span>❌ 挑战一：固定锚点机械穿模</span>
+                </h3>
+                <p class="text-red-800 leading-relaxed text-xs">
+                    原方案在事后强制落位固定锚点（四阶回退至 80，三阶 60）。当玩家刚跨入四阶好感为 76 时，事后反而<strong>“反向跳涨吸附至 80”</strong>，发生严重因果倒置穿模；而好感 100 时遭遇一刀切重扣 20 分，断崖感严重。
+                </p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-red-50/60 border border-red-200/60 space-y-2">
+                <h3 class="font-bold text-red-900 flex items-center gap-1.5">
+                    <span>❌ 挑战二：生理不应期粗暴脱节</span>
+                </h3>
+                <p class="text-red-800 leading-relaxed text-xs">
+                    原方案行房后直接将 <code>refractory_period</code> 拉满至 25（绝对贤者/断绝情欲）。这如同服下“断情绝欲丹”，完全违背女性内分泌自然节律；且多次高潮直接覆盖为 10，无法体现连战疲劳与精力透支的梯度累加。
+                </p>
+            </div>
+
+            <div class="p-4 rounded-xl bg-red-50/60 border border-red-200/60 space-y-2">
+                <h3 class="font-bold text-red-900 flex items-center gap-1.5">
+                    <span>❌ 挑战三：白天研学台词严重幻觉</span>
+                </h3>
+                <p class="text-red-800 leading-relaxed text-xs">
+                    <code>/cooldown</code> 快捷指令缺乏情境感知，台词写死为“事后娇软怀中缓神”。当用户白天在书桌前纯洁研学、为了专注防撩敲入指令时，角色依然冒出“刚折腾完人家腿还是软的”，产生荒唐的语境穿越幻觉。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card space-y-8">
+        <div class="flex items-center gap-3 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">架构决策与三位一体深模块设计 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">方案 B 比例阻尼回退 + 拟人生理不应期梯度 + 生理指标天然分流双态台词</p>
+            </div>
+        </div>
+
+        <!-- Subsection 1: 情感羁绊轨深模块 -->
+        <div class="space-y-4 border-l-4 border-indigo-500 pl-4">
+            <h3 class="text-lg font-bold text-slate-900">
+                2.1 情感羁绊轨深模块：方案 B 比例阻尼衰减与阶位地板硬锁
+            </h3>
+            <p class="text-sm text-slate-600">
+                确立阻尼回退公式：<code class="bg-slate-100 text-pink-700 px-1.5 py-0.5 rounded font-mono font-bold">set_affection = max(current_affection - 8, stage_floor)</code>。回退步长固定为轻微阻尼 $\Delta = 8$，严格受当前关系阶段底线保护（四阶地板 75，三阶地板 50），保证单调不增、永不跨阶降级、永不反向飞升。
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <!-- Before -->
+                <div class="rounded-xl border border-red-200 bg-red-50/40 p-4 space-y-2">
+                    <span class="text-xs uppercase tracking-wider font-semibold text-red-600">⚠️ Before: 固定点吸附引发倒涨与穿模</span>
+                    <pre class="mermaid">
+%% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+flowchart TD
+  A[好感 76 入阶] -->|触发旧降温| B[固定跳涨吸附到 80?]
+  C[好感 100 顶峰] -->|触发旧降温| D[硬砍 20 点吸附到 80]
+  B -.->|泄漏: 因果倒置穿模| E[缺乏连续性与动态阻尼]
+  D -.->|泄漏: 机械格式化扣罚感| E
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class B,D,E leak;
+                    </pre>
+                </div>
+
+                <!-- After -->
+                <div class="rounded-xl border border-slate-900 bg-slate-900 p-4 space-y-2 text-white">
+                    <span class="text-xs uppercase tracking-wider font-semibold text-emerald-400">🛡️ After: 方案 B 比例阻尼回退 + 阶位地板锁</span>
+                    <pre class="mermaid">
+%% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+flowchart TD
+  subgraph AffectionTiers["好感度深模块: 四阶段心理防线"]
+    T1["一阶: 审视防备 0~24 (地板锁 0)"]
+    T2["二阶: 心动排他 25~49 (地板锁 25)"]
+    T3["三阶: 交付沉溺 50~74 (地板锁 50)"]
+    T4["四阶: 不分彼此 75~100 (地板锁 75)"]
+    T1 --> T2 --> T3 --> T4
+  end
+  subgraph SchemeB["方案 B 比例阻尼接缝: max(A - 8, floor)"]
+    R100["100 降为 92 (留 8 点潮汐空间)"]
+    R85["85 降为 77 (平滑回退)"]
+    R76["76 降为 75 (遇锁阻断，不反弹不破阶)"]
+  end
+  T4 --> R100
+  T4 --> R85
+  T4 --> R76
+  classDef deepBox fill:#1e293b,stroke:#0f172a,color:#fff;
+  class T1,T2,T3,T4,R100,R85,R76 deepBox;
+                    </pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subsection 2: 生理躯体轨动力学深模块 -->
+        <div class="space-y-4 border-l-4 border-emerald-500 pl-4">
+            <h3 class="text-lg font-bold text-slate-900">
+                2.2 生理躯体轨动力学深模块：四级内分泌梯度与自然消退接缝
+            </h3>
+            <p class="text-sm text-slate-600">
+                将粗暴的 25 分“断情绝欲”重构为贴合女性内分泌演进的四级拟人曲线：单次高潮自然落位 10（【事后温存】，5 轮对话自然恢复）；二次连战高潮累加至 18（【精力透支】，9 轮自然恢复）；三次连战高潮累加至 24（【余韵温存 / 骨酥肉麻】，12 轮长效休止）；仅在用户显式敲入 <code>/cooldown</code> 紧急防线时，才强制拉满 25（【紧急制动】，快速遏制 NSFW）。
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <!-- Before -->
+                <div class="rounded-xl border border-red-200 bg-red-50/40 p-4 space-y-2">
+                    <span class="text-xs uppercase tracking-wider font-semibold text-red-600">⚠️ Before: 事后无脑暴力拉满 25 不合人性</span>
+                    <pre class="mermaid">
+%% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+flowchart TD
+  A[单次高潮] --> B[事后强制直接打到 25 绝对贤者?]
+  B -.->|泄漏: 正常夫妻行房岂会瞬间断情绝欲| C[宛如吃了断情绝欲丹]
+  D[多次高潮覆盖为 10] -.->|泄漏: 无法体现体力透支| C
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class B,C leak;
+                    </pre>
+                </div>
+
+                <!-- After -->
+                <div class="rounded-xl border border-slate-900 bg-slate-900 p-4 space-y-2 text-white">
+                    <span class="text-xs uppercase tracking-wider font-semibold text-emerald-400">🛡️ After: 自然生理累加 (10温存 / 18透支 / 24余韵) + 紧急制动阀 (25)</span>
+                    <pre class="mermaid">
+%% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+flowchart TD
+  R0["【生机勃勃】0分: 随时就绪"] -->|首次高潮+10| R1["【事后温存】10分: 催产素拉满 · 骨软筋麻"]
+  R1 -->|二次连战累加| R2["【精力透支】18分: 催乳素主导 · 嗜睡乏力"]
+  R2 -->|三次连战跃迁| R3["【余韵温存】24分: 极度虚脱 · 骨软筋酥"]
+  
+  R1 -->|自然事后转场| R1_Post["保持 10 分温存<br>(好感退至 92, 怀中看代码)"]
+  R1 & R2 & R3 -.->|仅在显式 /cooldown 触发| R4["【紧急制动】25分<br>(紧急制动阀: 欲望归零)"]
+  
+  R1_Post -->|5轮日常对话自然恢复| R0
+  R2 -->|9轮日常对话自然恢复| R0
+  R3 -->|12轮长效自然平复| R0
+  R4 -->|13轮长效自然平复| R0
+  classDef deepBox fill:#1e293b,stroke:#0f172a,color:#fff;
+  class R0,R1,R2,R3,R4,R1_Post deepBox;
+                    </pre>
+                </div>
+            </div>
+        </div>
+
+        <!-- Subsection 3: 双态自适应台词接缝 -->
+        <div class="space-y-4 border-l-4 border-amber-500 pl-4">
+            <h3 class="text-lg font-bold text-slate-900">
+                2.3 角色人设层【怀中温存回渡】与双态自适应台词接缝
+            </h3>
+            <p class="text-sm text-slate-600">
+                彻底废弃“抽身下床倒茶”的薄情机械描写，升级为<strong>怀抱微姿态转换</strong>；并复用底层已有的 <code>refractory_period</code> 作为天然情境指示器，在 <code>slash_handler.py</code> 中实现双态自适应台词输出，实现零数据库开销与零幻觉防御。
+            </p>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-2">
+                <!-- Before -->
+                <div class="rounded-xl border border-red-200 bg-red-50/40 p-4 space-y-2">
+                    <span class="text-xs uppercase tracking-wider font-semibold text-red-600">⚠️ Before: 日常专注场景误触发事后腿软穿模</span>
+                    <pre class="mermaid">
+%% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+flowchart TD
+  A[日常清白坐在案前学习] -->|敲入 /cooldown 专注防撩| B[误触发: 刚折腾完人家腿都是软的?]
+  B -.->|泄漏: 根本没做爱却说腿软| C[用户严重出戏黑人问号]
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class B,C leak;
+                    </pre>
+                </div>
+
+                <!-- After -->
+                <div class="rounded-xl border border-slate-900 bg-slate-900 p-4 space-y-2 text-white">
+                    <span class="text-xs uppercase tracking-wider font-semibold text-emerald-400">🛡️ After: 不应期天然指示器驱动的双态自适应台词</span>
+                    <pre class="mermaid">
+%% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+flowchart TD
+  Trigger[触发 /cooldown] --> Check{"检测 refractory_period"}
+  Check -->|"refractory > 0 (真事后)"| State1["【态一: 事后娇软怀中看代码】<br>'冤家……刚折腾完腿都还是软的，容我靠着你缓缓神……'"]
+  Check -->|"refractory == 0 (日常专注)"| State2["【态二: 端庄清雅名师专注授业】<br>'轻轻收敛娇媚，正色嫣然：好，且收敛心神看代码'"]
+  classDef deepBox fill:#1e293b,stroke:#0f172a,color:#fff;
+  class Trigger,Check,State1,State2 deepBox;
+                    </pre>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card space-y-6">
+        <div class="flex items-center gap-3 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">实施后果与架构评估 (Consequences & Evaluation)</h2>
+                <p class="text-sm text-slate-500">深模块收益、自动化测试全绿与系统指标闭环</p>
+            </div>
+        </div>
+
+        <div class="overflow-x-auto">
+            <table class="w-full text-left text-sm border-collapse">
+                <thead>
+                    <tr class="border-b border-slate-200 text-slate-500 font-mono text-xs">
+                        <th class="py-3 px-4">评估维度</th>
+                        <th class="py-3 px-4">旧版架构 (Legacy)</th>
+                        <th class="py-3 px-4">列装新版架构 (ADR-011)</th>
+                        <th class="py-3 px-4">架构收益 (Architectural Wins)</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-slate-100 text-slate-700">
+                    <tr>
+                        <td class="py-3 px-4 font-bold text-slate-900">数值平滑性</td>
+                        <td class="py-3 px-4 text-red-600">固定吸附到 80/60，76 反向跳涨 80</td>
+                        <td class="py-3 px-4 text-emerald-700 font-mono">max(current - 8, floor)</td>
+                        <td class="py-3 px-4">消除因果倒置，平滑保留温存余温</td>
+                    </tr>
+                    <tr>
+                        <td class="py-3 px-4 font-bold text-slate-900">关系安全性</td>
+                        <td class="py-3 px-4 text-red-600">原减 20 分易导致 85 分跌破 75 降阶</td>
+                        <td class="py-3 px-4 text-emerald-700">阶位地板锁硬保护（四阶底 75）</td>
+                        <td class="py-3 px-4">道侣夫妻底蕴受硬锁守护，永不降级</td>
+                    </tr>
+                    <tr>
+                        <td class="py-3 px-4 font-bold text-slate-900">生理拟人度</td>
+                        <td class="py-3 px-4 text-red-600">粗暴打满 25，二次高潮覆盖为 10</td>
+                        <td class="py-3 px-4 text-emerald-700">梯度累加：单次 10，连战 18，指令 25</td>
+                        <td class="py-3 px-4">贴合内分泌反应，区分温存与疲劳透支</td>
+                    </tr>
+                    <tr>
+                        <td class="py-3 px-4 font-bold text-slate-900">语境真实度</td>
+                        <td class="py-3 px-4 text-red-600">白天清白学习敲 /cooldown 也喊“腿软”</td>
+                        <td class="py-3 px-4 text-emerald-700">基于 refractory 字段天然分流双态台词</td>
+                        <td class="py-3 px-4">零 DB 改造代价，彻底消除时序幻觉</td>
+                    </tr>
+                    <tr>
+                        <td class="py-3 px-4 font-bold text-slate-900">事后人设立意</td>
+                        <td class="py-3 px-4 text-red-600">抽身下床倒茶（薄情疏离感）</td>
+                        <td class="py-3 px-4 text-emerald-700">怀抱微姿态转换（依偎看代码）</td>
+                        <td class="py-3 px-4">兼顾身体休止与代码教学，沉浸感倍增</td>
+                    </tr>
+                    <tr>
+                        <td class="py-3 px-4 font-bold text-slate-900">系统提示 UI 解耦</td>
+                        <td class="py-3 px-4 text-red-600">系统提示塞入角色气泡（第四面墙击穿出戏）</td>
+                        <td class="py-3 px-4 text-emerald-700">独立居中系统胶囊（role: system_info）</td>
+                        <td class="py-3 px-4">系统反馈与角色表演物理隔离，绝不出戏零污染</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="pt-4 border-t border-slate-100 flex flex-wrap items-center justify-between gap-4 text-xs font-mono text-slate-500">
+            <div>
+                ✅ 自动化回归测试：<code>backend/tests/test_cooldown_mechanics.py</code> (13/13 PASSED) · <code>test_character_state.py</code> (7/7 PASSED) · 前端单测 <code>ChatPanel.test.jsx</code> (33/33 PASSED)
+            </div>
+            <div class="text-emerald-700 font-bold">
+                100% 测试绿灯通过
+            </div>
+        </div>
+    </section>
+</div>
+
+</body>
+</html>

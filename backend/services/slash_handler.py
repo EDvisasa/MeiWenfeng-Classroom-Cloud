@@ -58,6 +58,10 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
     if clean_cmd == "/reward":
         return _handle_reward()
 
+    # === 4.1 /cooldown ===
+    if clean_cmd in ("/cooldown", "cooldown"):
+        return _handle_cooldown()
+
     # === 5. /set_mission ===
     if clean_cmd.startswith("/set_mission"):
         return _handle_set_mission(clean_cmd, payload, last_user_msg, cleaned_messages)
@@ -290,13 +294,58 @@ def _handle_reward() -> StreamingResponse:
     def raw_generator():
         try:
             state = CharacterStateManager.modify_state(affection_delta=10)
-            yield f"[系统提示] 媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度：{state.affection}\n\n"
+            yield {
+                "type": "system_hint",
+                "icon": "check",
+                "text": f"媚吻锋感到十分欢喜，对你的好感度增加了！当前好感度：{state.affection}"
+            }
             yield "*眼波流转，娇媚地白了你一眼，但嘴角的笑意却怎么也藏不住：*“夫君这是开窍了？就知道拿这些来哄奴家开心~”"
         except CharacterStateError as e:
-            yield f"[系统提示] 奖励发送失败: {e}"
+            yield {
+                "type": "system_hint",
+                "icon": "draft",
+                "text": f"奖励发送失败: {e}"
+            }
 
     pipeline = ResponsePipeline()
     return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
+
+def _handle_cooldown() -> StreamingResponse:
+    def raw_generator():
+        try:
+            cur_state = CharacterStateManager.get_state()
+            state = CharacterStateManager.trigger_cooldown(refractory_period=25)
+            mode_name = "余韵温存" if cur_state.refractory_period > 0 else "静心专注"
+            yield {
+                "type": "system_hint",
+                "icon": "check",
+                "text": f"已进入【{mode_name}】状态。好感度回退至常态（{state.affection}/100），生理不应期已重置（{state.refractory_period}）。"
+            }
+            if cur_state.refractory_period > 0:
+                # 态一：刚经历房事高潮 (refractory > 0)，娇软依偎回渡 (余韵温存)
+                yield "*浑身酥软无力地伏在你怀里，将泛着红晕的脸颊轻轻埋在你颈窝，平复着急促的微喘，指尖无力地轻揪着你的衣襟，又嗔又软地呢喃：*“冤家……刚折腾完，你就这般急着说正事……腿都还是软的呢。也罢，把玉简挪过来些，抱紧我，容我靠着你缓缓神……咱们慢慢看。”"
+            else:
+                # 态二：日常清白专注修习 (refractory == 0)，端庄清雅名师风范，绝不出现“刚折腾完/腿软” (静心专注)
+                yield "*敏锐察觉到你眉宇间的肃然与专注，轻轻收敛起平素的嬉闹娇媚，理了理素净的茜红云袖，抬眸时眼神已重归灵动与清朗，嫣然颔首：*“好，既然夫君有一心向学之志，为师自当倾囊相授。收敛心神，刚才这道题目，且看你的真本事了。”"
+        except CharacterStateError as e:
+            yield {
+                "type": "system_hint",
+                "icon": "draft",
+                "text": f"降温失败: {e}"
+            }
+
+    pipeline = ResponsePipeline()
+    return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
+
+
+class SlashHandler:
+    """斜杠指令分发适配器类，提供统一同步流式代理"""
+    @staticmethod
+    def handle(command: str, session_id: str = "default"):
+        class DummyPayload:
+            pass
+        response = handle_slash_command(command, DummyPayload(), command, [])
+        return response.body_iterator
 
 def _handle_summarize() -> StreamingResponse:
     def raw_generator():

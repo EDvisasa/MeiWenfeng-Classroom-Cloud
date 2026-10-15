@@ -35,6 +35,7 @@ def init_db():
         session_id TEXT,
         role TEXT,
         content TEXT,
+        images TEXT,
         timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY(session_id) REFERENCES chat_sessions(id) ON DELETE CASCADE
     );
@@ -139,7 +140,8 @@ def init_db():
         is_active INTEGER DEFAULT 0,
         selected_model_id TEXT,
         max_context_tokens INTEGER DEFAULT 8192,
-        is_custom_tokens INTEGER DEFAULT 0
+        is_custom_tokens INTEGER DEFAULT 0,
+        supports_vision INTEGER DEFAULT 1
     );
     """)
 
@@ -156,6 +158,11 @@ def init_db():
 
     try:
         cursor.execute("ALTER TABLE model_config ADD COLUMN is_custom_tokens INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE model_config ADD COLUMN supports_vision INTEGER DEFAULT 1")
     except sqlite3.OperationalError:
         pass
 
@@ -276,6 +283,12 @@ def init_db():
             cursor.execute(f"ALTER TABLE course_progress ADD COLUMN {zpd_col} {zpd_ddl}")
         except sqlite3.OperationalError:
             pass
+
+    # 聊天消息图片列兼容性升级 (Image Input Support)
+    try:
+        cursor.execute("ALTER TABLE chat_messages ADD COLUMN images TEXT")
+    except sqlite3.OperationalError:
+        pass
 
     conn.commit()
     conn.close()

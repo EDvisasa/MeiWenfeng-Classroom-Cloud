@@ -182,7 +182,7 @@ def test_warmup_bonus_and_turn_decrement(mem_db):
 
 
 def test_anti_inflation_daily_gain_cap(mem_db):
-    """验证常规交互下单日好感净增封顶为 3 点，且跨日自动重置"""
+    """验证常规交互下单日好感净增封顶为 4 点，且跨日自动重置"""
     conn = mem_db["conn"]
     day1 = datetime(2026, 9, 8, 10, 0, 0)
     day2 = datetime(2026, 9, 9, 10, 0, 0)
@@ -199,19 +199,19 @@ def test_anti_inflation_daily_gain_cap(mem_db):
     assert s1.affection == 52
     assert s1.daily_gain_amount == 2
 
-    # Day 1: 第二次加 2 点 -> 只能加 1 点 (达到每日上限 3 点)
-    s2 = CharacterStateManager.modify_state(affection_delta=2, enforce_daily_cap=True, now=day1)
-    assert s2.affection == 53
-    assert s2.daily_gain_amount == 3
+    # Day 1: 第二次加 3 点 -> 只能加 2 点 (达到每日上限 4 点)
+    s2 = CharacterStateManager.modify_state(affection_delta=3, enforce_daily_cap=True, now=day1)
+    assert s2.affection == 54
+    assert s2.daily_gain_amount == 4
 
     # Day 1: 第三次加 1 点 -> 无法增加 (加 0 点)
     s3 = CharacterStateManager.modify_state(affection_delta=1, enforce_daily_cap=True, now=day1)
-    assert s3.affection == 53
-    assert s3.daily_gain_amount == 3
+    assert s3.affection == 54
+    assert s3.daily_gain_amount == 4
 
     # Day 2: 跨天后自动重置配额，又可以正常增长
     s4 = CharacterStateManager.modify_state(affection_delta=2, enforce_daily_cap=True, now=day2)
-    assert s4.affection == 55
+    assert s4.affection == 56
     assert s4.daily_gain_amount == 2
 
 

@@ -7,15 +7,15 @@ from backend.database import get_db_connection
 
 logger = logging.getLogger(__name__)
 
-_state_lock = threading.Lock()
+_state_lock = threading.RLock()
 
-DAILY_GAIN_CAP = 3  # 日常单日好感正常获取上限
+DAILY_GAIN_CAP = 4  # 日常单日好感正常获取上限
 
 STAGE_THRESHOLDS = {
-    4: {"min": 75, "max": 100, "name": "不分彼此期", "grace_days": 7, "floor": 65},
-    3: {"min": 50, "max": 74, "name": "交付沉溺期", "grace_days": 5, "floor": 40},
-    2: {"min": 25, "max": 49, "name": "心动排他期", "grace_days": 3, "floor": 20},
-    1: {"min": 0, "max": 24, "name": "审视防备期", "grace_days": 2, "floor": 10},
+    4: {"min": 75, "max": 100, "name": "不分彼此期", "grace_days": 7, "floor": 65, "cooldown_target": 80},
+    3: {"min": 50, "max": 74, "name": "交付沉溺期", "grace_days": 5, "floor": 40, "cooldown_target": 60},
+    2: {"min": 25, "max": 49, "name": "心动排他期", "grace_days": 3, "floor": 20, "cooldown_target": 30},
+    1: {"min": 0, "max": 24, "name": "审视防备期", "grace_days": 2, "floor": 10, "cooldown_target": 5},
 }
 
 
@@ -50,6 +50,23 @@ class CharacterStateManager:
         elif affection >= 25:
             return 2
         return 1
+
+    @staticmethod
+    def get_cooldown_target(affection: int) -> int:
+        """
+        方案 B：比例阻尼衰减制
+        A_new = max(A_current - 8, stage_floor)
+        根据当前好感度平滑回退 8 点激情溢价，但受当前心境阶段的最低门槛锁保护，
+        确保单调不增、不破心境阶梯、不发生低位反弹。
+        例如：
+        阶段四 (75~100): 100 -> 92, 95 -> 87, 85 -> 77, 78 -> 75, 76 -> 75
+        阶段三 (50~74): 74 -> 66, 65 -> 57, 55 -> 50, 52 -> 50
+        阶段二 (25~49): 40 -> 32, 28 -> 25
+        阶段一 (0~24): 10 -> 2, 5 -> 0
+        """
+        stage = CharacterStateManager.get_stage(affection)
+        stage_min = STAGE_THRESHOLDS.get(stage, STAGE_THRESHOLDS[1])["min"]
+        return max(affection - 8, stage_min)
 
     @staticmethod
     def get_stage_floor(stage: int) -> int:
@@ -213,6 +230,8 @@ class CharacterStateManager:
         social_skills_delta: int = 0,
         refractory_delta: int = 0,
         set_refractory: Optional[int] = None,
+        set_affection: Optional[int] = None,
+        is_cooldown: bool = False,
         enforce_daily_cap: bool = False,
         now: Optional[datetime] = None
     ) -> CharacterState:
@@ -251,61 +270,96 @@ class CharacterStateManager:
                     cur_gain_date = today_str
                     cur_gain_amount = 0
 
+                if is_cooldown:
+                    set_affection = CharacterStateManager.get_cooldown_target(cur_aff)
+
                 actual_affection_delta = affection_delta
                 new_warmup_turns = cur_warmup_turns
 
-                if affection_delta > 0:
-                    if cur_warmup_turns > 0:
-                        # 破冰特权：翻倍 + 3 点补偿，且不占常规单日限额
-                        actual_affection_delta = affection_delta * 2 + 3
-                        new_warmup_turns = max(0, cur_warmup_turns - 1)
-                    elif enforce_daily_cap:
-                        # 常规日常防通胀控水（每日封顶 DAILY_GAIN_CAP）
-                        remaining_cap = max(0, DAILY_GAIN_CAP - cur_gain_amount)
-                        actual_affection_delta = min(affection_delta, remaining_cap)
-
-                        # Stage 4 阻尼：>= 75 分时单次最多加 1
-                        if cur_aff >= 75 and actual_affection_delta > 1:
-                            actual_affection_delta = 1
-
-                        cur_gain_amount += actual_affection_delta
+                if set_affection is not None:
+                    # 显式重置好感度（如事后清醒降温落位于阶段下限+5），原子化写入，不受单日日常增量上限限制
+                    target_val = min(100, max(0, set_affection))
+                    if set_refractory is not None:
+                        cursor.execute("""
+                            UPDATE affection 
+                            SET value = ?,
+                                social_status = MIN(100, MAX(0, social_status + ?)),
+                                social_skills = MIN(100, MAX(0, social_skills + ?)),
+                                refractory_period = MAX(0, ?),
+                                daily_gain_date = ?,
+                                daily_gain_amount = ?,
+                                reunion_warmup_turns = ?,
+                                last_updated = ?
+                            WHERE id = 1
+                        """, (target_val, social_status_delta, social_skills_delta, set_refractory,
+                              cur_gain_date, cur_gain_amount, new_warmup_turns, now.strftime("%Y-%m-%d %H:%M:%S")))
                     else:
-                        # 非受限调用（测试或特殊管理）：直接加，并记入当日增量
-                        cur_gain_amount += affection_delta
-
-                elif affection_delta < 0:
-                    # 惩罚性扣分不受单日上限限制，全额执行
-                    pass
-
-                # Atomic update
-                if set_refractory is not None:
-                    cursor.execute("""
-                        UPDATE affection 
-                        SET value = MIN(100, MAX(0, value + ?)),
-                            social_status = MIN(100, MAX(0, social_status + ?)),
-                            social_skills = MIN(100, MAX(0, social_skills + ?)),
-                            refractory_period = MAX(0, ?),
-                            daily_gain_date = ?,
-                            daily_gain_amount = ?,
-                            reunion_warmup_turns = ?,
-                            last_updated = ?
-                        WHERE id = 1
-                    """, (actual_affection_delta, social_status_delta, social_skills_delta, set_refractory,
-                          cur_gain_date, cur_gain_amount, new_warmup_turns, now.strftime("%Y-%m-%d %H:%M:%S")))
+                        cursor.execute("""
+                            UPDATE affection 
+                            SET value = ?,
+                                social_status = MIN(100, MAX(0, social_status + ?)),
+                                social_skills = MIN(100, MAX(0, social_skills + ?)),
+                                refractory_period = MAX(0, refractory_period + ?),
+                                daily_gain_date = ?,
+                                daily_gain_amount = ?,
+                                reunion_warmup_turns = ?,
+                                last_updated = ?
+                            WHERE id = 1
+                        """, (target_val, social_status_delta, social_skills_delta, refractory_delta,
+                              cur_gain_date, cur_gain_amount, new_warmup_turns, now.strftime("%Y-%m-%d %H:%M:%S")))
                 else:
-                    cursor.execute("""
-                        UPDATE affection 
-                        SET value = MIN(100, MAX(0, value + ?)),
-                            social_status = MIN(100, MAX(0, social_status + ?)),
-                            social_skills = MIN(100, MAX(0, social_skills + ?)),
-                            refractory_period = MAX(0, refractory_period + ?),
-                            daily_gain_date = ?,
-                            daily_gain_amount = ?,
-                            reunion_warmup_turns = ?,
-                            last_updated = ?
-                        WHERE id = 1
-                    """, (actual_affection_delta, social_status_delta, social_skills_delta, refractory_delta,
-                          cur_gain_date, cur_gain_amount, new_warmup_turns, now.strftime("%Y-%m-%d %H:%M:%S")))
+                    if affection_delta > 0:
+                        if cur_warmup_turns > 0:
+                            # 破冰特权：翻倍 + 3 点补偿，且不占常规单日限额
+                            actual_affection_delta = affection_delta * 2 + 3
+                            new_warmup_turns = max(0, cur_warmup_turns - 1)
+                        elif enforce_daily_cap:
+                            # 常规日常防通胀控水（每日封顶 DAILY_GAIN_CAP）
+                            remaining_cap = max(0, DAILY_GAIN_CAP - cur_gain_amount)
+                            actual_affection_delta = min(affection_delta, remaining_cap)
+
+                            # Stage 4 阻尼：>= 75 分时单次最多加 1
+                            if cur_aff >= 75 and actual_affection_delta > 1:
+                                actual_affection_delta = 1
+
+                            cur_gain_amount += actual_affection_delta
+                        else:
+                            # 非受限调用（测试或特殊管理）：直接加，并记入当日增量
+                            cur_gain_amount += affection_delta
+
+                    elif affection_delta < 0:
+                        # 惩罚性扣分不受单日上限限制，全额执行
+                        pass
+
+                    # Atomic update
+                    if set_refractory is not None:
+                        cursor.execute("""
+                            UPDATE affection 
+                            SET value = MIN(100, MAX(0, value + ?)),
+                                social_status = MIN(100, MAX(0, social_status + ?)),
+                                social_skills = MIN(100, MAX(0, social_skills + ?)),
+                                refractory_period = MAX(0, ?),
+                                daily_gain_date = ?,
+                                daily_gain_amount = ?,
+                                reunion_warmup_turns = ?,
+                                last_updated = ?
+                            WHERE id = 1
+                        """, (actual_affection_delta, social_status_delta, social_skills_delta, set_refractory,
+                              cur_gain_date, cur_gain_amount, new_warmup_turns, now.strftime("%Y-%m-%d %H:%M:%S")))
+                    else:
+                        cursor.execute("""
+                            UPDATE affection 
+                            SET value = MIN(100, MAX(0, value + ?)),
+                                social_status = MIN(100, MAX(0, social_status + ?)),
+                                social_skills = MIN(100, MAX(0, social_skills + ?)),
+                                refractory_period = MAX(0, refractory_period + ?),
+                                daily_gain_date = ?,
+                                daily_gain_amount = ?,
+                                reunion_warmup_turns = ?,
+                                last_updated = ?
+                            WHERE id = 1
+                        """, (actual_affection_delta, social_status_delta, social_skills_delta, refractory_delta,
+                              cur_gain_date, cur_gain_amount, new_warmup_turns, now.strftime("%Y-%m-%d %H:%M:%S")))
 
                 cursor.execute("""
                     SELECT value, social_status, social_skills, refractory_period,
@@ -332,11 +386,74 @@ class CharacterStateManager:
 
     @staticmethod
     def trigger_climax(intensity: int = 10):
-        """触发高潮，重置不应期"""
-        return CharacterStateManager.modify_state(set_refractory=intensity)
+        """
+        触发高潮生理反应（女性拟人生理演进梯级）：
+        - 若当前不应期 == 0（【生机勃勃】常态初次高潮）：置为 intensity（默认 10，进入【余韵温存】，约 5 轮自然平复）；
+        - 若当前不应期在 (0, 12] 之间（余韵温存未平复连战）：累加跃迁至 18（跨入【娇慵倦怠】，约 9 轮自然平复）；
+        - 若当前不应期 > 12（娇慵倦怠状态下再战高潮）：累加跃迁至 24（跨入【骨软筋酥】，约 12 轮长效休止，主动温柔转移伴侣注意力至清白正事）；
+        - 若当前值已 >= 24（如被 /cooldown 紧急制动置为 25 或达到上限）：保持极值，不再递减。
+        """
+        with _state_lock:
+            cur = CharacterStateManager.get_state()
+            if cur.refractory_period > 12:
+                new_refractory = max(24, cur.refractory_period)
+            elif cur.refractory_period > 0:
+                new_refractory = max(18, intensity)
+            else:
+                new_refractory = intensity
+            return CharacterStateManager.modify_state(set_refractory=new_refractory)
+
+    @staticmethod
+    def trigger_cooldown(target_affection: Optional[int] = None, refractory_period: int = 25) -> CharacterState:
+        """
+        触发事后清醒转场与好感潮汐回退：
+        若未指定 target_affection，则按方案 B 阻尼回退 8 点（受当前心境阶段地板保护）；
+        原子化将好感度重置至目标常态，并将生理不应期拉满至 25（激活 [绝对贤者] 状态）。
+        """
+        with _state_lock:
+            try:
+                conn = get_db_connection()
+                CharacterStateManager._ensure_columns(conn)
+                cursor = conn.cursor()
+                cursor.execute("SELECT value FROM affection WHERE id = 1")
+                row = cursor.fetchone()
+                cur_aff = row["value"] if row else 100
+
+                actual_target = target_affection if target_affection is not None else CharacterStateManager.get_cooldown_target(cur_aff)
+
+                cursor.execute("""
+                    UPDATE affection 
+                    SET value = ?,
+                        refractory_period = ?,
+                        last_updated = datetime('now')
+                    WHERE id = 1
+                """, (actual_target, refractory_period))
+                cursor.execute("""
+                    SELECT value, social_status, social_skills, refractory_period,
+                           daily_gain_date, daily_gain_amount, reunion_warmup_turns 
+                    FROM affection WHERE id = 1
+                """)
+                row = cursor.fetchone()
+                conn.commit()
+                conn.close()
+                if row:
+                    return CharacterState(
+                        affection=row["value"],
+                        social_status=row["social_status"],
+                        social_skills=row["social_skills"],
+                        refractory_period=row["refractory_period"],
+                        daily_gain_date=row["daily_gain_date"],
+                        daily_gain_amount=row["daily_gain_amount"] or 0,
+                        reunion_warmup_turns=row["reunion_warmup_turns"] or 0
+                    )
+                return CharacterState(affection=actual_target, social_status=50, social_skills=50, refractory_period=refractory_period)
+            except Exception as e:
+                logger.error(f"Failed to trigger cooldown: {e}")
+                raise CharacterStateError(f"Database error: {e}")
 
     @staticmethod
     def advance_round(rounds: int = 1):
         """推进回合，自动衰减不应期"""
         return CharacterStateManager.modify_state(refractory_delta=-rounds)
+
 

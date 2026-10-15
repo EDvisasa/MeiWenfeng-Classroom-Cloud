@@ -1,5 +1,5 @@
 import React from 'react';
-import { render, screen, fireEvent, act } from '@testing-library/react';
+import { render, screen, fireEvent, act, waitFor } from '@testing-library/react';
 import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ChatPanel from './ChatPanel';
@@ -320,7 +320,208 @@ describe('ChatPanel Editing Behavior Tests', () => {
     expect(explainerCard).toBeInTheDocument();
     expect(explainerCard).toHaveStyle({ maxWidth: '100%', minWidth: '0px' });
   });
-});
 
+  it('TDD 10: renders attached user images in chat bubble and image upload button in toolbar', () => {
+    const dummyImage = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const props = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'user',
+          content: '看这张截图',
+          images: [dummyImage]
+        }
+      ]
+    };
+
+    const { container } = render(<ChatPanel {...props} />);
+
+    // Check image upload button exists in toolbar
+    const uploadBtn = container.querySelector('.image-upload-btn');
+    expect(uploadBtn).toBeInTheDocument();
+
+    // Check user message renders attached image
+    const attachedImg = container.querySelector('.chat-bubble-img');
+    expect(attachedImg).toBeInTheDocument();
+    expect(attachedImg).toHaveAttribute('src', dummyImage);
+  });
+
+  it('TDD 11 [Bug #26]: pasting single image from clipboard adds exactly one image chip preview', async () => {
+    const props = getBaseProps();
+    const { container } = render(<ChatPanel {...props} />);
+    const textarea = container.querySelector('.chat-input');
+    expect(textarea).toBeInTheDocument();
+
+    const dummyFile = new File(['fake-image-bytes'], 'screenshot.png', { type: 'image/png' });
+
+    await act(async () => {
+      fireEvent.paste(textarea, {
+        clipboardData: {
+          files: [dummyFile],
+          items: [
+            {
+              type: 'image/png',
+              getAsFile: () => dummyFile
+            }
+          ]
+        }
+      });
+    });
+
+    await waitFor(() => {
+      const chips = container.querySelectorAll('.input-image-chip');
+      expect(chips.length).toBe(1);
+    });
+  });
+
+  it('TDD 12 [ISSUE-31]: image upload button is disabled and shows tooltip when active model does not support vision', () => {
+    const props = {
+      ...getBaseProps(),
+      models: [
+        { id: 1, name: 'DeepSeek', supports_vision: 0 }
+      ],
+      activeModel: 'DeepSeek'
+    };
+
+    const { container } = render(<ChatPanel {...props} />);
+    const uploadBtn = container.querySelector('.image-upload-btn');
+    expect(uploadBtn).toBeInTheDocument();
+    expect(uploadBtn).toHaveStyle({ cursor: 'not-allowed' });
+    expect(uploadBtn).toHaveAttribute('title', '当前模型未开启识图能力');
+
+    const fileInput = uploadBtn.querySelector('input[type="file"]');
+    expect(fileInput).toBeDisabled();
+  });
+
+  it('TDD 13 [ISSUE-31]: shows warning toast and intercepts paste when active model does not support vision', async () => {
+    const props = {
+      ...getBaseProps(),
+      models: [
+        { id: 1, name: 'DeepSeek', supports_vision: 0 }
+      ],
+      activeModel: 'DeepSeek'
+    };
+
+    const { container } = render(<ChatPanel {...props} />);
+    const textarea = container.querySelector('.chat-input');
+    const dummyFile = new File(['fake-bytes'], 'test.png', { type: 'image/png' });
+
+    await act(async () => {
+      fireEvent.paste(textarea, {
+        clipboardData: {
+          files: [dummyFile]
+        }
+      });
+    });
+
+    const toast = container.querySelector('.vision-warning-toast');
+    expect(toast).toBeInTheDocument();
+    expect(toast).toHaveTextContent('当前模型不支持识图');
+
+    const chips = container.querySelectorAll('.input-image-chip');
+    expect(chips.length).toBe(0);
+  });
+
+  it('TDD 14 [ISSUE-31]: supports controlled selectedImages and setSelectedImages props from parent', async () => {
+    const mockSetSelectedImages = vi.fn();
+    const mockSendMessage = vi.fn();
+    const testImages = [{ id: 'img_test_1', name: 'photo.jpg', dataUrl: 'data:image/jpeg;base64,123' }];
+
+    const props = {
+      ...getBaseProps(),
+      inputText: 'Check this image',
+      sendMessage: mockSendMessage,
+      selectedImages: testImages,
+      setSelectedImages: mockSetSelectedImages
+    };
+
+    const { container } = render(<ChatPanel {...props} />);
+    const chips = container.querySelectorAll('.input-image-chip');
+    expect(chips.length).toBe(1);
+    expect(chips[0]).toHaveAttribute('title', 'photo.jpg');
+
+    const sendBtn = container.querySelector('.send-button');
+    await act(async () => {
+      fireEvent.click(sendBtn);
+    });
+
+    expect(mockSendMessage).toHaveBeenCalledWith({
+      text: 'Check this image',
+      images: ['data:image/jpeg;base64,123']
+    });
+    expect(mockSetSelectedImages).toHaveBeenCalledWith([]);
+  });
+
+  it('TDD 15 [Bug #27]: clears input text via setInputText when user sends a message or presses Enter', async () => {
+    const mockSendMessage = vi.fn();
+    const mockSetInputText = vi.fn();
+
+    const props = {
+      ...getBaseProps(),
+      inputText: 'Question for the tutor',
+      setInputText: mockSetInputText,
+      sendMessage: mockSendMessage
+    };
+
+    const { container } = render(<ChatPanel {...props} />);
+    const sendBtn = container.querySelector('.send-button');
+    expect(sendBtn).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(sendBtn);
+    });
+
+    expect(mockSendMessage).toHaveBeenCalledWith({
+      text: 'Question for the tutor',
+      images: []
+    });
+    expect(mockSetInputText).toHaveBeenCalledWith('');
+
+    // Also verify Enter key triggers send and clear
+    mockSendMessage.mockClear();
+    mockSetInputText.mockClear();
+
+    const textarea = container.querySelector('.chat-input');
+    await act(async () => {
+      fireEvent.keyDown(textarea, { key: 'Enter', shiftKey: false });
+    });
+
+    expect(mockSendMessage).toHaveBeenCalledWith({
+      text: 'Question for the tutor',
+      images: []
+    });
+    expect(mockSetInputText).toHaveBeenCalledWith('');
+  });
+
+  it('TDD 16 [ISSUE-32]: /cooldown is registered in COMMANDS SSOT', () => {
+    const cooldownCmd = COMMANDS.find((c) => c.cmd === '/cooldown');
+    expect(cooldownCmd).toBeDefined();
+    expect(cooldownCmd.desc).toMatch(/静心专注|余韵温存/);
+  });
+
+  it('TDD 17: decodes [系统提示] prefix from assistant message into outside system-info-msg pill', () => {
+    const props = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'assistant',
+          content: '[系统提示] 开启清醒贤者模式。好感度回退至常态（85/100），生理不应期已重置（25）。\n\n敏锐察觉到你眉宇间的肃然与专注，轻轻收敛起平素的嬉闹娇媚。'
+        }
+      ]
+    };
+
+    const { container } = render(<ChatPanel {...props} />);
+    const systemPill = container.querySelector('.system-info-msg');
+    expect(systemPill).toBeInTheDocument();
+    expect(systemPill.textContent).toContain('开启清醒贤者模式');
+    expect(systemPill.textContent).toContain('85/100');
+
+    // Speech bubble must NOT contain [系统提示]
+    const bubble = container.querySelector('.message-bubble');
+    expect(bubble).toBeInTheDocument();
+    expect(bubble.textContent).not.toContain('[系统提示]');
+    expect(bubble.textContent).toContain('敏锐察觉到你眉宇间的肃然与专注');
+  });
+});
 
 

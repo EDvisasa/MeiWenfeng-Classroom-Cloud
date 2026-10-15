@@ -289,6 +289,22 @@ class ResponsePipeline:
         if not self.original_user_msg:
             return
 
+        # 自然恢复动力学：生理不应期随正常对话轮次自然流转衰减（每轮衰减 2 点，底线为 0）
+        # 仅在存在实际用户提问的对话轮次 (original_user_msg) 且本轮未被重设 set_refractory 时执行自然衰减
+        try:
+            from backend.services.character_state import CharacterStateManager
+            has_fresh_set_refractory = False
+            if "property_update" in data:
+                for item in data["property_update"]:
+                    if "set_refractory" in item.get("attrs", {}):
+                        has_fresh_set_refractory = True
+                        break
+            current_state = CharacterStateManager.get_state()
+            if current_state.refractory_period > 0 and not has_fresh_set_refractory:
+                CharacterStateManager.advance_round(rounds=2)
+        except Exception as e:
+            logger.error(f"Error advancing refractory period round: {e}")
+
         try:
             from datetime import datetime
             import re
