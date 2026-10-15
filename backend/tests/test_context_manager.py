@@ -291,3 +291,40 @@ def test_assemble_messages_context_pipeline_transition_directive_issue_20():
     )
 
 
+def test_assemble_messages_dynamic_one_shot_preserves_actual_greeting():
+    """
+    验证 assemble_messages 在执行 Dynamic One-Shot 示教装配时：
+    1. 不再使用写死固定的对白覆盖历史开场白；
+    2. 忠实将真实的动态开场白 (actual_content) 保留在 One-Shot 对白主体位置；
+    3. 规范包裹 <think>、<monologue> 与 <property_update>，同时维持大模型角色轮换规范。
+    """
+    from backend.services.context_manager import assemble_messages
+    dynamic_greeting = "*夜深人静，她披着月白软纱斗篷，在书案前核验账目，见你进来，嫣然一笑：*“夫君，今日怎么这般晚才来？”"
+    messages = [
+        {"role": "assistant", "content": dynamic_greeting, "timestamp": "2026-09-09T00:20:00Z"},
+        {"role": "user", "content": "今天手头有些工作耽搁了。", "timestamp": "2026-09-09T00:25:00Z"}
+    ]
+    assembled = assemble_messages(messages, "你是导师")
+    
+    # 验证前置注入的 user 垫底角色
+    assert assembled[1]["role"] == "user"
+    assert assembled[1]["content"] == "你好"
+    
+    # 验证 One-Shot Assistant 节点
+    asst_msg = assembled[2]
+    assert asst_msg["role"] == "assistant"
+    content = asst_msg["content"]
+    
+    # 验证保留了动态开场白本体，而非旧版写死的素净茜红长衫
+    assert dynamic_greeting in content
+    assert "*端坐在案头，身着素净茜红长衫" not in content
+    
+    # 验证标准示教包裹结构完整
+    assert content.startswith("<think>")
+    assert "</think>" in content
+    assert "<monologue>" in content
+    assert "</monologue>" in content
+    assert "<property_update" in content
+
+
+

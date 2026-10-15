@@ -104,7 +104,8 @@ class PropertyUpdateHandler(SideEffectHandler):
             social_status_delta=social_status_delta,
             social_skills_delta=social_skills_delta,
             refractory_delta=refractory_delta,
-            set_refractory=set_refractory
+            set_refractory=set_refractory,
+            enforce_daily_cap=True
         )
         logger.info(f"动态属性已自动更新: {attrs}")
 

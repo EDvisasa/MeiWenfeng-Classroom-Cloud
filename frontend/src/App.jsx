@@ -115,19 +115,37 @@ export default function App() {
     }
   };
 
+  const fetchDynamicGreeting = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/greeting`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.content) {
+          return {
+            role: 'assistant',
+            content: data.content,
+            timestamp: data.timestamp || _getNowStr()
+          };
+        }
+      }
+    } catch (err) {
+      console.warn('Failed to fetch dynamic greeting, fallback to ambient preset:', err);
+    }
+    return {
+      role: 'assistant',
+      content: '*（案前热气袅袅煨着白桃乌龙，她手捧戏折子，回眸嫣然一笑，自然挽住你的手腕）*“夫君，你可算来了。今天咱们从哪段开始学？”',
+      timestamp: _getNowStr()
+    };
+  };
+
   const handleNewSession = async () => {
     if (isStreaming) return;
     const newId = Date.now().toString();
+    const greetingMsg = await fetchDynamicGreeting();
     const newSession = {
       id: newId,
       title: '新对话',
-      messages: [
-        {
-          role: 'assistant',
-          content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”',
-          timestamp: _getNowStr()
-        }
-      ]
+      messages: [greetingMsg]
     };
 
     setSessions(prev => [newSession, ...prev]);
@@ -154,16 +172,11 @@ export default function App() {
 
     if (filtered.length === 0) {
       const defaultId = Date.now().toString();
+      const greetingMsg = await fetchDynamicGreeting();
       const defaultSess = {
         id: defaultId,
         title: '默认会话',
-        messages: [
-          {
-            role: 'assistant',
-            content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”',
-            timestamp: _getNowStr()
-          }
-        ]
+        messages: [greetingMsg]
       };
       nextSessions = [defaultSess];
       await syncSessionToBackend(defaultSess);
@@ -436,16 +449,11 @@ export default function App() {
             }
           } else {
             const defaultId = Date.now().toString();
+            const greetingMsg = await fetchDynamicGreeting();
             const defaultSess = {
               id: defaultId,
               title: '默认会话',
-              messages: [
-                {
-                  role: 'assistant',
-                  content: '*端坐在精致的红木矮椅上，红金色汉服衬出诱人的身段，红黑色的狐瞳含笑望着你，玉手托着香腮，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家教你灵气感知，还是说...想先跟奴家聊聊天？”',
-                  timestamp: _getNowStr()
-                }
-              ]
+              messages: [greetingMsg]
             };
             setSessions([defaultSess]);
             setActiveSessionId(defaultId);

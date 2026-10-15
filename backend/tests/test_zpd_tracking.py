@@ -167,3 +167,43 @@ def test_lesson_continue_records_wrong_answer(course_db, monkeypatch):
     row = _read_zpd_row(course_db, ZPD_ACTIVE_TOPIC)
     assert row["consecutive_wrong"] == 1
     assert row["consecutive_correct"] == 0
+
+
+def test_quiz_wrong_under_three_times_does_not_penalize_affection(course_db, monkeypatch):
+    """答错 1~2 次时仅记录连错，不应扣除好感度。"""
+    from backend.services.character_state import CharacterStateManager
+    captured = {}
+    _mock_llm_stream(monkeypatch, captured)
+
+    payload = SimpleNamespace(current_file_path=None, persona_type="simplified")
+    quiz_msg = '我选了：选项A\n<submit_quiz_result is_correct="false" selected="选项A" />'
+
+    initial_aff = CharacterStateManager.get_state().affection
+    handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
+    handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
+
+    current_aff = CharacterStateManager.get_state().affection
+    assert current_aff == initial_aff
+    assert "<slacking_warning>" not in captured.get("injection", "")
+
+
+def test_quiz_wrong_three_times_triggers_affection_penalty_and_warning(course_db, monkeypatch):
+    """连续答错达到 3 次时，好感度原子扣减 2 点，且注入 <slacking_warning> 警告。"""
+    from backend.services.character_state import CharacterStateManager
+    captured = {}
+    _mock_llm_stream(monkeypatch, captured)
+
+    payload = SimpleNamespace(current_file_path=None, persona_type="simplified")
+    quiz_msg = '我选了：选项A\n<submit_quiz_result is_correct="false" selected="选项A" />'
+
+    initial_aff = CharacterStateManager.get_state().affection
+    # 连续答错 3 次
+    handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
+    handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
+    handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
+
+    current_aff = CharacterStateManager.get_state().affection
+    assert current_aff == initial_aff - 2
+    assert "<slacking_warning>" in captured.get("injection", "")
+    assert "有人故意瞎捣乱" in captured.get("injection", "")
+

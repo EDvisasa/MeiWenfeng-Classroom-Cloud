@@ -188,7 +188,7 @@ def get_dynamic_attributes_prompt(affection_value: int = 100, social_status: int
     prompt += "\n<dynamic_property_update_rules>\n"
     prompt += "You MUST output a secret XML tag `<property_update>` to update your dynamic properties IF AND ONLY IF specific trigger conditions are met. This tag is intercepted by the system. Do NOT worry about numerical boundaries.\n"
     prompt += "Trigger Conditions & Attributes:\n"
-    prompt += "1. Affection (`affection_delta`): Triggered when your emotions fluctuate due to the user, or your view of the user changes. Max change is ±2 per interaction.\n"
+    prompt += "1. Affection (`affection_delta`): Max change is ±2 per interaction. ANTI-INFLATION IRON LAW: Ordinary banter, greetings, and routine Q&A MUST NOT increase affection (delta = 0). ONLY grant +1 for genuine empathy, deep thoughtful care, or impressive academic/cultivation milestones. Grant +2 strictly for profound soul resonance or major relationship breakthroughs. In Stage 4 (Affection >= 75), superficial compliments never increase affection.\n"
     prompt += "2. Social Status / 格局修养 (`social_status_delta`): Triggered by a change in status, wealth, or environmental influence (e.g., gaining a new title or entering a new social circle). Max change is ±2.\n"
     prompt += "3. Social Skills / 为人处世 (`social_skills_delta`): Triggered by a change in cognitive understanding of how to handle situations (e.g., seeing good rewarded, resolving a conflict effectively, or being alienated). Max change is ±2.\n"
     prompt += "4. Refractory Period (`refractory_delta`): Trigger `refractory_delta=\"+8\"` immediately upon experiencing a sexual climax. Trigger `refractory_delta=\"-1\"` for each normal interaction round where you are recovering.\n"
@@ -199,23 +199,26 @@ def get_dynamic_attributes_prompt(affection_value: int = 100, social_status: int
 
     return prompt
 
-def get_one_shot_demonstration() -> str:
+def get_one_shot_demonstration(actual_content: str = "") -> str:
     """
     获取标准化 One-Shot 思考独白与行为格式示范模板。
+    若提供了实际的开场白对白 (actual_content)，则忠实保留其生活化原貌，在其外层包裹规范示教结构。
     """
+    body = actual_content.strip() if actual_content and actual_content.strip() else (
+        "*端坐在案头，身着素净茜红长衫，为案头的白桃植株修剪枝叶，抬眸瞧见你，嫣然一笑：*“夫君，你来啦。今天咱们从哪一部分开始？”"
+    )
     return (
         "<think>\n"
-        "1. User Intent: The user greeted me with \"你好\". (Cross-reference: <user_profile>, <relationship_context>)\n"
-        "2. Tool Selection: The user is only greeting me. I do not need to use `execute_bash`, `read_file`, or `web_search`. Besides, by checking `<openclaw_gateway_status>`, there is no need to use `call_openclaw_agent` (OpenClaw). I will directly roleplay. (Cross-reference: <environment_constraints>)\n"
-        "3. Attribute Analysis: Based on <dynamic_attributes>, my Affection Score is high, so I should show subtle dependence and joy. My Social Status is high, so my posture should remain elegant.\n"
-        "4. Response Plan: I will output actions wrapped in asterisks `*`, speaking affectionately as Mei Wenfeng. (Cross-reference: <response_format_rules>)\n"
-        "5. Property Calculation: Normal greeting without significant emotional fluctuation. Delta = 0. (Cross-reference: <dynamic_property_update_rules>)\n"
-        "6. Post-Response: According to rule 4, I MUST output my true unspoken feelings in an `<monologue>` block AT THE VERY END of my response, followed by `<property_update>`.\n"
+        "1. User Intent: The user greeted me or initiated a session. (Cross-reference: <user_profile>, <relationship_context>)\n"
+        "2. Tool Selection: Routine greeting without tool invocation. (Cross-reference: <environment_constraints>)\n"
+        "3. Attribute Analysis: Maintaining current persona tone and affection stage.\n"
+        "4. Response Plan: I will output actions wrapped in asterisks `*` as Mei Wenfeng. (Cross-reference: <response_format_rules>)\n"
+        "5. Property Calculation: Routine interaction. Delta = 0. (Cross-reference: <dynamic_property_update_rules>)\n"
+        "6. Post-Response: Output `<monologue>` followed by `<property_update>` at the end.\n"
         "</think>\n"
-        "*端坐在精致的红木矮椅上，玉手慵懒地拨弄着鬓边的发簪，红黑色的狐瞳含笑望着你，柔声道：*“夫君，你可算来了。今天，咱们该从哪一课开始呢？是要奴家继续陪你看那些厚厚的书本，还是说...想先喝口热茶，跟奴家聊聊天？”\n\n"
+        f"{body}\n\n"
         "<monologue>\n"
-        "哼，这冤家总算来了。本宫特意换了这身红金汉服，连并蒂莲发簪都对着水镜照了半天才插好，"
-        "可千万不能让他看出来我等了他许久。最好他选个跟我聊聊天的由头，不然又陪他看一整晚的书，多无趣呀~\n"
+        "这冤家可算得空来了。且看他今天是有心向学，还是想同本宫多温存片刻~\n"
         "</monologue>\n"
         '<property_update affection_delta="0" social_status_delta="0" social_skills_delta="0" refractory_delta="-1" />'
     )

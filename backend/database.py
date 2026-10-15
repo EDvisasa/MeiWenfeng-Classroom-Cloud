@@ -62,7 +62,8 @@ def init_db():
         score INTEGER DEFAULT 0,
         zpd_coefficient REAL NOT NULL DEFAULT 1.0,
         consecutive_correct INTEGER NOT NULL DEFAULT 0,
-        consecutive_wrong INTEGER NOT NULL DEFAULT 0
+        consecutive_wrong INTEGER NOT NULL DEFAULT 0,
+        total_consecutive_wrong INTEGER NOT NULL DEFAULT 0
     );
     """)
 
@@ -74,6 +75,9 @@ def init_db():
         social_status INTEGER DEFAULT 50,
         social_skills INTEGER DEFAULT 50,
         refractory_period INTEGER DEFAULT 0,
+        daily_gain_date TEXT DEFAULT NULL,
+        daily_gain_amount INTEGER DEFAULT 0,
+        reunion_warmup_turns INTEGER DEFAULT 0,
         last_updated DATETIME
     );
     """)
@@ -101,6 +105,26 @@ def init_db():
 
     try:
         cursor.execute("ALTER TABLE affection ADD COLUMN refractory_period INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE affection ADD COLUMN daily_gain_date TEXT DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE affection ADD COLUMN daily_gain_amount INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE affection ADD COLUMN reunion_warmup_turns INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE course_progress ADD COLUMN total_consecutive_wrong INTEGER DEFAULT 0")
     except sqlite3.OperationalError:
         pass
 

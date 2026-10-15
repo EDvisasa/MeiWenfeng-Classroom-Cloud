@@ -114,20 +114,21 @@ def get_zpd_metrics(topic: str | None = None) -> dict:
     conn.row_factory = sqlite3.Row
     cursor = conn.cursor()
     cursor.execute(
-        "SELECT topic, zpd_coefficient, consecutive_correct, consecutive_wrong "
-        "FROM course_progress WHERE topic = ? ORDER BY id DESC LIMIT 1",
+        "SELECT * FROM course_progress WHERE topic = ? ORDER BY id DESC LIMIT 1",
         (resolved,),
     )
     row = cursor.fetchone()
     conn.close()
     if row:
+        row_dict = dict(row)
         return {
-            "topic": row["topic"],
-            "coefficient": float(row["zpd_coefficient"]),
-            "consecutive_correct": int(row["consecutive_correct"]),
-            "consecutive_wrong": int(row["consecutive_wrong"]),
+            "topic": row_dict["topic"],
+            "coefficient": float(row_dict["zpd_coefficient"]),
+            "consecutive_correct": int(row_dict["consecutive_correct"]),
+            "consecutive_wrong": int(row_dict["consecutive_wrong"]),
+            "total_consecutive_wrong": int(row_dict.get("total_consecutive_wrong", 0)),
         }
-    return {"topic": resolved, "coefficient": 1.0, "consecutive_correct": 0, "consecutive_wrong": 0}
+    return {"topic": resolved, "coefficient": 1.0, "consecutive_correct": 0, "consecutive_wrong": 0, "total_consecutive_wrong": 0}
 
 
 def record_quiz_result(is_correct: bool, topic: str | None = None) -> dict:
@@ -141,16 +142,19 @@ def record_quiz_result(is_correct: bool, topic: str | None = None) -> dict:
     coefficient = metrics["coefficient"]
     consecutive_correct = metrics["consecutive_correct"]
     consecutive_wrong = metrics["consecutive_wrong"]
+    total_consecutive_wrong = metrics.get("total_consecutive_wrong", 0)
 
     if is_correct:
         consecutive_correct += 1
         consecutive_wrong = 0
+        total_consecutive_wrong = 0
         if consecutive_correct >= ZPD_STREAK_THRESHOLD:
             coefficient = round(min(coefficient + ZPD_COEFFICIENT_STEP, ZPD_COEFFICIENT_MAX), 2)
             consecutive_correct = 0
     else:
         consecutive_wrong += 1
         consecutive_correct = 0
+        total_consecutive_wrong += 1
         if consecutive_wrong >= ZPD_STREAK_THRESHOLD:
             coefficient = round(max(coefficient - ZPD_COEFFICIENT_STEP, ZPD_COEFFICIENT_MIN), 2)
             consecutive_wrong = 0
@@ -158,8 +162,8 @@ def record_quiz_result(is_correct: bool, topic: str | None = None) -> dict:
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
     cursor.execute(
-        "UPDATE course_progress SET zpd_coefficient = ?, consecutive_correct = ?, consecutive_wrong = ? WHERE topic = ?",
-        (coefficient, consecutive_correct, consecutive_wrong, resolved),
+        "UPDATE course_progress SET zpd_coefficient = ?, consecutive_correct = ?, consecutive_wrong = ?, total_consecutive_wrong = ? WHERE topic = ?",
+        (coefficient, consecutive_correct, consecutive_wrong, total_consecutive_wrong, resolved),
     )
     conn.commit()
     conn.close()

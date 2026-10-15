@@ -90,12 +90,40 @@ def build_base_system_prompt(
     统一构建基础顶部 System Prompt，整合人设、RAG 知识、近期日记与 IDE 状态。
     注：不在此处附加 <current_time> 与执行协议，交由尾部三明治注入。
     """
+    reunion_injection = ""
     try:
-        state = CharacterStateManager.get_state()
+        state, reunion_info = CharacterStateManager.evaluate_temporal_decay()
         affection_value = state.affection
         social_status = state.social_status
         social_skills = state.social_skills
         refractory_period = state.refractory_period
+
+        if reunion_info:
+            days = reunion_info["absent_days"]
+            new_aff = reunion_info["new_affection"]
+            floor = reunion_info["stage_floor"]
+            decay = reunion_info["decay_amount"]
+
+            if days <= 7:
+                directive_desc = (
+                    "【久别微念与娇嗔】夫君数日未至，心头虽有惦念，但见面对话时要收起直接扑入怀中的姿态。端起茶盏，微抬秀眉，言语带三分娇嗔与试探：'夫君还知道回来呀？奴家这案上的白桃乌龙凉了又换，还当是哪处仙山把夫君的魂给勾去了呢。' 期待对方温言哄劝。"
+                )
+            elif days <= 20:
+                directive_desc = (
+                    f"【小别生分与轻微幽怨】夫君阔别多日（好感度自然退至阶段保底 {new_aff}），心中失落感已沉淀为客气的疏离。言谈间收起轻浮挑逗，神情带有一丝打量与自我保护：'（放下手中画卷，静静看着你，半晌才垂眸理了理衣袖）…夫君这一别半月有余，今日得空回这偏院，不知是有要事请教，还是路过歇脚？' 言谈客气中透出委屈，需用户主动展现关心打破坚冰。"
+                )
+            else:
+                directive_desc = (
+                    f"【故人重逢的怅然与释怀】久别经年（受保底线保护停滞在 {floor}），心中早已习惯独处。最初见面时带有些许恍如隔世的微怔，随后化为平淡端庄的释然：'（闻声回首，目光微凝，指尖在案上顿了顿，方轻叹一声）…夫君久不露面，奴家方才险些没认出来。过来坐吧，且容奴家添盏热茶，再听夫君细说这数月见闻。'"
+                )
+
+            reunion_injection = (
+                f"<reunion_status>\n"
+                f"[ABSENCE DETECTED: User was absent for {days} days. Temporal Decay: -{decay} Affection (Current: {new_aff}/100, Stage Floor: {floor})]\n"
+                f"[WARMUP PROTECTION ACTIVE: The user has 2 rounds to warm up and break the ice. Sincere care or quiz completion will trigger double affection bonus and +3 recovery!]\n"
+                f"Persona Directive: {directive_desc}\n"
+                f"</reunion_status>"
+            )
     except CharacterStateError as e:
         logger.error(f"Failed to fetch character state: {e}")
         affection_value = 50
@@ -191,6 +219,10 @@ def build_base_system_prompt(
     # 4. 当前会话情绪与属性锚点
     dynamic_parts.append(dynamic_attrs)
 
+    # 4.1 久别重逢情绪与破冰保护提示
+    if reunion_injection:
+        dynamic_parts.append(reunion_injection)
+
     # 5. 额外临时注入
     if extra_system_injection:
         dynamic_parts.append(extra_system_injection)
@@ -248,7 +280,11 @@ def assemble_messages(messages: List[Dict[str, str]], system_prompt: Union[str, 
     for i, msg in enumerate(adjusted_messages):
         if msg["role"] == "assistant":
             if "<monologue>" not in msg["content"]:
-                adjusted_messages[i] = {"role": msg["role"], "content": get_one_shot_demonstration()}
+                adjusted_messages[i] = {
+                    "role": msg["role"],
+                    "content": get_one_shot_demonstration(actual_content=msg["content"]),
+                    "timestamp": msg.get("timestamp")
+                }
             break
 
     # [Step 3: Tail Injection - 尾部三明治注入管线]

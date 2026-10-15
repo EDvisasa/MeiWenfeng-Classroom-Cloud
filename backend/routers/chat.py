@@ -287,3 +287,17 @@ async def approve_tool(request: ToolApprovalRequest):
         
     PENDING_APPROVALS[request.approval_id] = request.action
     return {"status": "success", "message": f"Tool execution {request.action}d."}
+
+
+@router.get("/greeting")
+def get_greeting(
+    affection: Optional[int] = None,
+    force_reunion: Optional[str] = None
+):
+    """
+    获取基于物理时段、好感阶段、久别重逢状态与 61KB 原版生活行为的笛卡尔积开场白 (ADR-010)。
+    支持前端新建会话时秒级调用，完全告别单一写死纯文本。
+    """
+    from backend.services.greeting_service import GreetingService
+    return GreetingService.generate_greeting(affection=affection, force_reunion=force_reunion)
+

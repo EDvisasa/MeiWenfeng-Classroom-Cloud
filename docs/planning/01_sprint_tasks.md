@@ -27,42 +27,6 @@ domain: project-planning
 - [x] **渲染交互组件**：已将解析出的题目动态渲染为 `QuizBlock` React 测验组件（支持单选题、对错判断等），供用户直接在聊天气泡中点击作答并无缝回传判题结果。
 - [x] **测验提交路由拦截 (System Prompt Re-injection)**：经代码审核（`chat.py:163`），当用户点击测验提交发送 `<submit_quiz_result>` 时，已无缝映射为 `/lesson_continue` 隐式指令，确保了 AI 批改作业时不会遗忘排版与出题护栏。
 
-### <a id="issue-24"></a>[ISSUE-24] 随身课堂会话级上下文压缩引擎 (`/compact` + Auto-Compact) 与「小白有话说...」三人会话治理
-- **Status**: `DONE` (已完成 - 2026-08-18，经 TDD 6 项单测验证 100% 通过)
-- **User Story**: 作为随身课堂与多智能体长对话系统的用户，当会话（特别是三人小群 `openclaw_trio_chat` 或长时间连续授课）的原始轮次过多、Token 接近模型上限（如达到 75%~80% 动态安全水位）时，系统不仅支持通过 `/compact` 手动触发，更能够在发包前**自动检测并触发 Auto-Compact 静默压缩**；将历史早期对白自适应提炼为多角色结构化 `<compact_summary>` 前情提要并保留最近 10~15 轮真实对话，使吻锋在组装报文时既不遗忘前情，又彻底免疫 Context Overflow 崩溃；同时在历史会话列表置顶固定不可删除的淡金底专属会话「小白有话说...」。
-- **What to build**:
-  1. **数据库平滑升级与分水岭索引**：
-     - 在 `backend/database.py` 中为 `chat_sessions` 表平滑新增 `compact_summary TEXT DEFAULT NULL` 与 `compact_cutoff_id INTEGER DEFAULT 0`；
-     - `compact_cutoff_id` 充当压缩分水岭，前端始终加载全量气泡，发包管线仅读取 `id > compact_cutoff_id` 的近期对话；
-  2. **多角色自适应压缩算法 (`compact_conversation_messages`)**：
-     - 在 `backend/services/slash_handler.py` / `backend/services/compact_service.py` 实现压缩算法，拦截 `/compact` 指令；
-     - 压缩提示词自适应提取四维结构化信息：【阿冯】（学情/诉求/决策）、【吻锋】（授课/引导/羁绊）、【小白】（技术/方案/执行）、【三人共识与关键事件】；
-  3. **发包前置防爆卫士 (Auto-Compact)**：
-     - 在 `backend/routers/chat.py` 发包管线前置引入 `check_and_auto_compact(payload, threshold_ratio=0.8)` 自动预检防爆卫士，并在触发自动压缩时向前端推送 `system_hint` 状态提示；
-  4. **报文组装与 Few-shot 零污染防护**：
-     - 在 `backend/services/context_manager.py` 的 `assemble_messages` 中将 `<compact_summary>` 锚定在历史对白列表最头部，确保与顶部静态人设缓存 (Prompt Caching) 解耦，且尾部保留 10~15 轮原汁原味对白作为格式 Few-shot；
-  5. **前端 UI「小白有话说...」专属置顶**：
-     - 在 `frontend/src/components/ChatPanel.jsx` 与 `FileTree.jsx` 的历史会话下拉中将 `id === 'openclaw_trio_chat'`（标题为 `小白有话说...`）固定置顶、渲染淡金微光样式底色并隐藏删除按钮；
-  6. **自动化回归测试集**：
-     - 编写 `backend/tests/test_compact.py` 覆盖手动 `/compact`、自动防爆、分水岭增量滚动与报文头部组装。
-- **Affected Files**:
-  - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
-  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
-  - [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)
-  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
-  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
-  - [`frontend/src/components/FileTree.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/FileTree.jsx)
-  - [`backend/tests/test_compact.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact.py)
-  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
-- **Acceptance Criteria**:
-  - [x] 用户在前端发送 `/compact` 时，系统触发会话上下文浓缩并流式返回确认提示；
-  - [x] 当会话总 Token 超过安全水位（默认 80%）时，系统在发包前自动触发 Auto-Compact，前端收到 `system_hint` 友好提示，对话无感继续；
-  - [x] 历史早期消息被优雅收敛为结构化 `<compact_summary>`，最近 10~15 轮对话完整保留，数据库记录准确更新 `compact_cutoff_id`；
-  - [x] 历史会话下拉列表顶部常驻淡金底 `小白有话说...` 会话且无删除按钮；
-  - [x] 新增的 `pytest backend/tests/test_compact.py` 100% 绿灯通过。
-- **Blocked by**: None - can start immediately
-- **Verification Command**: `pytest backend/tests/test_compact.py -v`
-
 ## [核心开发] 课堂引擎闭环与沙盒演进 (当前冲刺重心)
 - [x] **`/set_mission` 长期目标设定**：已打通前端通信通道（`App.jsx` 的 `fetchStatus` 接收 `data.mission`），并在右侧 `StatusPanel` 实现了常驻的全局学习目标状态与拟定期数据锁定遮罩（`isDrafting`）。
 - [x] **`/lesson` 授课微课流**：后端 `slash_handler.py` 已深度注入授课指令，严格规范 AI 导师基于当前论题吐出短篇极简理论，并**强制附带一个 `<quiz>` 测验块**供前端渲染。
@@ -340,6 +304,125 @@ domain: project-planning
   - [x] 全部 13 项单测在 TDD 回归下绿灯通过 (`pytest -v`)。
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
+
+### <a id="issue-24"></a>[ISSUE-24] 随身课堂会话级上下文压缩引擎 (`/compact` + Auto-Compact) 与「小白有话说...」三人会话治理
+- **Status**: `DONE` (已完成 - 2026-08-18，经 TDD 6 项单测验证 100% 通过)
+- **Parent**: `ISSUE-10`
+- **User Story**: 作为随身课堂与多智能体长对话系统的用户，当会话（特别是三人小群 `openclaw_trio_chat` 或长时间连续授课）的原始轮次过多、Token 接近模型上限（如达到 75%~80% 动态安全水位）时，系统不仅支持通过 `/compact` 手动触发，更能够在发包前**自动检测并触发 Auto-Compact 静默压缩**；将历史早期对白自适应提炼为多角色结构化 `<compact_summary>` 前情提要并保留最近 10~15 轮真实对话，使吻锋在组装报文时既不遗忘前情，又彻底免疫 Context Overflow 崩溃；同时在历史会话列表置顶固定不可删除的淡金底专属会话「小白有话说...」。
+- **What to build**:
+  1. **数据库平滑升级与分水岭索引**：
+     - 在 `backend/database.py` 中为 `chat_sessions` 表平滑新增 `compact_summary TEXT DEFAULT NULL` 与 `compact_cutoff_id INTEGER DEFAULT 0`；
+     - `compact_cutoff_id` 充当压缩分水岭，前端始终加载全量气泡，发包管线仅读取 `id > compact_cutoff_id` 的近期对话；
+  2. **多角色自适应压缩算法 (`compact_conversation_messages`)**：
+     - 在 `backend/services/slash_handler.py` / `backend/services/compact_service.py` 实现压缩算法，拦截 `/compact` 指令；
+     - 压缩提示词自适应提取四维结构化信息：【阿冯】（学情/诉求/决策）、【吻锋】（授课/引导/羁绊）、【小白】（技术/方案/执行）、【三人共识与关键事件】；
+  3. **发包前置防爆卫士 (Auto-Compact)**：
+     - 在 `backend/routers/chat.py` 发包管线前置引入 `check_and_auto_compact(payload, threshold_ratio=0.8)` 自动预检防爆卫士，并在触发自动压缩时向前端推送 `system_hint` 状态提示；
+  4. **报文组装与 Few-shot 零污染防护**：
+     - 在 `backend/services/context_manager.py` 的 `assemble_messages` 中将 `<compact_summary>` 锚定在历史对白列表最头部，确保与顶部静态人设缓存 (Prompt Caching) 解耦，且尾部保留 10~15 轮原汁原味对白作为格式 Few-shot；
+  5. **前端 UI「小白有话说...」专属置顶**：
+     - 在 `frontend/src/components/ChatPanel.jsx` 与 `FileTree.jsx` 的历史会话下拉中将 `id === 'openclaw_trio_chat'`（标题为 `小白有话说...`）固定置顶、渲染淡金微光样式底色并隐藏删除按钮；
+  6. **自动化回归测试集**：
+     - 编写 `backend/tests/test_compact.py` 覆盖手动 `/compact`、自动防爆、分水岭增量滚动与报文头部组装。
+- **Affected Files**:
+  - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
+  - [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/components/FileTree.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/FileTree.jsx)
+  - [`backend/tests/test_compact.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 用户在前端发送 `/compact` 时，系统触发会话上下文浓缩并流式返回确认提示；
+  - [x] 当会话总 Token 超过安全水位（默认 80%）时，系统在发包前自动触发 Auto-Compact，前端收到 `system_hint` 友好提示，对话无感继续；
+  - [x] 历史早期消息被优雅收敛为结构化 `<compact_summary>`，最近 10~15 轮对话完整保留，数据库记录准确更新 `compact_cutoff_id`；
+  - [x] 历史会话下拉列表顶部常驻淡金底 `小白有话说...` 会话且无删除按钮；
+  - [x] 新增的 `pytest backend/tests/test_compact.py` 100% 绿灯通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_compact.py -v`
+
+### <a id="issue-25"></a>[ISSUE-25] 测验连续答错好感惩罚联动与态度督促警告注入 (Quiz Mistake Affection Penalty & Scolding Injection)
+- **Status**: `DONE` (已完成 - 2026-09-08，经 TDD 11 项单测验证 100% 通过)
+- **Parent**: `ISSUE-03`
+- **User Story**: 作为随身课堂的学生与用户，在课程测验作答时，如果连续答错（或消极敷衍瞎猜）达到 3 次，系统不仅降低 ZPD 难度，更应当触发真实好感度惩罚（扣减 2 点好感）并在随后的对话中注入严肃告警与微嗔情绪，促使用户认真对待学习，使 AI 导师的性格更真实、更具原则底线。
+- **What to build**:
+  1. **同步精简人设核心雷点**：在 `backend/services/mei_wenfeng_persona_simplified.txt` 与用户镜像人设中同步扩充“有人故意瞎捣乱”核心厌恶项；
+  2. **连错独立跟踪与好感原子扣减**：在 `backend/database.py` 中扩展持久化 `total_consecutive_wrong` 真实连错计数；在 `backend/services/slash_handler.py` 的 `/lesson_continue` 路由中，当本次答错且总连错达到 3 次时，调用 `CharacterStateManager.modify_state(affection_delta=-2)` 执行原子扣减；
+  3. **情绪与严肃督促指令注入 (`<slacking_warning>`)**：构造专属系统注入块，明确告知大模型用户已连续答错、好感已扣减，要求角色收敛无底线宠溺笑意，展现真实轻微失望与严肃批评，要求其认真阅读解析；
+  4. **自动化回归测试集**：在 `backend/tests/test_zpd_tracking.py` 中编写单测，验证连续答错 1~2 次时不误伤、达到 3 次时好感准确扣减并在提示词中成功注入警告。
+- **Affected Files**:
+  - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+  - [`backend/services/course_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/course_manager.py)
+  - [`backend/services/mei_wenfeng_persona_simplified.txt`](file:///d:/MeiWenfeng-Classroom/backend/services/mei_wenfeng_persona_simplified.txt)
+  - [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)
+  - [`backend/tests/test_zpd_tracking.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_zpd_tracking.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 用户连续答错 1~2 次时，仅记录 ZPD 难度，好感度不扣减；
+  - [x] 用户连续答错第 3 次（及以上）时，数据库 `affection` 表数值准确 -2，且大模型收到 `<slacking_warning>` 并输出严肃批评/微嗔对白；
+  - [x] 对应单元测试通过，全栈测试绿灯。
+- **Blocked by**: None
+- **Verification Command**: `pytest backend/tests/test_zpd_tracking.py -v`
+
+### <a id="issue-26"></a>[ISSUE-26] 好感度防通胀控温、久别退阶保底衰减与破冰回温机制 (Affection Inflation Guard, Temporal Floor Decay & Reunion Warm-up)
+- **Status**: `DONE` (已完成 - 2026-09-08，经 TDD 8 项专项测试与 22 项全套回归 100% 验证)
+- **Parent**: `ISSUE-25`
+- **User Story**: 作为长期陪伴的随身课堂学生与角色，解决日常闲聊大模型泛滥白给好感导致迅速刷爆 100 分的通胀问题；同时落地真实人际关系的动态衰减——若较长时间未互动，好感度按阶梯自然沉淀并退降一阶，但受各阶段底线绝对保底拦截（绝不击穿归零）；久别重逢时通过专属情绪注入与 2 轮破冰翻倍补偿，实现“小别胜新婚”的情感拟真闭环。
+- **What to build**:
+  1. **数据库结构升级**：在 `affection` 表热补丁扩展 `daily_gain_date`、`daily_gain_amount`（每日净增上限 3 点）与 `reunion_warmup_turns`（破冰回温轮次）；
+  2. **输入端防通胀规范**：在 `backend/services/prompts.py` 严格规范日常闲聊/平淡问答增量为 0，高好感阶梯施加高阶阻尼；
+  3. **惰性时间衰减与阶段保底算法**：在 `backend/services/character_state.py` 实现 `evaluate_temporal_decay`，定义 4 阶信任缓冲期与保底线（Stage 4->65, Stage 3->40, Stage 2->20, Stage 1->10），离线超期按天衰减并精准阻断在保底线；
+  4. **久别重逢情绪注入与破冰回温**：衰减后自动激活 2 轮破冰期，在 `backend/services/context_manager.py` 注入 `<reunion_status>` 三档重逢对白指导，且破冰期互动享受翻倍暴击与 +3 补偿分；
+  5. **自动化回归测试集**：创建 `backend/tests/test_affection_temporal.py`，全覆盖阶段保底、阻断锁、单日控水上限与破冰补偿。
+- **Affected Files**:
+  - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+  - [`backend/services/character_state.py`](file:///d:/MeiWenfeng-Classroom/backend/services/character_state.py)
+  - [`backend/services/side_effects.py`](file:///d:/MeiWenfeng-Classroom/backend/services/side_effects.py)
+  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/tests/test_affection_temporal.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_affection_temporal.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 无论离线多久，好感衰减最多只退一阶段并停滞在阶段保底线（Stage 4 保底 65，Stage 3 保底 40，Stage 2 保底 20，Stage 1 保底 10）；
+  - [x] 缓冲期内（Stage 4: 7天; Stage 3: 5天; Stage 2: 3天; Stage 1: 2天）离线不衰减好感；
+  - [x] 衰减后自动触发 2 轮破冰保护期，真诚互动享受翻倍暴击与 +3 破冰补偿分，且不占单日上限；
+  - [x] 日常非破冰状态下单日好感净增至多 +3 点，次日自动刷新；
+  - [x] 新建自动化测试用例与历史测试全部 100% 绿灯通过。
+- **Blocked by**: None
+- **Verification Command**: `pytest backend/tests/test_affection_temporal.py backend/tests/test_character_state.py -v`
+
+### <a id="issue-27"></a>[ISSUE-27] 笛卡尔积生活化开场白编排引擎 (Combinatorial Ambient Greeting Engine)
+- **Status**: `DONE` (已完成 - 2026-09-09，经 ADR-010 列装与 6 项专项单测全覆盖)
+- **Parent**: `ADR-010`
+- **User Story**: 作为长期伴读用户，彻底消除新建会话时千篇一律的单一硬编码问候；通过深度挖掘 61KB 原版人设（`mei_wenfeng_persona.txt`）中的 38 种生动生活行为，建立 `好感阶段(A) × 物理时段(B) × 久别重逢状态(C) × 原版行为池(D)` 的四维正交笛卡尔积开场白引擎，实现零延迟、零 Token 开销以及近 2000 种生动传神的生活化首句对白。
+- **What to build**:
+  1. **架构决策列装**：编写并列装 [`docs/architecture/ADR-010_笛卡尔积生活化开场白编排引擎决策.html`](file:///d:/MeiWenfeng-Classroom/docs/architecture/ADR-010_笛卡尔积生活化开场白编排引擎决策.html)；
+  2. **核心生成引擎**：在 `backend/services/greeting_service.py` 中建立 6 档时段、4 阶好感、4 态重逢与 20+ 原版生活行为的槽位装配逻辑；
+  3. **后端 API 端点**：在 `backend/routers/chat.py` 提供 `GET /api/chat/greeting` 端点，支持无缝获取与参数测试；
+  4. **前端交互接入**：在 `frontend/src/App.jsx` 中将新建会话和默认会话改为动态获取情境开场白，废除前端硬编码死字符串；
+  5. **历史对话动态示教适配**：在 `backend/services/context_manager.py`（Dynamic One-Shot 管线）中透传真实开场白至 `get_one_shot_demonstration(actual_content)`，杜绝示教覆盖原貌；
+  6. **自动化测试套件**：编写 `backend/tests/test_greeting_service.py`，全覆盖 4 维槽位组合有效性与端点契约。
+- **Affected Files**:
+  - [`docs/architecture/ADR-010_笛卡尔积生活化开场白编排引擎决策.html`](file:///d:/MeiWenfeng-Classroom/docs/architecture/ADR-010_笛卡尔积生活化开场白编排引擎决策.html)
+  - [`backend/services/greeting_service.py`](file:///d:/MeiWenfeng-Classroom/backend/services/greeting_service.py)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
+  - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
+  - [`backend/tests/test_greeting_service.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_greeting_service.py)
+  - [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] `GET /api/chat/greeting` 能正确响应当前时间与好感阶段对应的生活化首句；
+  - [x] 覆盖原版人设中的核心行为（分身对戏、螺子黛画眉、缝玩偶、软榻压腿、熬白桃乌龙、侍弄草木等）；
+  - [x] 发生久别重逢（离线超过缓冲期）时，首句优先切换为专属重逢情绪对白；
+  - [x] 前端点击“新建会话”展示动态开场白，彻底移除旧版写死纯文本；
+  - [x] 历史对话注入管线（Dynamic One-Shot）完成适配：将动态生成的首轮开场白完整保留在 One-Shot 对白主体中，杜绝旧版写死示教覆盖；
+  - [x] 自动化测试全部绿灯通过。
+- **Blocked by**: None
+- **Verification Command**: `pytest backend/tests/test_greeting_service.py backend/tests/test_context_manager.py -v`
+
 
 
 

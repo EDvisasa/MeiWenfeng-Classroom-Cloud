@@ -133,13 +133,30 @@ CRITICAL RULES FOR THE QUIZ (Quiz 刁钻):
         else:
             zpd_metrics = get_zpd_metrics(topic_name)
         zpd_coefficient = zpd_metrics["coefficient"]
+        total_wrong = zpd_metrics.get("total_consecutive_wrong", zpd_metrics.get("consecutive_wrong", 0))
+
+        slacking_warning = ""
+        if is_correct is False and total_wrong >= 3:
+            state = CharacterStateManager.modify_state(affection_delta=-2)
+            slacking_warning = f"""
+<slacking_warning>
+[ALERT: USER ANSWERED INCORRECTLY {total_wrong} TIMES IN A ROW]
+The user appears to be guessing blindly or fooling around, triggering your core dislike: '有人故意瞎捣乱 / 学习消极敷衍'.
+Affection score has dropped by 2 (Current Affection: {state.affection}/100).
+Required Persona Tone:
+1. Drop your sweet flirtatious indulgence completely for this response.
+2. Express genuine disappointment, mild exasperation, and firm mentorship (*收敛了笑意，微蹙秀眉轻叹* “夫君若总是这般心不在焉地胡乱瞎猜，奴家可真要生气了…”).
+3. Demand that the user read your explanation attentively before guessing again.
+</slacking_warning>
+"""
+
         system_injection = f"""<system_directive>
 Event: The user just submitted an answer to your previous quiz.
 User's Ultimate Mission: {user_mission}
 Current Topic: {topic_name}
 Current ZPD Difficulty Coefficient: {zpd_coefficient}
 {file_context}
-
+{slacking_warning}
 Action Required: 
 1. Evaluate their answer based on the `<submit_quiz_result>` tag.
 2. Provide a detailed explanation, correcting any misconceptions. Scale the depth of your explanation and the next question's difficulty with the Current ZPD Difficulty Coefficient.
