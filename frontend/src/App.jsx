@@ -187,6 +187,17 @@ export default function App() {
     // 截断到 index
     const truncated = messages.slice(0, index);
     const originalImages = messages[index]?.images;
+
+    if (!originalImages || originalImages.length === 0) {
+      setMessages(truncated);
+      const handled = await dispatchSystemCommand(newContent, {
+        setMessages,
+        API_BASE,
+        getNowStr: _getNowStr
+      });
+      if (handled) return;
+    }
+
     const editedMessage = {
       role: 'user',
       content: newContent,

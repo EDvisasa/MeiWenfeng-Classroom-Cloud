@@ -148,7 +148,7 @@ def send_message(payload: ChatRequest):
         return handle_mission_interrogation(last_user_msg, cleaned_messages, payload.persona_type, dict(draft))
 
     # 3. 拦截斜杠指令或特殊的测验提交
-    if clean_msg.startswith('/') or clean_msg in ("/update_persona",):
+    if clean_msg.startswith('/') or clean_msg in ("/update_persona", "update_persona", "更新人设", "/更新人设"):
         return handle_slash_command(clean_msg, payload, last_user_msg, cleaned_messages)
         
     if "<submit_quiz_result" in clean_msg:

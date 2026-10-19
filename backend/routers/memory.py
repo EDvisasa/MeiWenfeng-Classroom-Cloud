@@ -154,8 +154,6 @@ def update_persona_stream():
         except Exception as e:
             yield f"data: {json_escape(f'[系统更新] 生成精简人设失败: {e}')}\n\n"
             return
-        character_acknowledgement = "*伸了个懒腰，柔柔地搂住你的胳膊，红黑色的狐瞳含笑看着你，眼波娇嗔流转：*“夫君，奴家已经把自己的小档案更新好啦，这次绝对是最新最全的人设。随你喜欢精简的还是原汁原味的，奴家都听夫君的~”\n\n【此刻内心】：（哼，天天就知道折腾奴家，不过既然是夫君想要，那就算啦，等会儿得让他好好补偿人家才行~）"
-        yield f"data: {json_escape(character_acknowledgement)}\n\n"
     return StreamingResponse(generator(), media_type="text/event-stream")
 
 @router.get("/sessions")

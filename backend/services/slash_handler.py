@@ -39,7 +39,7 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
     persona_type = getattr(payload, 'persona_type', 'simplified')
 
     # === 1. /update_persona ===
-    if clean_cmd in ("/update_persona", "update_persona"):
+    if clean_cmd in ("/update_persona", "update_persona", "/更新人设", "更新人设"):
         return _handle_update_persona()
 
     # === 2. /summarize ===
@@ -346,6 +346,10 @@ class SlashHandler:
             pass
         response = handle_slash_command(command, DummyPayload(), command, [])
         return response.body_iterator
+
+def _handle_update_persona() -> StreamingResponse:
+    from backend.routers.memory import update_persona_stream
+    return update_persona_stream()
 
 def _handle_summarize() -> StreamingResponse:
     def raw_generator():

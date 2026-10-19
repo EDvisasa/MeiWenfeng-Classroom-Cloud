@@ -48,9 +48,16 @@ export const dispatchSystemCommand = async (commandText, context) => {
 
 
   // /update_persona: Sync and distil persona with SSE streaming
-  if (cmd === '/update_persona') {
+  const isUpdatePersona = ['/update_persona', 'update_persona', '/更新人设', '更新人设'].includes(cmd);
+  if (isUpdatePersona) {
     const userMsg = { role: 'user', content: commandText.trim(), timestamp: getNowStr() };
-    const sysMsg = { role: 'system_info', type: 'system_action', state: 'loading', text: '正在准备更新人设...' };
+    const sysMsg = {
+      role: 'system_info',
+      type: 'persona_update_progress',
+      state: 'loading',
+      content: '导师正在提炼并更新角色设定卡，请稍候...',
+      text: '导师正在提炼并更新角色设定卡，请稍候...'
+    };
     setMessages(prev => [...prev, userMsg, sysMsg]);
 
     try {
@@ -59,7 +66,6 @@ export const dispatchSystemCommand = async (commandText, context) => {
         
         const reader = res.body.getReader();
         const decoder = new TextDecoder("utf-8");
-
         while (true) {
             const { value, done } = await reader.read();
             if (done) break;
@@ -69,32 +75,55 @@ export const dispatchSystemCommand = async (commandText, context) => {
                 if (line.startsWith('data: ')) {
                     const dataStr = line.substring(6).trim();
                     if (!dataStr) continue;
-                    let parsedText = dataStr;
+                    let parsedData = dataStr;
                     try {
-                        // The backend yields escaped JSON strings like "data: \"[系统更新] ...\""
-                        parsedText = JSON.parse(dataStr);
+                        // The backend yields escaped JSON like "data: {\"text\": \"[系统更新] ...\"}"
+                        parsedData = JSON.parse(dataStr);
                     } catch (e) {}
 
-                    // Update the banner text dynamically
-                    setMessages(prev => {
-                        const updated = [...prev];
-                        const last = updated[updated.length - 1];
-                        if (last && last.type === 'system_action' && last.state === 'loading') {
-                            last.text = parsedText;
-                        }
-                        return updated;
-                    });
+                    let textVal = '';
+                    if (typeof parsedData === 'string') {
+                        textVal = parsedData;
+                    } else if (parsedData && typeof parsedData === 'object') {
+                        textVal = parsedData.text || parsedData.content || parsedData.message || '';
+                    } else {
+                        textVal = String(parsedData || '');
+                    }
+
+                    if (!textVal) continue;
+
+                    // Check if chunk represents a failure/error reported by backend
+                    const isError = textVal.includes('错误：') || textVal.includes('失败:');
+                    if (isError) {
+                        let errorText = textVal.replace(/^\[系统更新\]\s*/, '');
+                        errorText = errorText.replace(/^错误[：:]\s*/, '').replace(/^生成精简人设失败[：:]\s*/, '提炼失败: ');
+
+                        setMessages(prev => {
+                            const updated = [...prev];
+                            const last = updated[updated.length - 1] ? { ...updated[updated.length - 1] } : null;
+                            if (last && (last.type === 'persona_update_progress' || last.type === 'system_action')) {
+                                last.state = 'error';
+                                last.error = errorText;
+                                last.text = errorText;
+                                last.content = errorText;
+                                updated[updated.length - 1] = last;
+                            }
+                            return updated;
+                        });
+                    }
                 }
             }
         }
         
-        // When stream completes, set it to done
+        // When stream completes, set status to done (pure system card, no assistant dialogue pollution)
         setMessages(prev => {
             const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last && last.type === 'system_action' && last.state === 'loading') {
+            const last = updated[updated.length - 1] ? { ...updated[updated.length - 1] } : null;
+            if (last && (last.type === 'persona_update_progress' || last.type === 'system_action') && last.state === 'loading') {
                 last.state = 'done';
-                // The text remains whatever the last stream event set it to (e.g. "[系统更新] 更新大业已成...")
+                last.content = '角色设定卡提炼完毕，人设已同步。';
+                last.text = last.content;
+                updated[updated.length - 1] = last;
             }
             return updated;
         });
@@ -102,10 +131,13 @@ export const dispatchSystemCommand = async (commandText, context) => {
     } catch (e) {
         setMessages(prev => {
             const updated = [...prev];
-            const last = updated[updated.length - 1];
-            if (last && last.type === 'system_action') {
+            const last = updated[updated.length - 1] ? { ...updated[updated.length - 1] } : null;
+            if (last && (last.type === 'persona_update_progress' || last.type === 'system_action')) {
                 last.state = 'error';
-                last.text = `更新失败: ${e.message}`;
+                last.error = `提炼失败: ${e.message}`;
+                last.content = last.error;
+                last.text = last.content;
+                updated[updated.length - 1] = last;
             }
             return updated;
         });

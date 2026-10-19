@@ -258,3 +258,21 @@ domain: project-planning
      - 在 `backend/tests/test_cooldown_mechanics.py` 中升级 `test_multi_climax_refractory_accumulation`（断言 10 -> 18 -> 24 -> 24）；
      - 新增 `test_property_update_handler_climax_accumulation`（模拟自然会话多轮属性更新断言 10 -> 18 -> 24）；
      - 修复该测试文件中的异步测试执行流，全量 14 项专项单测 100% 绿灯通过。
+
+### 30. [已解决 / 前端卡片渲染与数据契约] 角色卡更新 `/update_persona` 缺乏完成提示与流式进度状态机（含 SSE JSON 对象解包报错）
+- **现象描述**：用户在聊天输入框发送 `/update_persona` 触发角色卡提炼与更新时：
+  1. 初版中前端会话区仅在用户气泡下方渲染出一个空白灰色胶囊小点，未展示任何更新进度或角色回应；
+  2. 接入初版卡片后，触发更新时卡片变红并报 `更新失败: parsedText.startsWith is not a function`。
+- **根因分析**：
+  1. **数据模型字段脱节**：`commandDispatcher.js` 构造并流式更新的系统消息最初使用了 `{ text }` 属性，而 `ChatPanel.jsx` 系统消息通用渲染仅读取 `{ content }`，导致由于 `content` 为 `undefined` 产生空白节点；
+  2. **SSE 数据为 JSON 对象而非裸字符串**：后端 `update_persona_stream` 使用 `json_escape` 包装输出（`{"text": "..."}`），前端 `JSON.parse` 解码后得到的是 Object `{ text: "..." }`。直接调用 `parsedText.startsWith('*')` 触发 `TypeError: parsedText.startsWith is not a function`；
+  3. **缺少专属 UI 状态机**：`ChatPanel.jsx` 未实现对 `persona_update_progress` 的专属卡片渲染，缺少如同 `summarize_progress` 的半透明呼吸卡片及 `loading / done / error` 三态转换；
+  4. **完成反馈被流吞噬**：后端 `update_persona_stream` 最终产出的角色伴侣收尾对白（"夫君，奴家已经把自己的小档案更新好啦..."）被赋值给了没有渲染的字段，未能化作助手气泡回显。
+- **解决路线**：
+  1. **列装 `persona_update_progress` 专属卡片**：在 `frontend/src/components/ChatPanel.jsx` 中新增对 `persona_update_progress` 的渲染，沿用粉红微光阴影（`accent-pink` 边框与光晕）及脉冲呼吸图标、完成勾选图标与错误警示图标，并通过 `safeText` 强校验保护防对象子节点崩溃；
+  2. **健壮多态解包与系统闭环设计（方案一）**：在 `frontend/src/services/commandDispatcher.js` 对解码对象进行自适应提取（兼容 `string`、`object.text`、`object.content`）；经与用户研讨，确立系统级维护指令遵循纯系统卡片闭环规范（对齐 `/summarize` 记忆整理），彻底移除硬编码写死在后端的 mock 罐头台词（原台词违规使用纯文本 `【此刻内心】` 打破了 `<monologue>` 协议且污染了上下文），仅以优雅的 `persona_update_progress` 系统卡片（“导师正在提炼并更新角色设定卡，请稍候...” -> “角色设定卡提炼完毕，人设已同步。”）作为完整反馈；
+  3. **后端潜在 NameError 修复**：在 `backend/services/slash_handler.py` 中补全 `_handle_update_persona` 路由转发逻辑；
+  4. **TDD 自动化测试闭环**：
+     - 在 [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 新增用例验证 `persona_update_progress` 的三态渲染及对象解包防护；
+     - 新建 [`frontend/src/services/commandDispatcher.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/services/commandDispatcher.test.js) 模拟真实 SSE 流对象解包与系统卡片派发，确保无多余 assistant 对白污染，全量 5 套件 38 项前端测试与 18 项后端单测 100% 绿灯。
+

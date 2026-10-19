@@ -904,6 +904,52 @@ export default function ChatPanel({
               );
             }
 
+            if (msg.type === 'persona_update_progress' || msg.type === 'system_action') {
+              const safeText = (val) => {
+                if (typeof val === 'string') return val;
+                if (val && typeof val === 'object') return val.text || val.content || val.message || '';
+                return '';
+              };
+              const displayLoading = safeText(msg.content) || safeText(msg.text) || '导师正在提炼并更新角色设定卡，请稍候...';
+              const displayDone = safeText(msg.content) || safeText(msg.text) || '角色设定卡提炼完毕，人设已同步。';
+              const displayError = safeText(msg.error) || safeText(msg.content) || safeText(msg.text) || '角色设定卡更新失败';
+
+              return (
+                <div key={index} className="system-info-msg" style={{
+                  alignSelf: 'center',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--accent-pink)',
+                  borderRadius: '6px',
+                  padding: '10px 14px',
+                  fontSize: '12px',
+                  color: 'var(--text-primary)',
+                  margin: '12px 0',
+                  maxWidth: '90%',
+                  textAlign: 'center',
+                  boxShadow: '0 2px 8px rgba(244, 114, 182, 0.15)'
+                }}>
+                  {msg.state === 'loading' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: 'var(--accent-pink)', fontWeight: 'bold' }}>
+                      <svg style={{ animation: 'pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite' }} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path></svg>
+                      {displayLoading}
+                    </div>
+                  )}
+                  {msg.state === 'done' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: '#10b981', fontWeight: 'bold' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                      {displayDone}
+                    </div>
+                  )}
+                  {msg.state === 'error' && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', justifyContent: 'center', color: 'var(--danger)', fontWeight: 'bold' }}>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line></svg>
+                      {displayError}
+                    </div>
+                  )}
+                </div>
+              );
+            }
+
             if (msg.type === 'markdown_doc') {
               return (
                 <div key={index} className="system-info-msg markdown-doc-msg" style={{
@@ -957,7 +1003,7 @@ export default function ChatPanel({
                 {msg.icon === 'draft' && (
                   <svg style={{ color: '#f59e0b' }} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
                 )}
-                {msg.content}
+                {typeof msg.content === 'string' ? msg.content : (typeof msg.text === 'string' ? msg.text : (msg.content?.text || msg.text?.text || ''))}
               </div>
             );
           }

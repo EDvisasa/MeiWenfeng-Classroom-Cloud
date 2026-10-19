@@ -549,5 +549,34 @@ domain: project-planning
   - [x] 会话测试套件全绿，零数据库污染，前端报文视窗验收通过。
 - **Verification Command**: `.venv\Scripts\pytest backend/tests/test_context_manager.py backend/tests/test_compact.py backend/tests/test_model_router_prompts.py`
 
+### <a id="issue-34"></a>[ISSUE-34] 角色设定卡更新指令 (/update_persona) 纯系统卡片闭环、多态对象解包与指令别名全链路拦截
+- **Status**: `DONE` (已完成 / 2026-10-20 全栈自动化测试通过并通过用户肉眼验收)
+- **User Story**: 作为用户，在触发角色设定卡更新（如 `/update_persona`、`/更新人设`、`更新人设`）时，我希望前端界面展示与记忆整理（`summarize_progress`）一致的优雅微光居中状态卡片（包含加载脉冲、完成与错误清晰提示），不再产生破坏沉浸感与格式违规的硬编码虚假角色对白气泡；同时后端与前端多层级拦截指令别名，阻断对话穿透。
+- **What to build**:
+  1. **前端居中系统状态卡片**: 在 `ChatPanel.jsx` 新增 `persona_update_progress` 卡片（粉红微光阴影、书卷脉冲呼吸图标、完成绿勾、失败警示图标），加载文案对齐为“导师正在提炼并更新角色设定卡，请稍候...”，完成文案对齐为“角色设定卡提炼完毕，人设已同步。”；
+  2. **多态对象解包与纯系统闭环**: 在 `commandDispatcher.js` 统一支持中英文指令别名（`['/update_persona', 'update_persona', '/更新人设', '更新人设']`），解析并兼容 SSE 包装的 JSON 对象 `{ text }`，彻底移除硬编码写死在后端的 mock 罐头台词（原台词违规使用纯文本 `【此刻内心】` 打破了 `<monologue>` 协议且污染了上下文），仅以纯系统卡片作为完整反馈；
+  3. **后端斜杠指令路由补全**: 在 `slash_handler.py` 中补齐 `_handle_update_persona()` 路由并映射至 `memory.update_persona_stream()`，并在 `chat.py` 补充中文别名拦截；
+  4. **全链路防穿透拦截**: 在 `App.jsx` 的 `handleEditAndResend`（二次编辑重发）中注入 `dispatchSystemCommand` 前置拦截，阻断二次编辑时指令穿透至聊天流；
+  5. **TDD 自动化测试闭环**: 新增 `commandDispatcher.test.js`，升级 `ChatPanel.test.jsx` 与 `test_routers_chat.py`，全量 5 套件 38 项前端单测与 18 项后端单测 100% 绿灯。
+- **Affected Files**:
+  - [`frontend/src/services/commandDispatcher.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/services/commandDispatcher.js)
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
+  - [`backend/routers/memory.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py)
+  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
+  - [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)
+  - [`frontend/src/services/commandDispatcher.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/services/commandDispatcher.test.js)
+  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
+  - [`backend/tests/test_routers_chat.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_routers_chat.py)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 发送 `/update_persona`、`update_persona`、`/更新人设`、`更新人设` 均唤起居中粉红微光卡片；
+  - [x] 卡片三态正常转换，加载态展示“导师正在提炼并更新角色设定卡，请稍候...”，完成态展示“角色设定卡提炼完毕，人设已同步。”；
+  - [x] 成功移除写死的 mock 台词，会话不追加任何 `assistant` 气泡，零上下文污染；
+  - [x] 二次编辑重发指令不穿透为普通对话气泡；
+  - [x] 前后端测试 100% 绿灯闭环。
+- **Verification Command**: `npm test -- --run` & `.venv\Scripts\pytest backend/tests/test_routers_chat.py backend/tests/test_cooldown_mechanics.py`
+
 
 

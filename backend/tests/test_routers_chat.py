@@ -34,3 +34,14 @@ def test_chat_request_validation_with_nulls():
     assert req.custom_max_tokens is None
     assert req.messages[0].content is None
     assert req.messages[0].timestamp is None
+
+def test_slash_handler_update_persona():
+    from backend.services.slash_handler import handle_slash_command
+    class DummyPayload:
+        current_file_path = None
+        persona_type = "simplified"
+
+    res = handle_slash_command("/update_persona", DummyPayload(), "/update_persona", [])
+    assert res is not None
+    assert hasattr(res, "body_iterator")
+

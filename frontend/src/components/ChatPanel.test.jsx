@@ -522,6 +522,96 @@ describe('ChatPanel Editing Behavior Tests', () => {
     expect(bubble.textContent).not.toContain('[系统提示]');
     expect(bubble.textContent).toContain('敏锐察觉到你眉宇间的肃然与专注');
   });
+
+  it('TDD 18 [Bug #30]: renders persona_update_progress card in loading, done, and error states', () => {
+    // 1. Loading state
+    const loadingProps = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'system_info',
+          type: 'persona_update_progress',
+          state: 'loading',
+          content: '导师正在提炼并更新角色设定卡，请稍候...'
+        }
+      ]
+    };
+    const { container: c1 } = render(<ChatPanel {...loadingProps} />);
+    const loadingPill = c1.querySelector('.system-info-msg');
+    expect(loadingPill).toBeInTheDocument();
+    expect(loadingPill.textContent).toContain('导师正在提炼并更新角色设定卡，请稍候...');
+
+    // 2. Done state
+    const doneProps = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'system_info',
+          type: 'persona_update_progress',
+          state: 'done',
+          content: '角色卡已更新，最新精简人设已同步！'
+        }
+      ]
+    };
+    const { container: c2 } = render(<ChatPanel {...doneProps} />);
+    const donePill = c2.querySelector('.system-info-msg');
+    expect(donePill).toBeInTheDocument();
+    expect(donePill.textContent).toContain('角色卡已更新，最新精简人设已同步！');
+
+    // 3. Error state
+    const errorProps = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'system_info',
+          type: 'persona_update_progress',
+          state: 'error',
+          error: '在目录中未找到匹配的原版人设卡片'
+        }
+      ]
+    };
+    const { container: c3 } = render(<ChatPanel {...errorProps} />);
+    const errorPill = c3.querySelector('.system-info-msg');
+    expect(errorPill).toBeInTheDocument();
+    expect(errorPill.textContent).toContain('在目录中未找到匹配的原版人设卡片');
+  });
+
+  it('TDD 19 [Bug #30]: renders system_info with text fallback when content is undefined', () => {
+    const props = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'system_info',
+          text: 'Fallback text when content is missing'
+        }
+      ]
+    };
+    const { container } = render(<ChatPanel {...props} />);
+    const pill = container.querySelector('.system-info-msg');
+    expect(pill).toBeInTheDocument();
+    expect(pill.textContent).toContain('Fallback text when content is missing');
+  });
+
+  it('TDD 20 [Bug #30]: safely unpacks object payload { text: "..." } in system messages', () => {
+    const props = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'system_info',
+          type: 'persona_update_progress',
+          state: 'loading',
+          content: { text: '正在读取原版人设...' }
+        },
+        {
+          role: 'system_info',
+          content: { text: 'Fallback object text' }
+        }
+      ]
+    };
+    const { container } = render(<ChatPanel {...props} />);
+    const pills = container.querySelectorAll('.system-info-msg');
+    expect(pills.length).toBe(2);
+    expect(pills[0].textContent).toContain('正在读取原版人设...');
+    expect(pills[1].textContent).toContain('Fallback object text');
+  });
 });
-
-
