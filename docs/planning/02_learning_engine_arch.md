@@ -75,12 +75,14 @@ domain: project-planning
 3. **ZPD 追踪模块**：
    在 SQLite 的 `course_progress` 表中加入用户能力评估指标，让系统每次备课时自动判断：现在的难度是太枯燥了，还是太受挫了？
 
-## 五、远期演进规划：理论讲义 UI 编辑与互动 (待重新设计)
+## 五、已落地架构演进：知识档案预览与编辑弹窗 (已于 ADR-008 落地列装)
 
 > [!NOTE]
-> 记录时间：2026-06-27。本项功能经初步预试与沟通后，确认非当前核心任务，且内联 Markdown 文本框直接编辑的方式并非最理想形态，后续需要重新思考交互与知识沉淀的形式。在此作为架构演进备忘记录。
+> **演进状态**：已正式列装（见 [`docs/architecture/ADR-008_知识档案预览与编辑弹窗架构决策.html`](file:///d:/MeiWenfeng-Classroom/docs/architecture/ADR-008_知识档案预览与编辑弹窗架构决策.html) 与 `[ISSUE-09]`）。
+> 废弃了早期的侵入式内联 Textarea 设想，重构为独立的全局浮层组件 `PreviewEditModal.jsx`，打通了前端用户合法编辑、保存与后台 RAG 向量重同步管线。
 
-1. **需求背景**：全面对齐 Matt Pocock 的教学理念（"References 是高频查阅的高信噪比速查表"），且知识压缩应预留给学习者亲自参与或编写的主导权。
-2. **预想形态与待解决痛点**：
-   - 学习者在对话界面中生成或阅读 Reference 卡片后，希望能够手动干预修改、批注或提炼内容，并最终写回底层 `data/materials/References/` 本地库。
-   - 内联文本框形式（Textarea）在阅读流畅度与编辑体验上存在割裂，之后正式开发该特性时，需重新设计交互界面（例如右侧联动抽屉 editor 或更智能的渐进式高亮批注）。
+1. **核心落地机制**：
+   - **双通道安全写入模型**：由后端 `POST /api/chat/materials/save` 端点与 `MaterialsManager.save_material_content()` 接管，严格白名单防穿透。
+   - **保存与 RAG 向量同步闭环**：保存成功后即时触发 ChromaDB / RAGFlow 增量重新向量化，实现本地知识库零延迟刷新。
+   - **自动化测试保障**：后端回归测试已落地于 `backend/tests/test_materials_save.py`，全量测试 100% 绿灯。
+

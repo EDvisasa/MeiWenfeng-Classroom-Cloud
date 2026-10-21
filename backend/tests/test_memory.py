@@ -48,31 +48,17 @@ def clean_ragflow():
                 print(f"✅ RAGFlow 清理完毕，已删除 {len(ids_to_delete)} 个文件。API响应: {del_resp.status_code}")
 
 def clean_database():
-    print("🧹 正在清空本地数据库的所有历史记忆...")
-    conn = sqlite3.connect('backend/classroom.db')
-    c = conn.cursor()
-    c.execute('DELETE FROM memory_logs')
-    conn.commit()
-    conn.close()
-    print("✅ 数据库 memory_logs 表已清空。")
+    raise RuntimeError(
+        "【安全拦截】严禁在测试中直连并清空生产数据库 backend/classroom.db！"
+        "用户重要记忆必须受到绝对物理保护。"
+    )
 
 def inject_and_test():
-    print("⏳ 正在注入全新的测试用例...")
-    conn = sqlite3.connect('backend/classroom.db')
-    c = conn.cursor()
-    c.execute("""
-        INSERT INTO memory_logs (content, summary, level, status, timestamp) 
-        VALUES (?, ?, 0, 'active', datetime('now', '-1 day'))
-    """, ("【对话记录】\n用户：娘子，我发现引气入体时，如果闭上眼睛去感受周围风的流动，灵气聚集得会快很多！\n媚吻锋：（眼中闪过一丝赞赏，轻轻走近）夫君悟性真高，这正是‘天人合一’的雏形呢。来，闭上眼，让奴家奖励你一个香吻，助你稳固这丝灵光~", ""))
-    conn.commit()
-    conn.close()
-    print("✅ 新测试数据注入成功。")
-    
-    print("🚀 触发记忆遗忘与压缩引擎 ( process_memory_decay )...")
-    stats = process_memory_decay()
-    print("🎉 压缩同步完成！统计结果:", stats)
+    raise RuntimeError(
+        "【安全拦截】严禁在测试中直连并污染生产数据库 backend/classroom.db！"
+        "如需测试，请通过 pytest 与 conftest.py 提供的临时数据库执行。"
+    )
 
 if __name__ == '__main__':
-    clean_ragflow()
-    clean_database()
-    inject_and_test()
+    print("本测试脚本已受【数据库变异拦截规则】物理保护，严禁直连生产数据库执行。")
+

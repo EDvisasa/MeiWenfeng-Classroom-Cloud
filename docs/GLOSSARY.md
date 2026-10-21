@@ -3,7 +3,7 @@ id: DOC-GLOSSARY
 title: 全局领域通用语言字典
 status: active
 created: 2026-07-04
-updated: 2026-09-09
+updated: 2026-10-22
 domain: core-architecture
 ---
 # 📚 媚吻锋随身课堂 —— 全局领域通用语言字典 (Ubiquitous Language Dictionary)
@@ -53,10 +53,12 @@ domain: core-architecture
 | **时间自然衰减与缓冲期** | `Temporal Decay & Buffer Grace Period` <br>(`backend/services/side_effects.py`) | 依据用户离线自然天数计算的好感衰退机制。在各阶对应的豁免缓冲期（2~7天）内不扣分，超期后按天衰减。 | ❌ 严禁称作“好感掉级”或“无底线清零”。 |
 | **阶数跌落保底** | `Affection Stage Floor Guarantee` <br>(`STAGE_FLOOR_LIMITS`) | 好感衰减算法中的防崩塌铁律：无论离线多久，好感度**至多只退一阶**，且停滞在该阶最低保底值（65/40/20/10）。 | ❌ 严禁称作“掉段锁死”。 |
 | **破冰保护期与暴击补偿** | `Ice-Breaking Warm-Up & Critical Bonus` <br>(`ice_breaking_turns`) | 发生阶数衰减后触发的 2 轮破冰过渡态。互动享受翻倍暴击与 +3 破冰补偿分，且豁免单日增量上限。 | ❌ 严禁称作“新手加成”或“补偿包”。 |
-| **单日好感净增上限** | `Daily Affection Net Cap` <br>(`MAX_DAILY_NET_GAIN = 3`) | 日常非破冰状态下，单日好感净增至多 +3 点，次日自然刷新，防止高频短对话刷屏溢出。 | ❌ 严禁称作“防沉迷”或“经验锁”。 |
+| **单日好感净增上限** | `Daily Affection Net Cap` <br>(`DAILY_GAIN_CAP = 4`) | 日常非破冰状态下，单日好感净增至多 +4 点，次日自然刷新，形成健康的一周情感潮汐周期（ADR-011 / ISSUE-32）。 | ❌ 严禁称作“防沉迷”或“经验锁”。 |
 | **笛卡尔积开场白编排引擎** | `Combinatorial Ambient Greeting Engine` <br>(`backend/services/greeting_service.py`) | 由好感阶段(A) × 现实时段(B) × 久别重逢状态(C) × 原版行为池(D) 四维正交空间构成的零 Token、零延迟生活化开场白生成器。 | ❌ 严禁称作“随机问候机”或“随机话术库”。 |
 | **槽位填充开场白模板** | `Slot-Filling Greeting Template` | `*（[时段衣着]，正[独处行为]。[过渡面相]）*“[首句台词]”` 的严谨角色生活化动作组装语法。 | ❌ 严禁称作“字符串拼接”。 |
 | **原版生活行为池** | `Persona Vignette Pool` <br>(`ORIGINAL_VIGNETTES`) | 深度挖掘自 61KB 原版人设（《桃花扇》对戏、螺子黛画眉、缝制红狐玩偶、软榻压腿做臀桥等）的 38 种日常真实行为切片集合。 | ❌ 严禁称作“日常动作列表”。 |
+| **多模态图文对话载荷** | `Multimodal Image Payload` <br>(SQLite `chat_messages.images` 列) | 前后端会话支持图文混排的通道，接收 Base64 或图片链接，并根据模型视觉能力动态感知与渲染。 | ❌ 严禁直接与纯文本对白无标记混拼。 |
+| **生理内分泌梯级与潮汐阻尼** | `Physiological Climax Gradient & Tidal Damping` <br>(`backend/services/character_state.py`) | 拟人生理不应期三阶跃迁梯度（初次 10 -> 二次 18 -> 三次及以上 24）与事后温存阻尼降温算式（`max(affection - 8, stage_floor)`）。 | ❌ 严禁称作“疲劳值”或暴力置零/锁死。 |
 
 ### 1.4 提示词工程与发包隔离规范 (Prompt & Context Core Definitions)
 
@@ -66,7 +68,7 @@ domain: core-architecture
 | **【效率铁律】Concise English for System Instructions** | 中文仅限人设与对白；元提示词、系统约束及过渡引导句必须使用凝练纯英文，实现中英隔离与 Token 节约。 | 提示词工程规范 |
 | **【边界铁律】User Speech Disclaimer** | 附着在最后一条提问底部的系统注入上下文，需包夹显式免责声明，明确属于运行时系统变量而非用户发言。 | 提示词工程规范 |
 
-> 📌 **开发实操细则引用**：提示词深拷贝要求、全英文过渡指引实施案例，请以单一点权威手册 [`docs/01_dev_and_test_guide.md` 报文编排与提示词准则](file:///D:/MeiWenfeng-Classroom/docs/01_dev_and_test_guide.md#L92-L104) 为准。
+> 📌 **开发实操细则引用**：提示词深拷贝要求、全英文过渡指引实施案例，请以单一点权威手册 [`docs/01_dev_and_test_guide.md` 报文编排与提示词准则](file:///d:/MeiWenfeng-Classroom/docs/01_dev_and_test_guide.md#L92-L104) 为准。
 
 ---
 
@@ -74,8 +76,9 @@ domain: core-architecture
 
 本项目核心模块设计遵循 Deep Module（深模块）原则，隐藏复杂逻辑并暴露简洁清晰的语义接口：
 - **CharacterState (`CharacterState`)**：虚拟角色的领域实体，封装好感度、修养、为人处世及生理状态等核心数值。
-- **CharacterStateManager (`backend/services/character_state_manager.py`)**：负责角色数值跃迁校验与持久化的深模块。遇到非法操作时显式抛出 `CharacterStateError`，严禁隐式吞除异常。
+- **CharacterStateManager (`backend/services/character_state.py`)**：负责角色数值跃迁校验与持久化的深模块。遇到非法操作时显式抛出 `CharacterStateError`，严禁隐式吞除异常。
 - **ActionRegistry 与 Side-Effect Handlers**：管理流式响应生命周期中的无状态副作用处理逻辑（如动作快照、课表同步、自然衰减）。
+
 
 ---
 

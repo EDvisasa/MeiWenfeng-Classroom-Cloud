@@ -579,7 +579,7 @@ domain: project-planning
 
 ### <a id="issue-35"></a>[ISSUE-35] 自动浓缩与对话压缩模型路由对齐 (Auto-Compaction Model Routing Alignment & Local Model Hijack Defense)
 - **Status**: `DONE` (已完成 / 2026-10-22 TDD 自动化测试验证通过，零数据库污染)
-- **User Story**: 作为使用本地自部署大模型（如 `ninfer+kvmem`，位于 `http://127.0.0.1:8091/v1/`）的用户，在触发 `/compact` 手动压缩或会话上下文超出阈值触发 `check_and_auto_compact` 时，我希望大模型提炼纪要时严格使用当前激活的模型接口与模型 ID，绝不被历史陈旧硬编码篡改劫持至 `.env` 中的远程服务地址（如 `https://gcli.ggchan.dev/v1`），保障本地私有化部署的完全可用与离线安全。
+- **User Story**: 作为使用本地或私有化自部署大模型（如本地自建 OpenAI 兼容服务）的用户，在触发 `/compact` 手动压缩或会话上下文超出阈值触发 `check_and_auto_compact` 时，我希望大模型提炼纪要时严格使用当前激活的模型接口与模型 ID，绝不被历史陈旧硬编码篡改劫持至 `.env` 中的远程服务地址，保障本地私有化部署的完全可用与离线安全。
 - **What to build**:
   1. **模型路由机制对齐**: 在 [`backend/services/compact_service.py`](file:///d:/MeiWenfeng-Classroom/backend/services/compact_service.py) 中重构 `call_llm_for_summary` 的路由解析逻辑，与 Bug #31（`memory_decay.py`）保持高内聚一致；
   2. **本地地址白名单守护**: 增加 `is_local = "localhost" in base_url or "127.0.0.1" in base_url or "0.0.0.0" in base_url` 检测，禁止对本地地址覆写 `base_url`，并允许无 key 访问（缺省填 `no-key-required`）；仅对远程外部模型且数据库无 key 时回退至 `.env` 环境变量；

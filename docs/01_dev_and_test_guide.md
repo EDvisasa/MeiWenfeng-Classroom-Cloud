@@ -51,7 +51,7 @@ domain: core-architecture
 
 > 💡 **上下文协议与回合切断测试 (Context & Turn Separation Safety)**：任何对 `backend/services/context_manager.py` 中提示词执行框架（如 `[PHASE 2]` 分回合切断规则、`Cross-reference` 导航锚点）的修改，**必须强制执行 `pytest backend/tests/test_context_manager.py`**，确保大模型在调工具回合能静默发 API 不吐独白，并在最终聊天回合正确生成隐状态与标签。
 
-> 🚨 **【极其致命】数据库变异拦截规则 (Database Mutation Safety)**：在编写或修改任何触及数据库的测试用例时（尤其涉及 `DELETE` / `UPDATE` / `DROP` 操作），**严禁直连生产环境数据库（如 `classroom.db`）！** 所有的测试必须、且只能通过 `backend/tests/conftest.py` 中提供的全局 `mock_db_path` fixture 来将数据库路径劫持到内存或临时文件（如 `test.db`）。如果不幸直接操作了 `memory_logs` 等表，会导致用户积累数月的重要学习记忆被瞬间永久清空！绝对不容许再犯！
+> 🚨 **【极其致命】数据库变异拦截规则 (Database Mutation Safety)**：在编写或修改任何触及数据库的测试用例时（尤其涉及 `DELETE` / `UPDATE` / `DROP` 操作），**严禁直连生产环境数据库（如 `classroom.db`）！** 所有的测试必须、且只能通过 `backend/tests/conftest.py` 中提供的全局 `mock_db_path` fixture 来将数据库路径劫持到内存或临时文件（如 `test.db`）。当前测试库所有脚本已嵌入运行时断言拦截器，物理阻断任何直连抹除生产数据库 `memory_logs` 等表的操作，确保用户积累的重要学习记忆万无一失。
 
 > 🌐 **网络层工具单测拦截规则 (Network Mock Safety)**：对于 `WebSearchTool`、`ReadUrlContentTool` 等联网工具的单元测试，**严禁在自动化测试（pytest）中直连外部真实网络！** 必须通过 `unittest.mock` 拦截 `DDGS` 及 `httpx.Client`，防止因限流或弱网导致 CI 流水线随机性失败。临时探路验证请存放在 `backend/scripts/` 中并及时清理。
 
@@ -59,7 +59,8 @@ domain: core-architecture
 
 前端的业务逻辑测试（如 `*.test.js`）直接存放在源码同级目录（例如 `frontend/src/utils/blockParser.test.js`）。这符合现代前端工程保持高局部性和内聚性的标准，方便 TDD 开发与维护。
 
-**如何运行**：在 `frontend` 目录下执行 `npm run test` 即可自动运行前端测试。
+**如何运行**：在 `frontend` 目录下执行 `npm test -- --run`（单次全量非交互执行）或 `npm test`（交互式监听热更新模式）即可自动运行前端测试。
+
 
 ---
 
