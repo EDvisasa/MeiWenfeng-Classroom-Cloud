@@ -22,7 +22,11 @@ if not os.environ.get("HF_HOME"):
 def _get_chroma_client():
     try:
         import chromadb
-        client = chromadb.PersistentClient(path=CHROMA_PERSIST_DIR)
+        from chromadb.config import Settings
+        client = chromadb.PersistentClient(
+            path=CHROMA_PERSIST_DIR,
+            settings=Settings(anonymized_telemetry=False)
+        )
         return client
     except ImportError:
         raise RuntimeError("chromadb 未安装，请运行: pip install chromadb sentence-transformers")
@@ -43,9 +47,35 @@ def _get_embedding_fn():
     try:
         if not os.environ.get("HF_HOME"):
             os.environ["HF_HOME"] = LOCAL_MODELS_DIR
+
+        # 0. 快速探测本地模型权重目录是否存在（毫秒级判断）
+        cached_model_path = os.path.join(
+            LOCAL_MODELS_DIR, 
+            "hub", 
+            "models--sentence-transformers--paraphrase-multilingual-MiniLM-L12-v2"
+        )
+        has_local_weights = os.path.exists(cached_model_path) and any(
+            fname.endswith((".safetensors", ".bin")) for _, _, files in os.walk(cached_model_path) for fname in files
+        )
+
+        if has_local_weights:
+            # 本地模型完备：直接锁死离线模式，禁止任何外部联网行为
+            os.environ["HF_HUB_OFFLINE"] = "1"
+            os.environ["TRANSFORMERS_OFFLINE"] = "1"
+            try:
+                from chromadb.utils import embedding_functions
+                ef = embedding_functions.SentenceTransformerEmbeddingFunction(
+                    model_name="paraphrase-multilingual-MiniLM-L12-v2",
+                    local_files_only=True
+                )
+                return ef
+            except Exception as e:
+                print(f"[Embedding Warning] 本地模型加载失败 ({e})，直接回退至内置轻量嵌入...")
+                return None
+
         from chromadb.utils import embedding_functions
 
-        # 1. 优先直接读取本地磁盘模型缓存（秒级加载，免除向 HuggingFace Hub 联网校验导致的 20s 卡顿与未授权警告）
+        # 1. 尝试直接读取本地磁盘模型缓存（免除向 HuggingFace Hub 联网校验导致的卡顿与未授权警告）
         try:
             ef = embedding_functions.SentenceTransformerEmbeddingFunction(
                 model_name="paraphrase-multilingual-MiniLM-L12-v2",

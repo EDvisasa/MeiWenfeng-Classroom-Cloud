@@ -276,3 +276,26 @@ domain: project-planning
      - 在 [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 新增用例验证 `persona_update_progress` 的三态渲染及对象解包防护；
      - 新建 [`frontend/src/services/commandDispatcher.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/services/commandDispatcher.test.js) 模拟真实 SSE 流对象解包与系统卡片派发，确保无多余 assistant 对白污染，全量 5 套件 38 项前端测试与 18 项后端单测 100% 绿灯。
 
+### 31. [已解决 / 记忆衰减与模型路由] /summarize 记忆压缩在本地或自定义 OpenAI 兼容模型下路由被硬编码劫持导致失败
+- **现象描述**：在前端输入 `/summarize` 触发记忆归档时，状态卡片最终报错：“压缩失败：大模型 API 调用生成记忆纪要失败，请检查大模型配置及 Token 余额后重试。”
+- **根因分析**：
+  - 在 [`backend/services/memory_decay.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_decay.py#L45-L50) 的 `generate_summary` 中，早期逻辑粗暴地以 `("deepseek" in model_name.lower() or protocol == "openai") and "本地" not in model_name` 进行兜底；
+  - 当激活名称不含“本地”二字的本地/自定义模型（如 `ninfer+kvmem`，位于 `http://127.0.0.1:8091/v1/`）时，其 `base_url` 被强行覆盖为 `.env` 的远程地址（`https://gcli.ggchan.dev/v1`），随后携带本地模型名 `qwen3.8-27b` 请求远程接口，导致持续失败重试并抛出 `RuntimeError`。
+- **解决路线**：
+  1. **路由机制对齐**：重构 `generate_summary` 的模型路由逻辑，优先完全尊重当前激活模型的 `base_url` 与 `selected_model_id`；
+  2. **本地地址白名单防护**：判断 `is_local = "localhost" in base_url or "127.0.0.1" in base_url or "0.0.0.0" in base_url`，本地模型直接以 `api_key or "no-key-required"` 建立连接，绝不篡改请求地址；仅在外部远程模型且 `api_key` 为空时才回退至 `.env` 环境变量；
+  3. **TDD 自动化测试闭环（零数据库污染）**：新增 [`backend/tests/test_memory_decay_routing.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_decay_routing.py)，模拟本地 OpenAI 兼容服务（`ninfer+kvmem`），断言请求地址与模型 ID 完全透传且无任何数据库写操作，单测 100% 绿灯通过。
+
+### 32. [已解决 / 自动浓缩与模型路由] 对话自动浓缩/压缩在本地或自定义 OpenAI 兼容模型下路由被硬编码劫持
+- **现象描述**：用户使用本地/自建 OpenAI 兼容后端（如 `ninfer+kvmem` 运行于 `http://127.0.0.1:8091/v1/`）时，手动执行 `/compact` 或单次会话超过最大上下文 80% 触发自动浓缩压缩时，纪要提炼失败或被强行向 `.env` 中配置的外部远程端点（如 `https://gcli.ggchan.dev/v1`）发起请求。
+- **根因分析**：
+  - 在 [`backend/services/compact_service.py`](file:///d:/MeiWenfeng-Classroom/backend/services/compact_service.py#L72-L79) 中，历史代码遗留了脆弱的兜底判断：`if ("deepseek" in model_name.lower() or protocol == "openai") and "本地" not in model_name:`；
+  - 一旦用户所选本地或局域网私有模型名称中不包含中文字符“本地”（例如 `ninfer+kvmem`），其 `base_url` 被粗暴覆盖为 `.env` 的远程地址，导致向外部 API 传递本地特有模型 ID，引发请求错误。
+- **解决路线**：
+  - 对齐 Bug #31 沉淀的标准路由守护架构：
+  - 1. **本地地址白名单守护**：使用 `is_local = "localhost" in base_url or "127.0.0.1" in base_url or "0.0.0.0" in base_url`；
+  - 2. **禁止强改 URL**：绝不在代码层面用 `.env` 覆盖激活模型的 `base_url`；本地模型免 key 连接；仅当外部远程模型且数据库无 key 时，才回退读取环境变量 key 兜底；
+  - 3. **精准传递模型 ID**：优先读取当前激活模型的 `selected_model_id`；
+  - 4. **TDD 自动化测试闭环（零数据库污染）**：新增 [`backend/tests/test_compact_routing.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact_routing.py)，全面覆盖本地服务透传与远程兜底场景，无任何数据库写操作，测试全绿。
+
+

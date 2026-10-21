@@ -575,8 +575,28 @@ domain: project-planning
   - [x] 卡片三态正常转换，加载态展示“导师正在提炼并更新角色设定卡，请稍候...”，完成态展示“角色设定卡提炼完毕，人设已同步。”；
   - [x] 成功移除写死的 mock 台词，会话不追加任何 `assistant` 气泡，零上下文污染；
   - [x] 二次编辑重发指令不穿透为普通对话气泡；
-  - [x] 前后端测试 100% 绿灯闭环。
 - **Verification Command**: `npm test -- --run` & `.venv\Scripts\pytest backend/tests/test_routers_chat.py backend/tests/test_cooldown_mechanics.py`
+
+### <a id="issue-35"></a>[ISSUE-35] 自动浓缩与对话压缩模型路由对齐 (Auto-Compaction Model Routing Alignment & Local Model Hijack Defense)
+- **Status**: `DONE` (已完成 / 2026-10-22 TDD 自动化测试验证通过，零数据库污染)
+- **User Story**: 作为使用本地自部署大模型（如 `ninfer+kvmem`，位于 `http://127.0.0.1:8091/v1/`）的用户，在触发 `/compact` 手动压缩或会话上下文超出阈值触发 `check_and_auto_compact` 时，我希望大模型提炼纪要时严格使用当前激活的模型接口与模型 ID，绝不被历史陈旧硬编码篡改劫持至 `.env` 中的远程服务地址（如 `https://gcli.ggchan.dev/v1`），保障本地私有化部署的完全可用与离线安全。
+- **What to build**:
+  1. **模型路由机制对齐**: 在 [`backend/services/compact_service.py`](file:///d:/MeiWenfeng-Classroom/backend/services/compact_service.py) 中重构 `call_llm_for_summary` 的路由解析逻辑，与 Bug #31（`memory_decay.py`）保持高内聚一致；
+  2. **本地地址白名单守护**: 增加 `is_local = "localhost" in base_url or "127.0.0.1" in base_url or "0.0.0.0" in base_url` 检测，禁止对本地地址覆写 `base_url`，并允许无 key 访问（缺省填 `no-key-required`）；仅对远程外部模型且数据库无 key 时回退至 `.env` 环境变量；
+  3. **透传活跃模型标识**: 准确优先透传当前激活模型的 `selected_model_id`，防止把本地模型名当作远程模型请求；
+  4. **TDD 自动化测试闭环（零数据库污染）**: 新建 [`backend/tests/test_compact_routing.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact_routing.py)，以纯 Mock 形式验证本地端点保持、模型 ID 透传及外部模型兜底，完全隔离 SQLite 数据库。
+- **Affected Files**:
+  - [`backend/services/compact_service.py`](file:///d:/MeiWenfeng-Classroom/backend/services/compact_service.py)
+  - [`backend/tests/test_compact_routing.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact_routing.py)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 激活本地模型时，`call_llm_for_summary` 严格使用本地 `base_url` 与 `selected_model_id`；
+  - [x] 本地模型请求绝不回退至 `.env` 的 `AIRP_MODEL_BASE_URL`；
+  - [x] 远程模型在缺省 API Key 时依然正常支持环境变量读取；
+  - [x] 测试全程零数据库污染，单测 100% 绿灯通过。
+- **Verification Command**: `.venv\Scripts\pytest backend/tests/test_compact_routing.py backend/tests/test_memory_decay_routing.py`
+
 
 
 

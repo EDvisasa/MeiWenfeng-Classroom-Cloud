@@ -15,6 +15,10 @@ ROOT_DIR = os.path.dirname(BACKEND_DIR)
 sys.path.insert(0, ROOT_DIR)
 load_dotenv(os.path.join(ROOT_DIR, ".env"))
 
+# 离线环境与性能优化：锁定本地模型字典与禁用遥测，杜绝断网启动时向外网发包导致 15s 握手超时
+os.environ.setdefault("LITELLM_LOCAL_MODEL_COST_MAP", "True")
+os.environ.setdefault("LITELLM_TELEMETRY", "False")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup (currently handled globally, can be moved here later)

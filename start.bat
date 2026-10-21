@@ -1,6 +1,9 @@
 @echo off
 chcp 65001 > nul
 set PYTHONUTF8=1
+set LITELLM_LOCAL_MODEL_COST_MAP=True
+set LITELLM_TELEMETRY=False
+set HF_HUB_DISABLE_TELEMETRY=1
 title Mei Wenfeng Classroom - Launcher
 
 echo ==========================================
@@ -21,9 +24,20 @@ if not exist .venv\Scripts\python.exe (
     echo [Info] Python virtual environment venv not found.
     echo [Info] Automatically creating virtual environment...
     python -m venv .venv
+    goto install_deps
 )
-echo [Info] Synchronizing backend dependencies...
-.venv\Scripts\python.exe -m pip install -r backend/requirements.txt > nul
+
+rem Fast-check backend dependencies (<3s import check of core frameworks)
+.venv\Scripts\python.exe -c "import fastapi, uvicorn, chromadb, litellm, pydantic, httpx" >nul 2>&1
+if %errorlevel% equ 0 (
+    echo [OK] Backend dependencies verified - fast check passed.
+    goto deps_ok
+)
+
+:install_deps
+echo [Warning] Dependencies incomplete or updated, synchronizing via pip...
+.venv\Scripts\python.exe -m pip install -r backend/requirements.txt
+:deps_ok
 
 rem 3. Check and Setup Node dependencies
 if exist frontend\node_modules goto frontend_ok
@@ -44,6 +58,10 @@ for /f "tokens=5" %%a in ('%SystemRoot%\System32\netstat.exe -aon ^| find ":1270
     echo Killing zombie process holding port 12703 PID %%a
     %SystemRoot%\System32\taskkill.exe /f /t /pid %%a >nul 2>&1
 )
+for /f "tokens=5" %%a in ('%SystemRoot%\System32\netstat.exe -aon ^| find ":12704" ^| find "LISTENING"') do (
+    echo Killing zombie process holding port 12704 PID %%a
+    %SystemRoot%\System32\taskkill.exe /f /t /pid %%a >nul 2>&1
+)
 
 rem 4. Start core services using concurrently
 echo ==========================================
@@ -55,7 +73,7 @@ echo.
 echo * Press Ctrl+C to stop all services safely. *
 echo ==========================================
 
-call npx --yes concurrently -n "FastAPI,React,LiteLLM" -c "bgBlue.bold,bgCyan.bold,bgYellow.bold" --kill-others ".venv\Scripts\python.exe -m backend.main" "cd frontend && npm run dev" ".venv\Scripts\litellm.exe --config backend/litellm_config.yaml --port 12704"
+call npx --prefer-offline concurrently -n "FastAPI,React,LiteLLM" -c "bgBlue.bold,bgCyan.bold,bgYellow.bold" --kill-others ".venv\Scripts\python.exe -m backend.main" "cd frontend && npm run dev" ".venv\Scripts\litellm.exe --config backend/litellm_config.yaml --port 12704 --telemetry False"
 
 pause
 

@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@300;400;500;600;700&family=Outfit:wght@300;400;500;600;700&display=swap');
+/* 本地优先系统字体声明（免除外网 Google Fonts 请求阻断首屏渲染，实现完全离线秒开） */
 
 :root {
   --bg-primary: rgba(255, 255, 255, 0.88);

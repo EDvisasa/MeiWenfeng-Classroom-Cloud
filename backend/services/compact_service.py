@@ -69,15 +69,16 @@ def call_llm_for_summary(messages: List[Dict[str, Any]]) -> str:
         elif "deepseek" in model_name.lower():
             model_id_api = "deepseek-chat"
 
-    if ("deepseek" in model_name.lower() or protocol == "openai") and "本地" not in model_name:
-        env_key = os.getenv("AIRP_MODEL_API_KEY") or os.getenv("DEEPSEEK_API_KEY")
-        env_url = os.getenv("AIRP_MODEL_BASE_URL") or os.getenv("DEEPSEEK_BASE_URL")
-        if env_key:
-            api_key = env_key
-        if env_url:
-            base_url = env_url
+    is_local = "localhost" in base_url or "127.0.0.1" in base_url or "0.0.0.0" in base_url
 
-    if not api_key and "localhost" not in base_url and "127.0.0.1" not in base_url:
+    # 仅当远程外部模型且数据库未保存 api_key 时，才尝试从环境变量读取兜底 key
+    if not is_local and not api_key:
+        if "deepseek" in model_name.lower():
+            api_key = os.getenv("DEEPSEEK_API_KEY") or os.getenv("AIRP_MODEL_API_KEY") or ""
+        else:
+            api_key = os.getenv("AIRP_MODEL_API_KEY") or os.getenv("DEEPSEEK_API_KEY") or ""
+
+    if not is_local and not api_key:
         logger.warning("No API Key configured, cannot perform LLM compaction.")
         return ""
 
