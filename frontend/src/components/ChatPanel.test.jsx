@@ -614,4 +614,20 @@ describe('ChatPanel Editing Behavior Tests', () => {
     expect(pills[0].textContent).toContain('正在读取原版人设...');
     expect(pills[1].textContent).toContain('Fallback object text');
   });
+
+  it('TDD 21 [ISSUE-38]: renders message containing markdown GFM table in ChatPanel', () => {
+    const props = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'assistant',
+          content: '| 项目 | 内容 |\n|---|---|\n| 基本信息 | 冯杰龙 |'
+        }
+      ]
+    };
+    const { container } = render(<ChatPanel {...props} />);
+    const textBlock = container.querySelector('.text-block');
+    expect(textBlock).toBeInTheDocument();
+    expect(screen.getByTestId('react-markdown')).toHaveTextContent('| 项目 | 内容 |');
+  });
 });

@@ -91,4 +91,18 @@ describe('PreviewEditModal Component Tests (TDD)', () => {
 
     expect(defaultProps.onClose).toHaveBeenCalledTimes(1);
   });
+
+  it('TDD 5: 支持渲染 GFM Markdown 表格 (Renders GFM Markdown table)', () => {
+    const tableFileData = {
+      path: 'Materials/Bazi.md',
+      content: '| 项目 | 内容 | 备注 |\n| :--- | :--- | :--- |\n| 基本信息 | 冯杰龙 | 男命 |\n| 出生时间 | 2000-06-11 | 庚辰年 |'
+    };
+    render(<PreviewEditModal {...defaultProps} fileData={tableFileData} />);
+
+    // 验证 table 元素被成功渲染且内容正确
+    expect(screen.getByRole('table')).toBeInTheDocument();
+    expect(screen.getByText('基本信息')).toBeInTheDocument();
+    expect(screen.getByText('冯杰龙')).toBeInTheDocument();
+    expect(screen.getByText('男命')).toBeInTheDocument();
+  });
 });

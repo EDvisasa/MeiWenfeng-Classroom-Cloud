@@ -6,6 +6,7 @@ import { AlertTriangle, Check, X, Image as ImageIcon } from 'lucide-react';
 import MissionProposalCard from './MissionProposalCard';
 import QuizBlock from './QuizBlock';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { COMMANDS } from '../constants/commands';
@@ -249,7 +250,7 @@ const ExplainerBlock = ({ block, idx, markdownComponents }) => {
       </div>
       {isExpanded && (
         <div style={{ padding: '16px', background: 'var(--bg-panel)', fontSize: '14px', lineHeight: '1.7', color: 'var(--text-primary)', maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
-          <div className="text-block explainer-content-wrapper"><ReactMarkdown components={markdownComponents}>{block.text}</ReactMarkdown></div>
+          <div className="text-block explainer-content-wrapper"><ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{block.text}</ReactMarkdown></div>
         </div>
       )}
     </div>
@@ -700,7 +701,13 @@ export default function ChatPanel({
           {children}
         </code>
       );
-    }
+    },
+    // 覆盖表格渲染，增加自适应横向平滑滚动容器与雅致表格样式
+    table: ({ node, ...props }) => (
+      <div className="table-responsive-wrapper">
+        <table className="markdown-table" {...props} />
+      </div>
+    )
   };
 
   const renderNormalizedBlocks = (blocks) => {
@@ -712,7 +719,7 @@ export default function ChatPanel({
       } else if (block.type === 'retry') {
         return <RetryBlock key={`retry_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'text') {
-        return <div key={`text_${idx}`} className="text-block"><ReactMarkdown components={MarkdownComponents}>{block.text}</ReactMarkdown></div>;
+        return <div key={`text_${idx}`} className="text-block"><ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{block.text}</ReactMarkdown></div>;
       } else if (block.type === 'quiz') {
         return <QuizBlock
           key={`quiz_${idx}`}

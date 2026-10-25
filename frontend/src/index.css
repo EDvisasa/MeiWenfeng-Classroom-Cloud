@@ -2447,3 +2447,71 @@ body {
   margin-bottom: 0.3rem !important;
   line-height: 1.7 !important;
 }
+
+/* ==========================================================================
+   Markdown GFM Table Styling (ISSUE-38)
+   ========================================================================== */
+
+.table-responsive-wrapper {
+  width: 100%;
+  margin: 14px 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  border-radius: var(--border-radius-sm, 8px);
+  border: 1px solid var(--border-color, rgba(128, 128, 128, 0.2));
+  background: var(--bg-secondary, rgba(255, 255, 255, 0.03));
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+}
+
+.markdown-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+  line-height: 1.6;
+  text-align: left;
+  color: var(--text-primary);
+  border-spacing: 0;
+}
+
+.markdown-table thead {
+  background: var(--bg-tertiary, rgba(128, 128, 128, 0.08));
+  border-bottom: 2px solid var(--border-color, rgba(128, 128, 128, 0.25));
+}
+
+.markdown-table th {
+  padding: 10px 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  white-space: nowrap;
+  letter-spacing: 0.2px;
+  border-right: 1px solid var(--border-color, rgba(128, 128, 128, 0.15));
+}
+
+.markdown-table th:last-child {
+  border-right: none;
+}
+
+.markdown-table td {
+  padding: 9px 14px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid var(--border-color, rgba(128, 128, 128, 0.12));
+  border-right: 1px solid var(--border-color, rgba(128, 128, 128, 0.1));
+  vertical-align: middle;
+}
+
+.markdown-table td:last-child {
+  border-right: none;
+}
+
+.markdown-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+.markdown-table tbody tr:nth-child(even) {
+  background: rgba(128, 128, 128, 0.03);
+}
+
+.markdown-table tbody tr:hover {
+  background: rgba(244, 114, 182, 0.06);
+  transition: background 0.15s ease-in-out;
+}

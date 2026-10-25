@@ -326,6 +326,19 @@ domain: project-planning
   4. **尾部注入提示词降敏**：在 [`context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 中，将 `[System Override & Execution Pointer]` 替换为规范中立的 `[Runtime Context Protocol & Execution Pointer]`，消除推理模型的防御幻觉；
   5. **TDD 自动化测试闭环**：在 [`blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js) 中新增包含草拟卡片、流式及属性嵌套引号的单测（41 项前端单测全绿），后端 [`test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 16 项用例 100% 绿灯通过。
 
+### 35. [已解决 / 前端渲染缺陷] Markdown GFM 表格语法未被解析渲染，平铺退化为带竖线的乱序文本
+- **现象描述**：用户在聊天窗口中发送或大模型在对白中回复包含标准 Markdown 表格语法（如 `| 项目 | 内容 | 备注 |`）的排盘/对比信息时，界面无法将其渲染为 HTML 栅格表格，而是退化为带有竖线 `|` 的平铺文本段落；若输入纯文本制表符或多空格排列的多列信息，连续空格也会被浏览器折叠导致列对齐错位。
+- **根因分析**：
+  1. 前端 [`package.json`](file:///d:/MeiWenfeng-Classroom/frontend/package.json) 中未安装 `remark-gfm` 扩展插件，`react-markdown` 仅遵循基础 CommonMark 规范，忽略表格语法；
+  2. [`ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) 与 [`PreviewEditModal.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.jsx) 未挂载 `remarkPlugins={[remarkGfm]}`；
+  3. 全局样式表 [`index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 缺失关于 `table`、`th`、`td` 等元素的设计系统样式规则。
+- **解决路线**：
+  1. 安装并引入 `remark-gfm` (v4.0.1)；
+  2. 在 `ChatPanel.jsx` 与 `PreviewEditModal.jsx` 的 `<ReactMarkdown>` 组件上挂载 `remarkPlugins={[remarkGfm]}`，并在 `MarkdownComponents` 中定制 `.table-responsive-wrapper` 滚动容器与 `table.markdown-table`；
+  3. 在 `index.css` 落地高质感毛玻璃、交替行与粉色暗亮主题自适应表格样式；
+  4. **TDD 自动化测试闭环**：在 [`ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 与 [`PreviewEditModal.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.test.jsx) 落地单测验证表格正常渲染，43 项前端单测 100% 绿灯通过。
+
+
 
 
 

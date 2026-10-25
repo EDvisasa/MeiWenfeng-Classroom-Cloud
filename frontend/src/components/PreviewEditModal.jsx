@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { API_BASE } from '../config';
@@ -217,7 +218,12 @@ const PreviewEditModal = ({ isOpen, onClose, fileData, onSaveSuccess }) => {
           {children}
         </code>
       );
-    }
+    },
+    table: ({ node, ...props }) => (
+      <div className="table-responsive-wrapper">
+        <table className="markdown-table" {...props} />
+      </div>
+    )
   };
 
   return (
@@ -403,7 +409,7 @@ const PreviewEditModal = ({ isOpen, onClose, fileData, onSaveSuccess }) => {
                 margin: '0 auto'
               }}
             >
-              <ReactMarkdown components={markdownComponents}>{editedContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{editedContent}</ReactMarkdown>
             </div>
           ) : (
             <textarea

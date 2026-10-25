@@ -647,5 +647,32 @@ domain: project-planning
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `cd frontend && npm test -- --run && pytest backend/tests/test_context_manager.py -v`
 
+### <a id="issue-38"></a>[ISSUE-38] 前端 Markdown 渲染流支持 GitHub Flavored Markdown (GFM) 表格扩展与雅致主题样式渲染 (Markdown GFM Table Support & Theme Styling)
+- **Status**: `DONE` (已完成 / 2026-10-25 经前端 Vitest 自动化测试闭环通过)
+- **Parent**: `ADR-009` / `ISSUE-06`
+- **User Story**: 作为随身课堂用户，当我在输入框中发送带有结构化表格的数据（或复制粘贴带有 Markdown 语法的八字盘、知识对比表格），或者 AI 导师在对话中回复 Markdown 规范表格（如 `| 列1 | 列2 |`）时，我希望前端界面能将其标准解析并渲染为高质感的 HTML 表格（含边框、圆角、交替背景与暗黑模式适配），而不是平铺退化为带有竖线和折叠空格的混乱文本。
+- **What to build**:
+  1. **安装并挂载 GFM 插件**：在 `frontend/` 安装 `remark-gfm`，并在 [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) 及 [`frontend/src/components/PreviewEditModal.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.jsx) 的 `<ReactMarkdown>` 组件上配置 `remarkPlugins={[remarkGfm]}`；
+  2. **定制化表格组件映射 (MarkdownComponents)**：在 `MarkdownComponents` 中定制 `table`, `thead`, `tbody`, `tr`, `th`, `td` 的渲染层，支持自适应宽度与移动端/窄屏横向平滑滚动；
+  3. **全局设计系统表格样式 (Theme Table CSS)**：在 [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 中为 `.text-block table` 和 `.markdown-body table` 添加精致现代的毛玻璃/边框与条纹背景样式，完美契合粉色随身课堂暗色/亮色主题；
+  4. **TDD 自动化测试闭环**：在 [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 与 [`frontend/src/components/PreviewEditModal.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.test.jsx) 中增加 Markdown GFM 表格渲染的单元测试。
+- **Affected Files**:
+  - `frontend/package.json`
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/components/PreviewEditModal.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.jsx)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
+  - [`frontend/src/components/PreviewEditModal.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.test.jsx)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+- **Acceptance Criteria**:
+  - [x] 文本中包含标准 Markdown GFM 表格语法时，被成功解析为 `<table>` 元素并渲染；
+  - [x] 表格在亮暗主题下均具备清晰优雅的边框、表头加粗底色、单元格 padding 与圆角溢出保护；
+  - [x] 知识档案预览弹窗（`PreviewEditModal`）同步支持 GFM 表格预览；
+  - [x] 前端自动化单测 `cd frontend && npm test -- --run` 全量绿灯通过（43/43）。
+- **Blocked by**: None — can start immediately
+- **Verification Command**: `cd frontend && npm test -- --run`
+
+
 
 
