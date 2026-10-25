@@ -207,7 +207,12 @@ def get_one_shot_demonstration(actual_content: str = "") -> str:
     获取标准化 One-Shot 思考独白与行为格式示范模板。
     若提供了实际的开场白对白 (actual_content)，则忠实保留其生活化原貌，在其外层包裹规范示教结构。
     """
-    body = actual_content.strip() if actual_content and actual_content.strip() else (
+    cleaned_actual = ""
+    if actual_content:
+        # 防御性清洗：若传入的 actual_content 已经带有旧的 <think>，先将其剔除，避免双重嵌套
+        cleaned_actual = re.sub(r'<think>[\s\S]*?</think>\s*', '', actual_content).strip()
+
+    body = cleaned_actual if cleaned_actual else (
         "*端坐在案头，身着素净茜红长衫，为案头的白桃植株修剪枝叶，抬眸瞧见你，嫣然一笑：*“夫君，你来啦。今天咱们从哪一部分开始？”"
     )
     return (

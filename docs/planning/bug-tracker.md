@@ -298,4 +298,17 @@ domain: project-planning
   - 3. **精准传递模型 ID**：优先读取当前激活模型的 `selected_model_id`；
   - 4. **TDD 自动化测试闭环（零数据库污染）**：新增 [`backend/tests/test_compact_routing.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact_routing.py)，全面覆盖本地服务透传与远程兜底场景，无任何数据库写操作，测试全绿。
 
+### 33. [已解决 / 报文组装与思维链污染] 多轮对话历史回灌真实 <think> 思维链导致 35B-A3B MoE 小模型思维严重劣化
+- **现象描述**：在随身课堂使用 Tiel-Coder-35B-A3B / CyberTiel 等推理小模型（35B MoE 架构，每个 Token 仅约 3B 活跃参数）进行多轮对话时，从第二轮开始模型输出严重失常、思维僵化、机械照搬上轮推演格式或陷入胡乱推演死循环（例如将八字排盘算命等大段内部思考持续反刍），丧失真正推理能力。
+- **根因分析**：
+  1. **报文洗净边界缺失思维链剥离**：在 [`context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 的 `assemble_messages()` 中，历史所有 `assistant` 轮次正式生成的真实 `<think>...</think>` 思维链被未经处理地直接组装进 `<current_session_history>`；
+  2. **小 MoE 注意力劫持与状态认知冲突 (Attention Hijacking & Commitment Trap)**：3B 活跃参数的小模型注意力抗偏置能力有限。在多轮对话的上下文中频繁看到上一轮遗留的长篇思维推演，模型会误将其视作当下未决逻辑，发生错误级联或僵化格式抄袭；
+  3. **业界推理规范对齐缺失**：官方推理模型标准（如 DeepSeek-R1 / QwQ）明确规范：CoT 仅作为当前轮次的测试时计算（Test-Time Compute），多轮对话上下文必须剥离历史 `<think>`，仅向后传递最终可见对白与状态标签。
+- **解决路线**：
+  1. **首轮动态示教白名单保护**：在 `assemble_messages` 中保留首轮开场白对应的 `Dynamic One-Shot Demonstration` 标准六步 `<think>` 示教范本，并在 [`prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py) 中增加防御性清洗防双重嵌套；
+  2. **后续真实历史思维链动态内存剥离**：在 `assemble_messages` 中，对首轮示教之后的所有后续历史 `assistant` 消息使用正则 `re.sub(r'<think>[\s\S]*?</think>\s*', '', content)` 动态剥离其实际推演产生的思维链，保留最终对白、`<monologue>` 与 `<property_update>`；
+  3. **零数据库与零 UI 变动 (Zero DB Pollution)**：剥离纯粹发生在发包前内存视图，SQLite `chat_messages` 保持原汁原味，前端打字机思考折叠框不受任何影响；
+  4. **TDD 自动化测试闭环**：在 [`test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 落地专项单测 `test_assemble_messages_strips_subsequent_historical_think_issue_36`，全量 16 项上下文测试 100% 绿灯通过。
+
+
 

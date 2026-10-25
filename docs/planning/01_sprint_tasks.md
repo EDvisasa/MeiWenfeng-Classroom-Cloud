@@ -597,6 +597,25 @@ domain: project-planning
   - [x] 测试全程零数据库污染，单测 100% 绿灯通过。
 - **Verification Command**: `.venv\Scripts\pytest backend/tests/test_compact_routing.py backend/tests/test_memory_decay_routing.py`
 
-
-
+### <a id="issue-36"></a>[ISSUE-36] 历史会话真实思维链动态剥离与首轮示教保留 (Historical CoT Dynamic Stripping with One-Shot Demonstration Preservation)
+- **Status**: `DONE` (已完成 / 2026-10-25 经 TDD 红绿灯测试闭环验证通过)
+- **Parent**: `ADR-009` (上下文管线规范) / `ISSUE-33`
+- **User Story**: 作为随身课堂与大模型会话引擎（尤其在使用 Tiel-Coder-35B-A3B / CyberTiel 等 3B 活跃参数的 MoE 小模型时），在多轮对话发包组装实时报文（`assemble_messages`）时，我希望首轮动态示教报文（`Dynamic One-Shot Demonstration`）中的标准化六步 `<think>` 范本得到完整保留以维持输出契约约束；同时将后续多轮由模型正式生成的真实 `<think>...</think>` 思维链在内存中动态剥离，仅保留其最终可见对白与状态标签；在完全不改动数据库与前端 UI 的前提下，彻底杜绝历史繁重思维链导致的认知冲突、格式僵化与思维劣化。
+- **What to build**:
+  1. **首轮动态示教识别与白名单保留**：在 [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 的 `assemble_messages()` 中，保留首个 `assistant` 节点（经 `get_one_shot_demonstration` 包裹）中的标准化示教 `<think> 1. User Intent... </think>` 完整无损；并在 `get_one_shot_demonstration` 中对传入内容进行防御性清洗；
+  2. **后续真实历史思维链安全剥离**：在 `assemble_messages()` 遍历历史消息时，针对首个示教助手节点之后的所有后续历史 `assistant` 消息，使用高效正则 `re.sub(r'<think>[\s\S]*?</think>\s*', '', content)` 动态剥离其实际推演产生的 `<think>...</think>`，保留正文台词、`<monologue>` 与 `<property_update>`；
+  3. **零数据库与零 UI 污染**：处理完全发生在发包前内存视图（`assemble_messages`）中，SQLite `chat_messages` 保持原汁原味，前端打字机思考折叠框不受任何影响；
+  4. **TDD 自动化测试全覆盖**：在 [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 中增加专项单测 `test_assemble_messages_strips_subsequent_historical_think_issue_36`，模拟多轮对话（含八字排盘或大段推理），断言首轮示教 `<think>` 留存、后续各轮 `<think>` 彻底剥除。
+- **Affected Files**:
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 发往 LLM 的实时组装报文视窗（`/api/chat/system_context`）中，首轮动态示教中的标准六步 `<think>` 范本完整展示；
+  - [x] 首轮示教之后的所有真实历史 `assistant` 消息中的 `<think>...</think>` 均被动态剥离，不进入 `<current_session_history>`；
+  - [x] 数据库（SQLite `chat_messages`）不发生任何离线修改或清洗，前端依然支持查阅历史思考折叠气泡；
+  - [x] `pytest backend/tests/test_context_manager.py` 自动化测试集 100% 绿灯通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
 

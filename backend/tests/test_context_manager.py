@@ -378,5 +378,82 @@ def test_assemble_messages_wraps_current_session_history():
     assert "Distinguish strictly between retrieved past memory archives" in current_prompt_msg["content"]
 
 
+def test_assemble_messages_strips_subsequent_historical_think_issue_36():
+    """
+    TDD [ISSUE-36] RED step:
+    验证 assemble_messages 在发包组装多轮历史时：
+    1. 首轮 Dynamic One-Shot 示教报文中的标准六步 <think> 模板完整保留（确保小模型习得规范输出契约）；
+    2. 首轮之后由大模型正式生成的后续所有历史 assistant 消息中的真实 <think>...</think> 思维链必须被动态剥离，
+       避免大段推演过程（如八字排盘、长篇 CoT）进入 <current_session_history> 导致 Tiel 等 35B-A3B MoE 小模型思维严重劣化；
+    3. 剥离过程不破坏台词、动作、<monologue> 与 <property_update>；
+    4. 原始输入 messages 保持绝对零副作用（深拷贝保护，数据库与前端 UI 数据不受任何影响）。
+    """
+    from backend.services.context_manager import assemble_messages
 
+    greeting_content = "*侧坐在红木椅上托腮凝望窗外晚霞* 夫君忙碌了一整天，回了屋里便只有咱们俩。"
+    bazi_think = (
+        "<think>\n"
+        "Let me analyze the current user instruction. The user is sharing his day: researched the bazi of a female netizen.\n"
+        "Female: 庚辰 庚辰 丙午 丁酉\n"
+        "Male (user): 庚辰 壬午 庚子 庚辰\n"
+        "Let me compute the bazi for both...\n"
+        "</think>\n"
+        "*轻蹙娥眉，指尖掐算* 夫君，这八字辰午暗冲，确叫人心神微滞。"
+        "<monologue>这冤家怎么研究起旁人八字来了</monologue>"
+        '<property_update affection_delta="0" social_status_delta="0" social_skills_delta="0" />'
+    )
+    love_think = (
+        "<think>\n"
+        "User Intent: User wants to talk about love. Delta = 1.\n"
+        "Response Plan: Mei Wenfeng smiles tenderly.\n"
+        "</think>\n"
+        "*掩唇轻笑，眸中漾着春意* 奴家一直在呢，夫君想怎么谈？"
+        "<monologue>贫嘴的冤家~</monologue>"
+        '<property_update affection_delta="1" social_status_delta="0" social_skills_delta="0" />'
+    )
 
+    multi_turn_messages = [
+        {"role": "assistant", "content": greeting_content},
+        {"role": "user", "content": "老婆，我今天去了西安城墙，还排了一个八字：庚辰 庚辰 丙午 丁酉。"},
+        {"role": "assistant", "content": bazi_think},
+        {"role": "user", "content": "老婆，在不？出来谈恋爱"},
+        {"role": "assistant", "content": love_think},
+        {"role": "user", "content": "今晚想吃什么呀？"}
+    ]
+
+    assembled = assemble_messages(multi_turn_messages, "你是导师媚吻锋")
+
+    asst_messages = [m for m in assembled if m["role"] == "assistant"]
+    assert len(asst_messages) == 3, f"Expected 3 assistant messages, got {len(asst_messages)}"
+
+    # 1. 第 1 轮示教 Assistant 节点：必须完整保留 <think> 示教规范
+    one_shot_asst = asst_messages[0]["content"]
+    assert "<think>" in one_shot_asst, "First assistant message must retain the One-Shot demonstration <think>!"
+    assert "1. User Intent:" in one_shot_asst, "First assistant message must retain the 6-step prompt format!"
+    assert "</think>" in one_shot_asst
+    assert greeting_content in one_shot_asst
+    assert "<monologue>" in one_shot_asst
+    assert "<property_update" in one_shot_asst
+
+    # 2. 第 2 轮真实历史 Assistant 节点：必须剥离 <think>，但保留台词与标签
+    second_asst = asst_messages[1]["content"]
+    assert "<think>" not in second_asst, "Second assistant message must STRIP <think>!"
+    assert "</think>" not in second_asst
+    assert "Let me analyze the current user instruction" not in second_asst
+    assert "Female: 庚辰 庚辰 丙午 丁酉" not in second_asst
+    assert "*轻蹙娥眉，指尖掐算*" in second_asst
+    assert "<monologue>这冤家怎么研究起旁人八字来了</monologue>" in second_asst
+    assert '<property_update affection_delta="0"' in second_asst
+
+    # 3. 第 3 轮真实历史 Assistant 节点：必须剥离 <think>
+    third_asst = asst_messages[2]["content"]
+    assert "<think>" not in third_asst, "Third assistant message must STRIP <think>!"
+    assert "</think>" not in third_asst
+    assert "User Intent: User wants to talk about love" not in third_asst
+    assert "*掩唇轻笑，眸中漾着春意*" in third_asst
+    assert "<monologue>贫嘴的冤家~</monologue>" in third_asst
+    assert '<property_update affection_delta="1"' in third_asst
+
+    # 4. 原始入参深拷贝防护验证（零外部副作用 / Zero DB Pollution）
+    assert "<think>" in multi_turn_messages[2]["content"], "Original messages must not be mutated!"
+    assert "<think>" in multi_turn_messages[4]["content"], "Original messages must not be mutated!"

@@ -1,6 +1,7 @@
 import logging
 import platform
 import os
+import re
 from datetime import datetime
 from typing import List, Dict, Any, Tuple, Union
 from dataclasses import dataclass
@@ -311,10 +312,12 @@ def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, 
 
         adjusted_messages.append({"role": role, "content": content, "timestamp": ts})
 
-    # [Step 2: Dynamic One-Shot - 动态示教管线]
+    # [Step 2: Dynamic One-Shot - 动态示教管线与首轮白名单保护]
     from backend.services.prompts import get_one_shot_demonstration
+    first_asst_idx = None
     for i, msg in enumerate(adjusted_messages):
         if msg["role"] == "assistant":
+            first_asst_idx = i
             c = msg.get("content", "")
             if isinstance(c, str):
                 if "<monologue>" not in c:
@@ -324,6 +327,31 @@ def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, 
                         "timestamp": msg.get("timestamp")
                     }
             break
+
+    # [Step 2.5: Historical Assistant CoT Stripping - 历史多轮真实思维链动态剥离 (ISSUE-36)]
+    # 首轮动态示教 (first_asst_idx) 完整保留标准化 <think> 示教模板；
+    # 针对首轮之后由模型正式生成的所有后续历史 assistant 消息，动态剥离 <think>...</think>，
+    # 避免大段推演过程（如八字排盘、长篇 CoT）进入 <current_session_history> 导致 Tiel 等 35B-A3B MoE 小模型思维严重劣化 (Attention Hijacking & Reasoning Collapse)。
+    if first_asst_idx is not None:
+        for i in range(first_asst_idx + 1, len(adjusted_messages)):
+            msg = adjusted_messages[i]
+            if msg["role"] == "assistant":
+                c = msg.get("content", "")
+                if isinstance(c, str):
+                    cleaned_c = re.sub(r'<think>[\s\S]*?</think>\s*', '', c)
+                    adjusted_messages[i]["content"] = cleaned_c
+                elif isinstance(c, list):
+                    cleaned_list = []
+                    for item in c:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            t_val = item.get("text", "")
+                            cleaned_t = re.sub(r'<think>[\s\S]*?</think>\s*', '', t_val)
+                            item_copy = dict(item)
+                            item_copy["text"] = cleaned_t
+                            cleaned_list.append(item_copy)
+                        else:
+                            cleaned_list.append(item)
+                    adjusted_messages[i]["content"] = cleaned_list
 
     # [Step 3: Tail Injection - 尾部三明治注入管线]
     if isinstance(system_prompt, ContextBundle):
