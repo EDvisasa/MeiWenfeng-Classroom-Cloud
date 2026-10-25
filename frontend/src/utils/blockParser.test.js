@@ -96,4 +96,75 @@ describe('parseAndMergeBlocks', () => {
       { type: 'text', text: 'Mention <monologue> here. Middle text.End text.' }
     ]);
   });
+
+  // Behavior 9: ISSUE-37
+  it('should NOT let cards (<explainer>, <quiz>) inside <think> prematurely create blocks', () => {
+    const input = `<think>
+Let me plan the card:
+<explainer title="同盘不同命">
+> **钱羽擎**
+> **媚吻锋**
+</explainer>
+And now write the final response.
+</think>
+*嫣然一笑* 夫君请看：
+<explainer title="同盘不同命">
+> **钱羽擎**
+> **媚吻锋**
+</explainer>
+这就是分晓。`;
+
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      {
+        type: 'thinking',
+        text: `Let me plan the card:
+<explainer title="同盘不同命">
+> **钱羽擎**
+> **媚吻锋**
+</explainer>
+And now write the final response.`,
+        status: 'done'
+      },
+      {
+        type: 'text',
+        text: '*嫣然一笑* 夫君请看：'
+      },
+      {
+        type: 'explainer',
+        title: '同盘不同命',
+        text: '>  **钱羽擎** \n>  **媚吻锋**',
+        status: 'done'
+      },
+      {
+        type: 'text',
+        text: '这就是分晓。'
+      }
+    ]);
+  });
+
+  // Behavior 10: ISSUE-37 (streaming)
+  it('should keep thinking as running and NOT extract cards when <think> is unclosed during streaming', () => {
+    const input = `<think>
+Thinking in progress...
+<explainer title="草案">
+草案内容
+</explainer>
+Still thinking...`;
+
+    const result = parseAndMergeBlocks(input, true);
+
+    expect(result).toEqual([
+      {
+        type: 'thinking',
+        text: `Thinking in progress...
+<explainer title="草案">
+草案内容
+</explainer>
+Still thinking...`,
+        status: 'running'
+      }
+    ]);
+  });
 });

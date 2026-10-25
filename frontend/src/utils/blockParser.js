@@ -13,165 +13,184 @@ function stripControlTags(text) {
   return cleaned;
 }
 
+function parseBodyCards(bodyText) {
+  if (!bodyText) return [];
+  let text = bodyText;
+
+  // Strip markdown bold markers that the AI might incorrectly place around our custom block tags
+  text = text.replace(/\*\*\s*<glossary/gi, '<glossary').replace(/<\/glossary>\s*\*\*/gi, '</glossary>');
+  text = text.replace(/\*\*\s*<explainer/gi, '<explainer').replace(/<\/explainer>\s*\*\*/gi, '</explainer>');
+  text = text.replace(/\*\*\s*<quiz/gi, '<quiz').replace(/<\/quiz>\s*\*\*/gi, '</quiz>');
+
+  // Force "盘古之白" (spaces) around inline bold markdown to prevent CommonMark parsing failures with Chinese punctuation
+  text = text.replace(/\*\*([^\n]+?)\*\*/g, ' **$1** ');
+
+  const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/gi;
+  const missionRegex = /<mission_proposal([^>]*?)\/?>/gi;
+  const explainerRegex = /<explainer\s+title=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/explainer>|$)/gi;
+  const glossaryRegex = /<glossary\s+term=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/glossary>|$)/gi;
+
+  let segments = [];
+  let lastQuizIndex = 0;
+  let quizMatch;
+
+  while ((quizMatch = quizRegex.exec(text)) !== null) {
+    if (quizMatch.index > lastQuizIndex) {
+      segments.push({ isQuiz: false, isMission: false, content: text.substring(lastQuizIndex, quizMatch.index).replace(/<\/quiz>/g, '') });
+    }
+    segments.push({ isQuiz: true, isMission: false, content: quizMatch[1].trim() });
+    lastQuizIndex = quizRegex.lastIndex;
+  }
+  if (lastQuizIndex < text.length) {
+    let remainder = text.substring(lastQuizIndex).replace(/<\/quiz>/g, '');
+    let missionMatch;
+    let lastMissionIndex = 0;
+    let finalSegments = [];
+
+    while ((missionMatch = missionRegex.exec(remainder)) !== null) {
+      if (missionMatch.index > lastMissionIndex) {
+        finalSegments.push({ isQuiz: false, isMission: false, content: remainder.substring(lastMissionIndex, missionMatch.index) });
+      }
+      const attrsStr = missionMatch[1];
+      const goalMatch = attrsStr.match(/goal="([^"]*)"/);
+      const timeMatch = attrsStr.match(/time="([^"]*)"/);
+      const constraintsMatch = attrsStr.match(/constraints="([^"]*)"/);
+      const skillMatch = attrsStr.match(/skill="([^"]*)"/);
+
+      finalSegments.push({
+        isQuiz: false,
+        isMission: true,
+        data: {
+          goal: goalMatch ? goalMatch[1] : '',
+          time: timeMatch ? timeMatch[1] : '',
+          constraints: constraintsMatch ? constraintsMatch[1] : '',
+          skill: skillMatch ? skillMatch[1] : ''
+        }
+      });
+      lastMissionIndex = missionRegex.lastIndex;
+    }
+    if (lastMissionIndex < remainder.length) {
+      finalSegments.push({ isQuiz: false, isMission: false, content: remainder.substring(lastMissionIndex) });
+    }
+
+    segments.push(...finalSegments);
+  }
+
+  let explainerSegments = [];
+  segments.forEach(seg => {
+    if (seg.isQuiz || seg.isMission) {
+      explainerSegments.push(seg);
+      return;
+    }
+    let subText = seg.content;
+    let lastExpIndex = 0;
+    let expMatch;
+    while ((expMatch = explainerRegex.exec(subText)) !== null) {
+      if (expMatch.index > lastExpIndex) {
+        explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: subText.substring(lastExpIndex, expMatch.index) });
+      }
+      explainerSegments.push({ isExplainer: true, title: expMatch[1], content: expMatch[2].trim() });
+      lastExpIndex = explainerRegex.lastIndex;
+    }
+    if (lastExpIndex < subText.length) {
+      explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: subText.substring(lastExpIndex) });
+    }
+  });
+  segments = explainerSegments;
+
+  let glossarySegments = [];
+  segments.forEach(seg => {
+    if (seg.isQuiz || seg.isMission || seg.isExplainer) {
+      glossarySegments.push(seg);
+      return;
+    }
+    let subText = seg.content;
+    let lastGlosIndex = 0;
+    let glosMatch;
+    while ((glosMatch = glossaryRegex.exec(subText)) !== null) {
+      if (glosMatch.index > lastGlosIndex) {
+        glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: subText.substring(lastGlosIndex, glosMatch.index) });
+      }
+      glossarySegments.push({ isGlossary: true, term: glosMatch[1], content: glosMatch[2].trim() });
+      lastGlosIndex = glossaryRegex.lastIndex;
+    }
+    if (lastGlosIndex < subText.length) {
+      glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: subText.substring(lastGlosIndex) });
+    }
+  });
+  segments = glossarySegments;
+
+  let blocks = [];
+  segments.forEach(segment => {
+    if (segment.isQuiz) {
+      try {
+        let cleanJsonStr = segment.content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
+        const quizData = JSON.parse(cleanJsonStr);
+        blocks.push({ type: 'quiz', data: quizData, status: 'done' });
+      } catch (e) {
+        console.error("Failed to parse quiz JSON:", e, "Raw content:", segment.content);
+        blocks.push({ type: 'text', text: `<quiz>\n${segment.content}\n</quiz>` });
+      }
+    } else if (segment.isMission) {
+      blocks.push({ type: 'mission_proposal', data: segment.data, status: 'done' });
+    } else if (segment.isExplainer) {
+      blocks.push({ type: 'explainer', title: segment.title, text: segment.content, status: 'done' });
+    } else if (segment.isGlossary) {
+      blocks.push({ type: 'glossary', term: segment.term, text: segment.content, status: 'done' });
+    } else {
+      const snippet = (segment.content || '').replace(/<\/think>/g, '').trim();
+      const cleanedSnippet = stripControlTags(snippet);
+      if (cleanedSnippet) {
+        blocks.push({ type: 'text', text: cleanedSnippet });
+      }
+    }
+  });
+  return blocks;
+}
+
 export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
   let rawBlocks = Array.isArray(blocksOrText) ? blocksOrText : [{ type: 'text', text: blocksOrText || '' }];
 
-  // 1. Normalize: split text blocks containing <thought> into separate blocks
+  // 1. Normalize: Top-Level CoT Isolation (Tier-1)
   let normalized = [];
   rawBlocks.forEach(b => {
     if (b.type === 'text') {
       let text = b.text || '';
 
-      // Strip markdown bold markers that the AI might incorrectly place around our custom block tags
-      text = text.replace(/\*\*\s*<glossary/gi, '<glossary').replace(/<\/glossary>\s*\*\*/gi, '</glossary>');
-      text = text.replace(/\*\*\s*<explainer/gi, '<explainer').replace(/<\/explainer>\s*\*\*/gi, '</explainer>');
-      text = text.replace(/\*\*\s*<quiz/gi, '<quiz').replace(/<\/quiz>\s*\*\*/gi, '</quiz>');
-
-      // Force "盘古之白" (spaces) around inline bold markdown to prevent CommonMark parsing failures with Chinese punctuation
-      text = text.replace(/\*\*([^\n]+?)\*\*/g, ' **$1** ');
-
-      const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/gi;
+      // Tier-1: 优先提取 <think>...</think> 顶级隔离容器
+      // 在 <think> 内部的任何内容（无论是草拟的卡片标签还是代码），纯粹作为思维链沙盒，绝不提前裂变出卡片
       const thinkRegex = /<think>([\s\S]*?)(?:<\/think>|$)/gi;
-      const missionRegex = /<mission_proposal([^>]*?)\/?>/gi;
-      const explainerRegex = /<explainer\s+title=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/explainer>|$)/gi;
-      const glossaryRegex = /<glossary\s+term=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/glossary>|$)/gi;
-      
-      // We need to extract both quiz, mission_proposal and thought tags. Since they might be interleaved or one after another,
-      // a robust way is to split by both, but since currently only text has thoughts, we can just extract quizzes and missions first.
-      
-      let segments = [];
-      let lastQuizIndex = 0;
-      let quizMatch;
-      
-      while ((quizMatch = quizRegex.exec(text)) !== null) {
-        if (quizMatch.index > lastQuizIndex) {
-          segments.push({ isQuiz: false, isMission: false, content: text.substring(lastQuizIndex, quizMatch.index).replace(/<\/quiz>/g, '') });
+      let lastIndex = 0;
+      let match;
+
+      while ((match = thinkRegex.exec(text)) !== null) {
+        // 1. <think> 之前的正文内容
+        if (match.index > lastIndex) {
+          const preText = text.substring(lastIndex, match.index);
+          const bodyBlocks = parseBodyCards(preText);
+          normalized.push(...bodyBlocks);
         }
-        segments.push({ isQuiz: true, isMission: false, content: quizMatch[1].trim() });
-        lastQuizIndex = quizRegex.lastIndex;
-      }
-      if (lastQuizIndex < text.length) {
-        let remainder = text.substring(lastQuizIndex).replace(/<\/quiz>/g, '');
-        
-        // Now find mission_proposals in the remainder
-        let missionMatch;
-        let lastMissionIndex = 0;
-        let finalSegments = [];
-        
-        while ((missionMatch = missionRegex.exec(remainder)) !== null) {
-           if (missionMatch.index > lastMissionIndex) {
-             finalSegments.push({ isQuiz: false, isMission: false, content: remainder.substring(lastMissionIndex, missionMatch.index) });
-           }
-           const attrsStr = missionMatch[1];
-           const goalMatch = attrsStr.match(/goal="([^"]*)"/);
-           const timeMatch = attrsStr.match(/time="([^"]*)"/);
-           const constraintsMatch = attrsStr.match(/constraints="([^"]*)"/);
-           const skillMatch = attrsStr.match(/skill="([^"]*)"/);
-           
-           finalSegments.push({ 
-             isQuiz: false, 
-             isMission: true, 
-             data: {
-               goal: goalMatch ? goalMatch[1] : '',
-               time: timeMatch ? timeMatch[1] : '',
-               constraints: constraintsMatch ? constraintsMatch[1] : '',
-               skill: skillMatch ? skillMatch[1] : ''
-             } 
-           });
-           lastMissionIndex = missionRegex.lastIndex;
-        }
-        if (lastMissionIndex < remainder.length) {
-           finalSegments.push({ isQuiz: false, isMission: false, content: remainder.substring(lastMissionIndex) });
-        }
-        
-        segments.push(...finalSegments);
+
+        // 2. <think> 内部思维链沙盒 (Scratchpad Sandbox)
+        const matchedFull = match[0];
+        const hasClosing = matchedFull.toLowerCase().includes('</think>');
+        const isRunning = isStreaming ? !hasClosing : false;
+
+        normalized.push({
+          type: 'thinking',
+          text: match[1].trim(),
+          status: isRunning ? 'running' : 'done'
+        });
+
+        lastIndex = thinkRegex.lastIndex;
       }
 
-      // Extract explainer tags from text segments
-      let explainerSegments = [];
-      segments.forEach(seg => {
-        if (seg.isQuiz || seg.isMission) {
-          explainerSegments.push(seg);
-          return;
-        }
-        let text = seg.content;
-        let lastExpIndex = 0;
-        let expMatch;
-        while ((expMatch = explainerRegex.exec(text)) !== null) {
-          if (expMatch.index > lastExpIndex) {
-            explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: text.substring(lastExpIndex, expMatch.index) });
-          }
-          explainerSegments.push({ isExplainer: true, title: expMatch[1], content: expMatch[2].trim() });
-          lastExpIndex = explainerRegex.lastIndex;
-        }
-        if (lastExpIndex < text.length) {
-          explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: text.substring(lastExpIndex) });
-        }
-      });
-      segments = explainerSegments;
-
-      // Extract glossary tags from text segments
-      let glossarySegments = [];
-      segments.forEach(seg => {
-        if (seg.isQuiz || seg.isMission || seg.isExplainer) {
-          glossarySegments.push(seg);
-          return;
-        }
-        let text = seg.content;
-        let lastGlosIndex = 0;
-        let glosMatch;
-        while ((glosMatch = glossaryRegex.exec(text)) !== null) {
-          if (glosMatch.index > lastGlosIndex) {
-            glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: text.substring(lastGlosIndex, glosMatch.index) });
-          }
-          glossarySegments.push({ isGlossary: true, term: glosMatch[1], content: glosMatch[2].trim() });
-          lastGlosIndex = glossaryRegex.lastIndex;
-        }
-        if (lastGlosIndex < text.length) {
-          glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: text.substring(lastGlosIndex) });
-        }
-      });
-      segments = glossarySegments;
-
-      segments.forEach(segment => {
-        if (segment.isQuiz) {
-          try {
-            let cleanJsonStr = segment.content.replace(/^```json\s*/i, '').replace(/```\s*$/, '').trim();
-            const quizData = JSON.parse(cleanJsonStr);
-            normalized.push({ type: 'quiz', data: quizData, status: 'done' });
-          } catch (e) {
-            console.error("Failed to parse quiz JSON:", e, "Raw content:", segment.content);
-            normalized.push({ type: 'text', text: `<quiz>\n${segment.content}\n</quiz>` });
-          }
-        } else if (segment.isMission) {
-          normalized.push({ type: 'mission_proposal', data: segment.data, status: 'done' });
-        } else if (segment.isExplainer) {
-          normalized.push({ type: 'explainer', title: segment.title, text: segment.content, status: 'done' });
-        } else if (segment.isGlossary) {
-          normalized.push({ type: 'glossary', term: segment.term, text: segment.content, status: 'done' });
-        } else {
-          // Process think tags within the text segment
-          let textSegment = segment.content;
-          let match;
-          let lastIndex = 0;
-          while ((match = thinkRegex.exec(textSegment)) !== null) {
-            if (match.index > lastIndex) {
-              const snippet = textSegment.substring(lastIndex, match.index).replace(/<\/think>/g, '').trim();
-              const cleanedSnippet = stripControlTags(snippet);
-              if (cleanedSnippet) normalized.push({ type: 'text', text: cleanedSnippet });
-            }
-            const isRunning = isStreaming ? !textSegment.substring(match.index).includes('</think>') : false;
-            normalized.push({ type: 'thinking', text: match[1].trim(), status: isRunning ? 'running' : 'done' });
-            lastIndex = thinkRegex.lastIndex;
-          }
-          if (lastIndex < textSegment.length) {
-            const snippet = textSegment.substring(lastIndex).replace(/<\/think>/g, '').trim();
-            const cleanedSnippet = stripControlTags(snippet);
-            if (cleanedSnippet) normalized.push({ type: 'text', text: cleanedSnippet });
-          }
-        }
-      });
-
+      // 3. 最后一个 <think> 之后的剩余正文内容
+      if (lastIndex < text.length) {
+        const postText = text.substring(lastIndex);
+        const bodyBlocks = parseBodyCards(postText);
+        normalized.push(...bodyBlocks);
+      }
     } else {
       const bStatus = isStreaming ? b.status : (b.type === 'thinking' || b.type === 'tool' ? 'done' : b.status);
       normalized.push({ ...b, status: bStatus });

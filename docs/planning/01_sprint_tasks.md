@@ -619,3 +619,26 @@ domain: project-planning
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
 
+### <a id="issue-37"></a>[ISSUE-37] 前端流式块解析器顶级思维链容器隔离与卡片早产拦截 (BlockParser Top-Level CoT Container Isolation & Anti-Premature Card Extraction)
+- **Status**: `DONE` (已完成 / 2026-10-25 经 TDD 前端自动化测试闭环通过)
+- **Parent**: `ADR-009` / `ISSUE-06`
+- **User Story**: 作为随身课堂前端交互用户，当大语言模型在 `<think>` 思维链内部草拟或规划输出卡片（如 `<explainer>`, `<quiz>`, `<glossary>`, `<mission_proposal>` 等）且思考尚未结束（流式中未输出 `</think>`）时，我希望前端渲染管线将 `<think>` 视为最高优先级的绝对隔离容器；在 `<think>` 内部的任何文本绝不提前触发卡片解析与渲染，既避免卡片早产脱节输出，又防止截断后的思维链残留泄漏至正文气泡，保证思考过程与最终正文渲染的严格边界。
+- **What to build**:
+  1. **拓扑切分顺序重构（First-Class Think Isolation）**：重构 [`frontend/src/utils/blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js) 中的 `parseAndMergeBlocks`，将 `<think>` 提取提升为第一级边界切分；
+  2. **草稿箱沙盒化（CoT Sandbox Non-Interference）**：`<think>` 内部所有字符纯粹输出为 `type: 'thinking'`，无论是闭合还是流式 `running` 态，均绝不提前触发卡片；
+  3. **正文下游卡片按序解析（Tier-2 Body Extraction）**：仅对 `<think>` 外部的真实正文文本片段继续提取 `<quiz>`, `<explainer>`, `<glossary>`, `<mission_proposal>` 与清理控制标签；
+  4. **前端自动化单元测试全覆盖**：在 [`frontend/src/utils/blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js) 中新增包含草拟卡片的多轮流式与静态单测用例。
+- **Affected Files**:
+  - [`frontend/src/utils/blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js)
+  - [`frontend/src/utils/blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+- **Acceptance Criteria**:
+  - [x] 大模型在 `<think>` 内部拟定 `<explainer>` / `<quiz>` 等草案时，思考气泡不会被截断，卡片绝对不在思考中途早产；
+  - [x] 思考结束后正文中的真实 `<explainer>` / `<quiz>` 卡片正常渲染；
+  - [x] 流式过程中未闭合的 `<think>` 内部文本 100% 停留在 `status: 'running'` 的 thinking 块内，正文零污染；
+  - [x] 前端测试 `cd frontend && npm test -- --run` 全量绿灯通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `cd frontend && npm test -- --run`
+
+
