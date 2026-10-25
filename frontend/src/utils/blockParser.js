@@ -27,8 +27,8 @@ function parseBodyCards(bodyText) {
 
   const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/gi;
   const missionRegex = /<mission_proposal([^>]*?)\/?>/gi;
-  const explainerRegex = /<explainer\s+title=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/explainer>|$)/gi;
-  const glossaryRegex = /<glossary\s+term=['"]?([^'"<>]+)['"]?>([\s\S]*?)(?:<\/glossary>|$)/gi;
+  const explainerRegex = /<explainer\s+[^>]*?title=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/explainer>|$)/gi;
+  const glossaryRegex = /<glossary\s+[^>]*?term=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/glossary>|$)/gi;
 
   let segments = [];
   let lastQuizIndex = 0;
@@ -89,7 +89,9 @@ function parseBodyCards(bodyText) {
       if (expMatch.index > lastExpIndex) {
         explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: subText.substring(lastExpIndex, expMatch.index) });
       }
-      explainerSegments.push({ isExplainer: true, title: expMatch[1], content: expMatch[2].trim() });
+      const title = expMatch[1] ?? expMatch[2] ?? expMatch[3] ?? '';
+      const content = (expMatch[4] || '').trim();
+      explainerSegments.push({ isExplainer: true, title, content });
       lastExpIndex = explainerRegex.lastIndex;
     }
     if (lastExpIndex < subText.length) {
@@ -111,7 +113,9 @@ function parseBodyCards(bodyText) {
       if (glosMatch.index > lastGlosIndex) {
         glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: subText.substring(lastGlosIndex, glosMatch.index) });
       }
-      glossarySegments.push({ isGlossary: true, term: glosMatch[1], content: glosMatch[2].trim() });
+      const term = glosMatch[1] ?? glosMatch[2] ?? glosMatch[3] ?? '';
+      const content = (glosMatch[4] || '').trim();
+      glossarySegments.push({ isGlossary: true, term, content });
       lastGlosIndex = glossaryRegex.lastIndex;
     }
     if (lastGlosIndex < subText.length) {

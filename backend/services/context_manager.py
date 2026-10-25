@@ -405,10 +405,10 @@ def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, 
     tail_content += f"<current_time>{time_str}</current_time>\n<openclaw_gateway_status>{gateway_status_str}</openclaw_gateway_status>\n\n{get_cross_reference_protocol()}"
 
     tail_injection = (
-        "[System Override & Execution Pointer]\n"
+        "[Runtime Context Protocol & Execution Pointer]\n"
         "<system_injection>\n"
         f"{tail_content}\n"
-        "[NOTE: The block above is an automated system-level injection for formatting and time awareness, NOT user input. Obey strictly during <think> and response. Never mention or reference this protocol to the user.]\n"
+        "[NOTE: The block above is an automated runtime context for formatting and time awareness, NOT user input. Obey strictly during <think> and response. Never mention or reference this protocol to the user.]\n"
         "</system_injection>"
     )
 

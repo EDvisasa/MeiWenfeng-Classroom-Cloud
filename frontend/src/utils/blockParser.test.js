@@ -167,4 +167,40 @@ Still thinking...`,
       }
     ]);
   });
+
+  // Behavior 11: ISSUE-37 (nested quotes in card attributes)
+  it('should parse <explainer> and <glossary> when title/term contains nested quotes', () => {
+    const input = `<explainer title="🦊 媚吻锋拆夫君命 · 比劫夺财之坎，被'由心'一破">
+> **钱羽擎**：庚辰 庚辰 丙午 丁酉
+</explainer>
+<glossary term="Father's Day">
+Celebration of fathers.
+</glossary>
+<glossary term='Words with "Double Quotes"'>
+Definitions with nested double quotes.
+</glossary>`;
+
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      {
+        type: 'explainer',
+        title: "🦊 媚吻锋拆夫君命 · 比劫夺财之坎，被'由心'一破",
+        text: ">  **钱羽擎** ：庚辰 庚辰 丙午 丁酉",
+        status: 'done'
+      },
+      {
+        type: 'glossary',
+        term: "Father's Day",
+        text: "Celebration of fathers.",
+        status: 'done'
+      },
+      {
+        type: 'glossary',
+        term: 'Words with "Double Quotes"',
+        text: "Definitions with nested double quotes.",
+        status: 'done'
+      }
+    ]);
+  });
 });

@@ -619,26 +619,33 @@ domain: project-planning
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_context_manager.py -v`
 
-### <a id="issue-37"></a>[ISSUE-37] 前端流式块解析器顶级思维链容器隔离与卡片早产拦截 (BlockParser Top-Level CoT Container Isolation & Anti-Premature Card Extraction)
-- **Status**: `DONE` (已完成 / 2026-10-25 经 TDD 前端自动化测试闭环通过)
+### <a id="issue-37"></a>[ISSUE-37] 前端流式块解析器顶级思维链容器隔离、卡片属性嵌套引号支持与推理模型提示脱敏 (BlockParser Top-Level CoT Isolation, Nested Attribute Quotes & Prompt Injection De-escalation)
+- **Status**: `DONE` (已完成 / 2026-10-25 经前端 Vitest 与后端 Pytest 自动化测试双绿灯闭环通过)
 - **Parent**: `ADR-009` / `ISSUE-06`
-- **User Story**: 作为随身课堂前端交互用户，当大语言模型在 `<think>` 思维链内部草拟或规划输出卡片（如 `<explainer>`, `<quiz>`, `<glossary>`, `<mission_proposal>` 等）且思考尚未结束（流式中未输出 `</think>`）时，我希望前端渲染管线将 `<think>` 视为最高优先级的绝对隔离容器；在 `<think>` 内部的任何文本绝不提前触发卡片解析与渲染，既避免卡片早产脱节输出，又防止截断后的思维链残留泄漏至正文气泡，保证思考过程与最终正文渲染的严格边界。
+- **User Story**: 作为随身课堂前端交互用户，当大语言模型在 `<think>` 思维链内部草拟或规划输出卡片（如 `<explainer>`, `<quiz>`, `<glossary>`, `<mission_proposal>` 等）且思考尚未结束（流式中未输出 `</think>`）时，我希望前端渲染管线将 `<think>` 视为最高优先级的绝对隔离容器；在 `<think>` 内部的任何文本绝不提前触发卡片解析与渲染，既避免卡片早产脱节输出，又防止截断后的思维链残留泄漏至正文气泡；同时卡片属性（如 `title="...被'由心'一破"`）无论包含单双引号嵌套均能稳定解析，后端上下文注入提示词亦不对 MoE 推理模型产生攻击性误导，保证思考过程与最终卡片渲染的绝对稳健。
 - **What to build**:
   1. **拓扑切分顺序重构（First-Class Think Isolation）**：重构 [`frontend/src/utils/blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js) 中的 `parseAndMergeBlocks`，将 `<think>` 提取提升为第一级边界切分；
   2. **草稿箱沙盒化（CoT Sandbox Non-Interference）**：`<think>` 内部所有字符纯粹输出为 `type: 'thinking'`，无论是闭合还是流式 `running` 态，均绝不提前触发卡片；
   3. **正文下游卡片按序解析（Tier-2 Body Extraction）**：仅对 `<think>` 外部的真实正文文本片段继续提取 `<quiz>`, `<explainer>`, `<glossary>`, `<mission_proposal>` 与清理控制标签；
-  4. **前端自动化单元测试全覆盖**：在 [`frontend/src/utils/blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js) 中新增包含草拟卡片的多轮流式与静态单测用例。
+  4. **卡片属性嵌套引号支持（Robust Nested Quotes Parsing）**：重构 `explainerRegex` 与 `glossaryRegex` 为 `/(?:"([^"]*)"|'([^']*)'|([^\s>]+))/`，彻底解决如 `title="🦊 媚吻锋拆夫君命 · 比劫夺财之坎，被'由心'一破"` 因内含单引号导致 `[^'"<>]` 提前截断无法识别为卡片的缺陷；
+  5. **尾部注入提示词降敏（Prompt Injection Paranoia Prevention）**：在 [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 中，将极易诱发小参数推理模型安全防御幻觉的 `[System Override & Execution Pointer]` 与 `system-level injection` 替换为中立规范的 `[Runtime Context Protocol & Execution Pointer]` 与 `automated runtime context`，消除小模型误判“有人在试图覆盖/黑入人设”的虚假 CoT 纠偏；
+  6. **前端与后端自动化测试双闭环**：在 [`frontend/src/utils/blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js) 中覆盖草拟卡片拦截及嵌套引号解析（41 项前端单测全绿），同时保持 [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 16 项用例全量通过。
 - **Affected Files**:
   - [`frontend/src/utils/blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js)
   - [`frontend/src/utils/blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
   - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
 - **Acceptance Criteria**:
   - [x] 大模型在 `<think>` 内部拟定 `<explainer>` / `<quiz>` 等草案时，思考气泡不会被截断，卡片绝对不在思考中途早产；
   - [x] 思考结束后正文中的真实 `<explainer>` / `<quiz>` 卡片正常渲染；
+  - [x] 卡片属性（如 `title`、`term`）含有单引号或双引号嵌套时正常被解析为卡片，不退化为裸标签或污染正文；
   - [x] 流式过程中未闭合的 `<think>` 内部文本 100% 停留在 `status: 'running'` 的 thinking 块内，正文零污染；
-  - [x] 前端测试 `cd frontend && npm test -- --run` 全量绿灯通过。
+  - [x] 后端报文组装尾部指令脱敏，不含有触发推理小模型注入恐慌的 `System Override` 措辞；
+  - [x] 前端测试 `cd frontend && npm test -- --run` 全量绿灯通过（41/41）；
+  - [x] 后端上下文管理测试 `pytest backend/tests/test_context_manager.py` 全量绿灯通过（16/16）。
 - **Blocked by**: None - can start immediately
-- **Verification Command**: `cd frontend && npm test -- --run`
+- **Verification Command**: `cd frontend && npm test -- --run && pytest backend/tests/test_context_manager.py -v`
+
 
 

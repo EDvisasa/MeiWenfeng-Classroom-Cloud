@@ -310,15 +310,21 @@ domain: project-planning
   3. **零数据库与零 UI 变动 (Zero DB Pollution)**：剥离纯粹发生在发包前内存视图，SQLite `chat_messages` 保持原汁原味，前端打字机思考折叠框不受任何影响；
   4. **TDD 自动化测试闭环**：在 [`test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 落地专项单测 `test_assemble_messages_strips_subsequent_historical_think_issue_36`，全量 16 项上下文测试 100% 绿灯通过。
 
-### 34. [已解决 / 前端块解析与思维链穿透] 大模型在 `<think>` 中草拟卡片导致思考提前截断、卡片早产与正文污染
-- **现象描述**：大模型在输出回复时，若在 `<think>` 思维链内部草拟计划输出卡片标签（例如 `Let me plan the card: <explainer title="...">...</explainer>`），前端在流式思考尚未闭合时就过早渲染出卡片，导致思考气泡被硬生生腰斩，且卡片后面的未闭合思考内容泄露进正文气泡中。
+### 34. [已解决 / 前端块解析与思维链穿透] 大模型在 `<think>` 中草拟卡片导致思考提前截断、嵌套引号属性解析异常及推理模型注入恐慌
+- **现象描述**：
+  1. **卡片早产与正文泄漏**：大模型在回复时，若在 `<think>` 思维链内部草拟计划输出卡片标签（例如 `Let me plan the card: <explainer title="...">...</explainer>`），前端在流式思考尚未闭合时就过早渲染出卡片，导致思考气泡被硬生生腰斩，且卡片后面的未闭合思考内容泄露进正文气泡中；
+  2. **嵌套引号导致卡片解析失败**：当卡片属性内部包含单引号（例如 `<explainer title="🦊 媚吻锋拆夫君命 · 比劫夺财之坎，被'由心'一破">`）时，正则直接失败，整段卡片降级为普通文本或引起 CommonMark 破坏；
+  3. **小参数推理模型安全性幻觉**：报文末尾的 `[System Override & Execution Pointer]` 与 `system-level injection` 词汇，在 RAG 检索命中包含代码测试历史时，极易诱发 35B-A3B MoE 模型的安全性注入防御恐慌，在 `<think>` 中误判有人在攻击覆盖其角色人设。
 - **根因分析**：
-  - 在 [`blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js) 中，早期提取顺序架构倒置：解析器先拿 `quizRegex`、`explainerRegex`、`glossaryRegex` 遍历切断文本，最后在剩下的碎片中才寻找 `thinkRegex`；
-  - 这种反向切分使得位于 `<think>` 内部的卡片草案被当成了真实卡片提取，强行将 `<think>` 阶段切碎，引发卡片早产与草稿泄漏。
+  1. 在 [`blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js) 中，早期提取顺序倒置（先切卡片再找思考块），使得 `<think>` 内部草案被提前提取；
+  2. `explainerRegex` 和 `glossaryRegex` 采用 `[^'"<>]+` 排除式匹配，遇到属性内部嵌套的单/双引号时提前终断，导致匹配失效；
+  3. 后端注入头部采用了具有黑客/攻击语义倾向的 `System Override` 词汇。
 - **解决路线**：
   1. **顶级容器隔离重构 (Tier-1 CoT Isolation)**：将 `<think>...</think>`（及流式未闭合 `<think>`）提升为第一级绝对隔离容器。在 `<think>` 内部的任何文本（不论是草拟的标签还是代码）100% 归拢至 `thinking` block 中，严禁任何二级卡片向下穿透扫描；
   2. **正文下游提取 (Tier-2 Body Extraction)**：仅对 `<think>` 外部的正文文本片段调用 `parseBodyCards`，按序提取业务卡片与清理控制标签；
-  3. **TDD 自动化测试闭环**：在 [`blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js) 中新增包含草拟卡片的静态与流式用例，全量 10 项单元测试及前端 40 项全栈单测 100% 绿灯通过。
+  3. **嵌套引号属性提取重构**：将正则升级为 `(?:"([^"]*)"|'([^']*)'|([^\s>]+))`，安全解包 `match[1] ?? match[2] ?? match[3]`，完美支持包含单双引号的复杂标题与术语；
+  4. **尾部注入提示词降敏**：在 [`context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 中，将 `[System Override & Execution Pointer]` 替换为规范中立的 `[Runtime Context Protocol & Execution Pointer]`，消除推理模型的防御幻觉；
+  5. **TDD 自动化测试闭环**：在 [`blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js) 中新增包含草拟卡片、流式及属性嵌套引号的单测（41 项前端单测全绿），后端 [`test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 16 项用例 100% 绿灯通过。
 
 
 
