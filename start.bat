@@ -40,8 +40,8 @@ echo [Warning] Dependencies incomplete or updated, synchronizing via pip...
 :deps_ok
 
 rem 3. Check and Setup Node dependencies
-if exist frontend\node_modules goto frontend_ok
-echo [Info] Frontend dependencies not found. Installing...
+if exist frontend\node_modules\remark-gfm goto frontend_ok
+echo [Info] Frontend dependencies missing or updated (e.g. remark-gfm). Installing...
 cd frontend
 call npm install
 cd ..
