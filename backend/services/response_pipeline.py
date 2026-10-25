@@ -168,9 +168,10 @@ class ResponsePipeline:
     聊天响应管道：负责流缓冲、SSE 格式化和副作用派发。
     这是一个纯粹的流处理组件，不包含具体的数据库写入逻辑。
     """
-    def __init__(self, on_stream_end: Callable[[str], None] = None, registry: ActionRegistry = None):
+    def __init__(self, on_stream_end: Callable[[str], None] = None, registry: ActionRegistry = None, session_id: Optional[str] = None):
         self.on_stream_end = on_stream_end
         self.original_user_msg = ""
+        self.session_id = session_id
         self.registry = registry
         # 兼容旧代码，直到完全迁移
         self.handlers: Dict[str, Callable] = {}
@@ -314,11 +315,22 @@ class ResponsePipeline:
             
             time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             memory_content = f"【对话记录 ({time_str})】\n用户：{self.original_user_msg}\n媚吻锋：{memory_clean_text}"
+
+            # 先存入 RAG 向量库拿到 doc_id
+            doc_id = None
+            try:
+                rag_client = get_rag_client()
+                res = rag_client.save_memory(self.original_user_msg, memory_clean_text, level=0, session_id=self.session_id)
+                if isinstance(res, str):
+                    doc_id = res
+            except Exception as e:
+                logger.error(f"Failed to save RAG memory: {e}")
+
             conn = get_db_connection()
             cursor = conn.cursor()
             cursor.execute(
-                "INSERT INTO memory_logs (content, level, status) VALUES (?, 0, 'active')",
-                (memory_content,)
+                "INSERT INTO memory_logs (content, level, status, session_id, chroma_doc_id) VALUES (?, 0, 'active', ?, ?)",
+                (memory_content, self.session_id, doc_id)
             )
             conn.commit()
 
@@ -333,9 +345,5 @@ class ResponsePipeline:
                         logger.error(f"Error handling memory_decay via registry: {e}")
 
             conn.close()
-
-            # 存入 RAG 向量库
-            rag_client = get_rag_client()
-            rag_client.save_memory(self.original_user_msg, memory_clean_text, level=0)
         except Exception as e:
             logger.error(f"Failed to save memory in pipeline: {e}")

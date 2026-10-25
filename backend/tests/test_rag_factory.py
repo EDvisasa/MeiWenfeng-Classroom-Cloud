@@ -19,6 +19,7 @@ def test_ragflow_client_interface(mock_get_config):
 
     # 验证新增加的代理方法
     assert hasattr(client, "save_memory")
+    assert hasattr(client, "delete_memory")
     assert hasattr(client, "retrieve_memory")
 
     # 验证不支持内存高频写入的后端是否安全返回 False 和空列表
@@ -32,6 +33,7 @@ def test_external_client_interface(mock_get_config):
 
     assert isinstance(client, ExternalRAGClient)
     assert hasattr(client, "save_memory")
+    assert hasattr(client, "delete_memory")
     assert hasattr(client, "retrieve_memory")
 
     assert client.save_memory("user", "assistant") is False
@@ -44,6 +46,7 @@ def test_chroma_client_interface(mock_get_config):
 
     assert isinstance(client, ChromaRAGClient)
     assert hasattr(client, "save_memory")
+    assert hasattr(client, "delete_memory")
     assert hasattr(client, "retrieve_memory")
 
     # 我们不需要在这里测试 Chroma 的实际写入，只测试它有这个方法即可

@@ -294,7 +294,7 @@ def send_message(payload: ChatRequest):
         keep_recent_turns=10
     )
 
-    pipeline = ResponsePipeline(registry=action_registry)
+    pipeline = ResponsePipeline(registry=action_registry, session_id=payload.session_id)
     pipeline.original_user_msg = original_last_user_msg
 
     def event_generator():

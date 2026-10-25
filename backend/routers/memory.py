@@ -272,10 +272,137 @@ def delete_session(session_id: str):
     except Exception as e:
         logger.error(f"Failed to delete session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
-        
+
+class RollbackStepPayload(BaseModel):
+    expected_user_msg: Optional[str] = None
+    expected_assistant_msg: Optional[str] = None
+
+@router.post("/sessions/{session_id}/rollback_step")
+def rollback_session_step(session_id: str, payload: Optional[RollbackStepPayload] = None):
+    """
+    单步回滚指定会话的最末一轮对话 (LIFO)。
+    1. 时序自检：核对数据库中该会话最末轮消息与前端期望内容，若漂移则返回 409 Conflict，防止误删；
+    2. 对话表回滚：删除最末一轮消息（用户消息与助手回复）；
+    3. 记忆库软标记失效：将关联的 memory_logs 标记为 'rolled_back'（排除出后续召回与压缩）；
+    4. 向量库硬删除：精准从 ChromaDB conversation_memory collection 中移除该切片，确保语义彻底抹除；
+    5. 好感度与状态机保持纯粹隔离（按方案 A 约定，不回退好感度，保证多窗口互不污染）。
+    """
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        cursor.execute(
+            "SELECT id, role, content FROM chat_messages WHERE session_id = ? ORDER BY id DESC LIMIT 20",
+            (session_id,)
+        )
+        recent_rows = cursor.fetchall()
+        if not recent_rows:
+            conn.close()
+            raise HTTPException(status_code=400, detail="会话中已无可回滚的消息")
+
+        # 逆序解析最末一轮（穿透跳过 system_info 等辅助消息）
+        idx = 0
+        while idx < len(recent_rows) and recent_rows[idx]["role"] in ("system_info", "system_action", "system_hint"):
+            idx += 1
+
+        if idx >= len(recent_rows):
+            # 仅剩系统辅助消息，直接清理
+            ids_to_delete = [r["id"] for r in recent_rows]
+            actual_assistant = None
+            actual_user = None
+        elif recent_rows[idx]["role"] == "assistant":
+            actual_assistant = recent_rows[idx]
+            ids_to_delete = [r["id"] for r in recent_rows[:idx + 1]]
+
+            # 寻找该助手回复对应的用户消息（穿透中间的 system_info，如搜索检索提示）
+            u_idx = idx + 1
+            while u_idx < len(recent_rows) and recent_rows[u_idx]["role"] in ("system_info", "system_action", "system_hint"):
+                ids_to_delete.append(recent_rows[u_idx]["id"])
+                u_idx += 1
+
+            if u_idx < len(recent_rows) and recent_rows[u_idx]["role"] == "user":
+                actual_user = recent_rows[u_idx]
+                ids_to_delete.append(actual_user["id"])
+            else:
+                actual_user = None
+        else:
+            # 最末一条是用户消息
+            actual_assistant = None
+            actual_user = recent_rows[idx]
+            ids_to_delete = [r["id"] for r in recent_rows[:idx + 1]]
+
+        # 校验时序漂移断言
+        if payload and payload.expected_assistant_msg is not None:
+            if not actual_assistant or payload.expected_assistant_msg.strip() != actual_assistant["content"].strip():
+                conn.close()
+                raise HTTPException(
+                    status_code=409,
+                    detail="时序已漂移：期望助手回复与数据库最末条记录不符，中止回滚以防损坏历史记录。"
+                )
+        if payload and payload.expected_user_msg is not None:
+            if not actual_user or payload.expected_user_msg.strip() != actual_user["content"].strip():
+                conn.close()
+                raise HTTPException(
+                    status_code=409,
+                    detail="时序已漂移：期望用户提问与数据库最末条记录不符，中止回滚以防损坏历史记录。"
+                )
+
+        # 精准软标记失效当前轮次的 memory_logs
+        invalidated_mem_id = None
+        deleted_chroma = False
+
+        if actual_user:
+            user_snippet = actual_user["content"][:40]
+            # 1. 优先根据 session_id 且内容严格匹配该轮用户提问
+            cursor.execute(
+                "SELECT id, chroma_doc_id, content FROM memory_logs WHERE session_id = ? AND status = 'active' AND content LIKE ? ORDER BY id DESC LIMIT 1",
+                (session_id, f"%用户：{user_snippet}%")
+            )
+            mem_row = cursor.fetchone()
+
+            # 2. 备用安全匹配：若未按前缀匹配到，核验当前会话最新一条 active 记忆是否确属本轮
+            if not mem_row:
+                cursor.execute(
+                    "SELECT id, chroma_doc_id, content FROM memory_logs WHERE session_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+                    (session_id,)
+                )
+                candidate_row = cursor.fetchone()
+                if candidate_row and (user_snippet in candidate_row["content"] or (actual_assistant and actual_assistant["content"][:30] in candidate_row["content"])):
+                    mem_row = candidate_row
+
+            if mem_row:
+                invalidated_mem_id = mem_row["id"]
+                cursor.execute("UPDATE memory_logs SET status = 'rolled_back' WHERE id = ?", (invalidated_mem_id,))
+
+                chroma_doc_id = mem_row["chroma_doc_id"]
+                if chroma_doc_id:
+                    try:
+                        from backend.services.rag_factory import get_rag_client
+                        rag_client = get_rag_client()
+                        deleted_chroma = bool(rag_client.delete_memory(chroma_doc_id))
+                    except Exception as e:
+                        logger.error(f"Failed to delete Chroma memory for doc_id {chroma_doc_id}: {e}")
+
+        # 删除 chat_messages 中的最末轮条目
+        placeholders = ",".join("?" for _ in ids_to_delete)
+        cursor.execute(f"DELETE FROM chat_messages WHERE id IN ({placeholders})", ids_to_delete)
         conn.commit()
+
+        cursor.execute("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?", (session_id,))
+        remaining_count = cursor.fetchone()[0]
         conn.close()
-        return {"status": "success", "session_id": session_id}
+
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "rolled_back_ids": ids_to_delete,
+            "invalidated_memory_id": invalidated_mem_id,
+            "deleted_chroma": deleted_chroma,
+            "remaining_messages": remaining_count
+        }
+    except HTTPException:
+        raise
     except Exception as e:
-        logger.error(f"Failed to delete session: {e}")
+        logger.error(f"Rollback step failed for session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+

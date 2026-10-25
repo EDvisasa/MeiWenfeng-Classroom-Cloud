@@ -2,7 +2,7 @@ import os
 import re
 import json
 import logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 
@@ -37,6 +37,7 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
 
     current_file_path = getattr(payload, 'current_file_path', None)
     persona_type = getattr(payload, 'persona_type', 'simplified')
+    session_id = getattr(payload, 'session_id', None)
 
     # === 1. /update_persona ===
     if clean_cmd in ("/update_persona", "update_persona", "/更新人设", "更新人设"):
@@ -64,7 +65,7 @@ def handle_slash_command(command: str, payload: Any, last_user_msg: str, cleaned
 
     # === 5. /set_mission ===
     if clean_cmd.startswith("/set_mission"):
-        return _handle_set_mission(clean_cmd, payload, last_user_msg, cleaned_messages)
+        return _handle_set_mission(clean_cmd, payload, last_user_msg, cleaned_messages, session_id=session_id)
 
     # === 6. /cancel_mission ===
     if clean_cmd == "/cancel_mission":
@@ -77,7 +78,7 @@ Action Required:
 2. Keep the mentor persona. Be playful, slightly disappointed, or understanding.
 3. Invite the user to continue normal chat or start over when ready.
 </system_directive>"""
-        return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection)
+        return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, session_id=session_id)
 
     # 从数据库获取用户的宏大目标 (Mission)
     from backend.services.mission_manager import MissionManager
@@ -203,9 +204,9 @@ Action Required: As a mentor, review their recent progress and outline their upc
 Output Format: If you need to append new topics to the syllabus, embed the following tag in your response: `<new_course phase="Phase Name" topic="Topic Name" />`. The system will automatically add it to the pending progress.
 </system_directive>"""
 
-    return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, prelude_hint=prelude_hint)
+    return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, prelude_hint=prelude_hint, session_id=session_id)
 
-def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: List[Dict[str, str]], persona_type: str, system_injection: str, prelude_hint: dict | None = None) -> StreamingResponse:
+def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: List[Dict[str, str]], persona_type: str, system_injection: str, prelude_hint: dict | None = None, session_id: Optional[str] = None) -> StreamingResponse:
     """
     在原本的大模型对话流基础上，追加特定的 System Prompt 注入，让大模型根据指令自动执行动作。
     采用解耦的 ResponsePipeline。
@@ -217,40 +218,9 @@ def _stream_normal_chat_with_injection(last_user_msg: str, cleaned_messages: Lis
         extra_system_injection=system_injection
     )
 
-
-    def on_stream_end(clean_text: str):
-        if not last_user_msg or not clean_text:
-            return
-        try:
-            from datetime import datetime
-            from backend.services.response_pipeline import clean_memory_text
-            
-            memory_clean_text = clean_memory_text(clean_text)
-            time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            memory_content = f"【对话记录 ({time_str})】\n用户：{last_user_msg}\n媚吻锋：{memory_clean_text}"
-            conn = get_db_connection()
-            cursor = conn.cursor()
-            cursor.execute(
-                "INSERT INTO memory_logs (content, level, status) VALUES (?, 0, 'active')",
-                (memory_content,)
-            )
-            conn.commit()
-
-            cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
-            active_level0_count = cursor.fetchone()[0]
-            if active_level0_count >= 10:
-                import threading
-                from backend.services.memory_decay import process_memory_decay
-                threading.Thread(target=process_memory_decay, daemon=True).start()
-            conn.close()
-
-            rag_client = get_rag_client()
-            rag_client.save_memory(last_user_msg, memory_clean_text, level=0)
-        except Exception as e:
-            logger.error(f"Failed to save memory in callback: {e}")
-
-    # 初始化管道
-    pipeline = ResponsePipeline(on_stream_end=on_stream_end, registry=action_registry)
+    # 初始化管道并记录 session_id 与原始输入，由管道内部统一持久化与 RAG 存储
+    pipeline = ResponsePipeline(registry=action_registry, session_id=session_id)
+    pipeline.original_user_msg = last_user_msg
 
     def event_generator():
         try:
@@ -410,7 +380,7 @@ def _handle_prepare_lesson(file_path: str) -> StreamingResponse:
     return StreamingResponse(pipeline.process_stream(raw_generator()), media_type="text/event-stream")
 
 
-def _handle_set_mission(clean_cmd: str, payload: Any, last_user_msg: str, cleaned_messages: List[Dict[str, str]]) -> StreamingResponse:
+def _handle_set_mission(clean_cmd: str, payload: Any, last_user_msg: str, cleaned_messages: List[Dict[str, str]], session_id: Optional[str] = None) -> StreamingResponse:
     mission_text = clean_cmd.replace("/set_mission", "").strip()
     
     # 1. Start the draft
@@ -422,10 +392,10 @@ def _handle_set_mission(clean_cmd: str, payload: Any, last_user_msg: str, cleane
             yield f"[系统报错] 目标设定初始化失败: {e}"
         return StreamingResponse(ResponsePipeline().process_stream(raw_generator()), media_type="text/event-stream")
 
-    return handle_mission_interrogation(last_user_msg, cleaned_messages, getattr(payload, 'persona_type', 'simplified'), draft)
+    return handle_mission_interrogation(last_user_msg, cleaned_messages, getattr(payload, 'persona_type', 'simplified'), draft, session_id=session_id)
 
 
-def handle_mission_interrogation(last_user_msg: str, cleaned_messages: List[Dict[str, str]], persona_type: str, draft: dict) -> StreamingResponse:
+def handle_mission_interrogation(last_user_msg: str, cleaned_messages: List[Dict[str, str]], persona_type: str, draft: dict, session_id: Optional[str] = None) -> StreamingResponse:
     """
     The Interrogation Loop (Hard Block). 
     We inject a strict system prompt to force the LLM to extract the missing slots or give a micro-quiz.
@@ -472,4 +442,4 @@ Current Draft Status:
     # 注册拦截动作
     action_registry.register("finalize_mission", FinalizeMissionHandler())
 
-    return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection)
+    return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, session_id=session_id)

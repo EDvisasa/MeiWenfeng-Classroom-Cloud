@@ -1,6 +1,6 @@
 import os
 import httpx
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from backend.services.rag_factory import RAGClient
 
 RAGFLOW_API_KEY = os.environ.get("RAGFLOW_API_KEY", "")
@@ -170,8 +170,12 @@ class RAGFlowClient(RAGClient):
             return []
         return []
 
-    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0) -> bool:
+    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0, session_id: Optional[str] = None) -> Any:
         """RAGFlow does not support high-frequency memory writes well, fallback to no-op"""
+        return False
+
+    def delete_memory(self, doc_id: str) -> bool:
+        """RAGFlow memory deletion not implemented"""
         return False
 
     def retrieve_memory(self, query: str, n_results: int = 3) -> list[str]:

@@ -1,6 +1,7 @@
 import { API_BASE } from './config';
 import React, { useState, useEffect, useRef } from 'react';
 import { dispatchSystemCommand } from './services/commandDispatcher';
+import { executeRecursiveRollback } from './services/rollbackService';
 import FileTree from './components/FileTree';
 import ChatPanel from './components/ChatPanel';
 import StatusPanel from './components/StatusPanel';
@@ -44,6 +45,7 @@ export default function App() {
 
   const [inputText, setInputText] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
+  const [isRollingBack, setIsRollingBack] = useState(false);
   const abortControllerRef = useRef(null);
   const [showDbViewer, setShowDbViewer] = useState(false);
   const [showMobileStatus, setShowMobileStatus] = useState(false);
@@ -182,31 +184,49 @@ export default function App() {
   };
 
   const handleEditAndResend = async (index, newContent) => {
-    if (isStreaming) return;
+    if (isStreaming || isRollingBack) return;
+    setIsRollingBack(true);
 
-    // 截断到 index
-    const truncated = messages.slice(0, index);
-    const originalImages = messages[index]?.images;
-
-    if (!originalImages || originalImages.length === 0) {
-      setMessages(truncated);
-      const handled = await dispatchSystemCommand(newContent, {
-        setMessages,
-        API_BASE,
-        getNowStr: _getNowStr
+    try {
+      // 1. 递归倒序逐轮回滚后端数据库及向量库记忆（LIFO）
+      const rollbackResult = await executeRecursiveRollback({
+        messages,
+        index,
+        activeSessionId,
+        apiBase: API_BASE
       });
-      if (handled) return;
+
+      if (!rollbackResult.success) {
+        alert(rollbackResult.error);
+        return;
+      }
+
+      // 2. 截断到 index
+      const truncated = rollbackResult.remainingMessages.slice(0, index);
+      const originalImages = messages[index]?.images;
+
+      if (!originalImages || originalImages.length === 0) {
+        setMessages(truncated);
+        const handled = await dispatchSystemCommand(newContent, {
+          setMessages,
+          API_BASE,
+          getNowStr: _getNowStr
+        });
+        if (handled) return;
+      }
+
+      const editedMessage = {
+        role: 'user',
+        content: newContent,
+        ...(originalImages && originalImages.length > 0 ? { images: originalImages } : {})
+      };
+      const nextMessages = [...truncated, editedMessage];
+
+      setMessages(nextMessages);
+      await triggerAIResponse(nextMessages);
+    } finally {
+      setIsRollingBack(false);
     }
-
-    const editedMessage = {
-      role: 'user',
-      content: newContent,
-      ...(originalImages && originalImages.length > 0 ? { images: originalImages } : {})
-    };
-    const nextMessages = [...truncated, editedMessage];
-
-    setMessages(nextMessages);
-    await triggerAIResponse(nextMessages);
   };
 
   const handleEditAiMessage = (index, newContent) => {

@@ -29,7 +29,11 @@ class RAGClient(ABC):
         pass
 
     @abstractmethod
-    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0) -> bool:
+    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0, session_id: Optional[str] = None) -> Any:
+        pass
+
+    @abstractmethod
+    def delete_memory(self, doc_id: str) -> bool:
         pass
 
     @abstractmethod

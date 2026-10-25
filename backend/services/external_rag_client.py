@@ -81,8 +81,12 @@ class ExternalRAGClient(RAGClient):
             return {"status": "error", "message": f"无法连接外部 RAG 服务: {e}"}
         return {"status": "error", "message": "外部 RAG 服务响应异常"}
 
-    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0) -> bool:
+    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0, session_id: Optional[str] = None) -> Any:
         """外部服务目前不支持高频记忆写入，降级处理"""
+        return False
+
+    def delete_memory(self, doc_id: str) -> bool:
+        """外部服务目前不支持记忆删除，返回 False"""
         return False
 
     def retrieve_memory(self, query: str, n_results: int = 3) -> List[str]:

@@ -263,8 +263,8 @@ class ChromaRAGClient(RAGClient):
             return []
 
     # ── 对话记忆专用接口 ──────────────────────────────────────────
-    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0) -> bool:
-        """把一轮对话存入 conversation_memory collection，用于后续语义召回"""
+    def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0, session_id: Optional[str] = None) -> Optional[str]:
+        """把一轮对话存入 conversation_memory collection，用于后续语义召回，返回 doc_id"""
         try:
             self._ensure_client()
             collection = self._get_collection("conversation_memory")
@@ -274,19 +274,32 @@ class ChromaRAGClient(RAGClient):
             combined = f"【对话记录 ({time_str})】\n用户：{user_msg}\n媚吻锋：{assistant_msg}"
             doc_id = hashlib.md5(combined[:200].encode("utf-8")).hexdigest()
             
-            from datetime import datetime
             collection.upsert(
                 documents=[combined],
                 ids=[doc_id],
                 metadatas=[{
                     "level": level,
                     "timestamp": datetime.now().isoformat(),
-                    "user_snippet": user_msg[:100]
+                    "user_snippet": user_msg[:100],
+                    "session_id": session_id or ""
                 }]
             )
-            return True
+            return doc_id
         except Exception as e:
             print(f"ChromaDB save_memory error: {e}")
+            return None
+
+    def delete_memory(self, doc_id: str) -> bool:
+        """从 conversation_memory collection 中精准物理移除指定的记忆切片"""
+        if not doc_id:
+            return False
+        try:
+            self._ensure_client()
+            collection = self._get_collection("conversation_memory")
+            collection.delete(ids=[doc_id])
+            return True
+        except Exception as e:
+            print(f"ChromaDB delete_memory error: {e}")
             return False
 
     def retrieve_memory(self, query: str, n_results: int = 3) -> List[str]:

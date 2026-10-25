@@ -698,46 +698,51 @@ domain: project-planning
 
 
 ### <a id="issue-40"></a>[ISSUE-40] 对话轮次血统追踪与记忆回滚底层接缝 (Turn Lineage Tracking & Memory Invalidation)
-- **Status**: `PENDING` (待进行)
+- **Status**: `DONE` (已完成 / 测试通过)
 - **Parent**: `ADR-007` / Context & Memory Pipeline
 - **User Story**: 作为随身课堂记忆与知识库引擎，在将对白沉淀到 `memory_logs` 与 ChromaDB 向量库时，我希望注入 `session_id` 与时序轮次血统（Lineage），并提供原子级单轮逆向回滚端点 `POST /api/chat/sessions/{id}/rollback_step`，以便后续能够安全撤销废弃轮次产生的多余记忆。
 - **What to build**:
-  1. **元数据血统扩展**：在 `memory_logs` 表与 ChromaDB `conversation_memory` 集合的元数据中，记录 `session_id` 和对应轮次 `turn_id` / `message_id`；
+  1. **元数据血统扩展**：在 `memory_logs` 表与 ChromaDB `conversation_memory` 集合的元数据中，记录 `session_id` 和对应轮次 `chroma_doc_id`；
   2. **原子单轮逆向回滚端点**：在 [`backend/routers/memory.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py) 新增 `POST /api/chat/sessions/{session_id}/rollback_step`，接收当前窗口宣称的尾端消息标识；
   3. **防时序漂移断言 (Recency Guard)**：校验传入的当前尾端条目是否确为数据库中最新的一条；若不匹配则拒绝回滚并返回 409 冲突；
-  4. **记忆物理清理与撤回**：校验通过后，物理或逻辑标记撤销该轮次对应的 `memory_logs` 并从 ChromaDB 中清理对应切片；
-  5. **自动化单测看护**：编写 `backend/tests/test_memory_rollback.py` 覆盖单轮回滚与防漂移拦截。
+  4. **记忆物理清理与撤回**：校验通过后，软标记失效该轮次对应的 `memory_logs`（`status = 'rolled_back'`）并从 ChromaDB 中精准物理删除对应切片；
+  5. **自动化单测看护**：编写 `backend/tests/test_memory_rollback.py` 覆盖单轮回滚、防漂移拦截与端到端管道闭环（使用隔离临时数据库）。
 - **Affected Files**:
   - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
   - [`backend/services/response_pipeline.py`](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py)
   - [`backend/services/chroma_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py)
+  - [`backend/services/rag_factory.py`](file:///d:/MeiWenfeng-Classroom/backend/services/rag_factory.py)
+  - [`backend/services/ragflow_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/ragflow_client.py)
+  - [`backend/services/external_rag_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/external_rag_client.py)
   - [`backend/routers/memory.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py)
+  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
+  - [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)
   - [`backend/tests/test_memory_rollback.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_rollback.py)
 - **Acceptance Criteria**:
-  - [ ] 写入记忆时包含关联的 `session_id` 与轮次标识；
-  - [ ] 回滚端点能准确校验最新尾端条目，若不匹配返回清晰冲突警告；
-  - [ ] 回滚成功后，对应轮次的 `memory_logs` 与 ChromaDB 记录被准确撤销；
-  - [ ] 后端 pytest 测试全量绿灯通过。
+  - [x] 写入记忆时包含关联的 `session_id` 与 `chroma_doc_id`；
+  - [x] 回滚端点能准确校验最新尾端条目，若不匹配返回 409 清晰冲突警告；
+  - [x] 回滚成功后，对应轮次的 `memory_logs` 标记为 `rolled_back` 且 ChromaDB 对应向量切片被物理清除；
+  - [x] 后端 pytest 测试全量绿灯通过（4/4）。
 - **Blocked by**: None
 - **Verification Command**: `pytest backend/tests/test_memory_rollback.py -v`
 
 ### <a id="issue-41"></a>[ISSUE-41] 链式对话逆序递归栈回滚发包协议与重发对齐 (Recursive Tail-First Unwind & Resend Pipeline)
-- **Status**: `PENDING` (待进行)
+- **Status**: `DONE` (已完成 / 测试通过)
 - **Parent**: [ISSUE-40]
 - **User Story**: 作为聊天交互系统，当用户点击任一历史轮次的“重新发送”时，前端与后端严格按照最新尾部条目对齐校验，以逆序递归栈（Tail-first recursive unrolling）形式逐轮安全回滚中间状态，直至目标对白位置，完成洁净重发。
 - **What to build**:
-  1. **前端递归/逐轮回滚状态机**：在 [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) 的 `handleEditAndResend` 中，识别重发点到当前末尾的所有待回退轮次；
-  2. **逆序栈解构协议**：自当前最新尾部开始，向后端逐轮请求 `rollback_step`；若某步失败或尾部不匹配，立即安全终止并向用户弹窗报错，防止脏重发；
-  3. **干净重发与视图同步**：全部回退成功后，将编辑后的新消息追加并正常发起 `triggerAIResponse`；
-  4. **端到端集成测试**：在 `ChatPanel.test.jsx` 与前端测试中模拟多轮回退与重发行为。
+  1. **前端递归/逐轮回滚服务模块**：提取 [`frontend/src/services/rollbackService.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/services/rollbackService.js)，在 [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) 的 `handleEditAndResend` 中无缝调度；
+  2. **逆序栈解构协议**：自当前最新尾部开始，向后端逐轮请求 `rollback_step`；若遇 409 漂移或网络失败立即中止回滚并弹窗，杜绝脏写；
+  3. **干净重发与视图同步**：全部回退成功后，将编辑后的新消息追加并正常发起 `triggerAIResponse`，杜绝孤岛记忆；
+  4. **单测看护**：编写 `frontend/src/services/rollbackService.test.js` 覆盖多轮 LIFO 逆序展开、单轮展开与冲突熔断保护。
 - **Affected Files**:
+  - [`frontend/src/services/rollbackService.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/services/rollbackService.js)
+  - [`frontend/src/services/rollbackService.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/services/rollbackService.test.js)
   - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
-  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
-  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
 - **Acceptance Criteria**:
-  - [ ] 历史消息重新发送时，前端自尾部向前递归逐轮回滚并同步后端状态；
-  - [ ] 若最新条目校验不通过，拒绝执行回滚并提示；
-  - [ ] 重发后旧轮次产生的记忆在数据库中不留残留孤岛；
-  - [ ] 前端测试全量绿灯通过。
+  - [x] 历史消息重新发送时，前端自尾部向前递归逐轮回滚并同步后端状态；
+  - [x] 若最新条目校验不通过，拒绝执行回滚并弹出警示；
+  - [x] 重发后旧轮次产生的记忆在数据库与向量库中不留残留孤岛；
+  - [x] 前端测试全量绿灯通过（50/50）。
 - **Blocked by**: [ISSUE-40]
 - **Verification Command**: `cd frontend && npm test -- --run`

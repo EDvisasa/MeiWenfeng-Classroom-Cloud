@@ -30,7 +30,7 @@ def test_execute_bash_allows_safe_commands():
     assert "guardrail_test_pass" in res
 
 def test_read_file_with_pdf(tmp_path):
-    import pypdf
+    pypdf = pytest.importorskip("pypdf")
     from pypdf import PdfWriter
     
     # Create a test PDF with 7 pages
@@ -91,6 +91,7 @@ def test_read_file_with_docx(tmp_path):
     assert "第二段：STM32 寄存器映射原理" in res
 
 def test_read_real_downloaded_pdf():
+    pytest.importorskip("pypdf")
     # If the user's downloaded navier-stokes.pdf exists, verify real-world extraction
     pdf_path = r"C:\Users\EDvisa\Downloads\navier-stokes.pdf"
     if os.path.exists(pdf_path):

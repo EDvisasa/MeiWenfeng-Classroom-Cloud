@@ -49,7 +49,9 @@ def init_db():
         content TEXT,
         summary TEXT,
         level INTEGER DEFAULT 0,
-        status TEXT DEFAULT 'active'
+        status TEXT DEFAULT 'active',
+        session_id TEXT DEFAULT NULL,
+        chroma_doc_id TEXT DEFAULT NULL
     );
     """)
 
@@ -91,6 +93,16 @@ def init_db():
 
     try:
         cursor.execute("ALTER TABLE chat_sessions ADD COLUMN compact_cutoff_id INTEGER DEFAULT 0")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE memory_logs ADD COLUMN session_id TEXT DEFAULT NULL")
+    except sqlite3.OperationalError:
+        pass
+
+    try:
+        cursor.execute("ALTER TABLE memory_logs ADD COLUMN chroma_doc_id TEXT DEFAULT NULL")
     except sqlite3.OperationalError:
         pass
 
