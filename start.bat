@@ -40,14 +40,21 @@ echo [Warning] Dependencies incomplete or updated, synchronizing via pip...
 :deps_ok
 
 rem 3. Check and Setup Node dependencies
-if exist frontend\node_modules\remark-gfm goto frontend_ok
-echo [Info] Frontend dependencies missing or updated (e.g. remark-gfm). Installing...
+if not exist frontend\node_modules goto install_frontend_deps
 cd frontend
+call npm ls --depth=0 >nul 2>&1
+if %errorlevel% equ 0 (
+    cd ..
+    echo [OK] Frontend dependencies verified - fast check passed.
+    goto frontend_ok
+)
+:install_frontend_deps
+echo [Info] Frontend dependencies incomplete or updated. Installing...
 call npm install
 cd ..
 :frontend_ok
 
-rem 3. Cleanup Zombie Processes
+rem 4. Cleanup Zombie Processes
 echo ==========================================
 echo Cleaning up potential zombie processes...
 for /f "tokens=5" %%a in ('%SystemRoot%\System32\netstat.exe -aon ^| find ":12701" ^| find "LISTENING"') do (
@@ -63,7 +70,7 @@ for /f "tokens=5" %%a in ('%SystemRoot%\System32\netstat.exe -aon ^| find ":1270
     %SystemRoot%\System32\taskkill.exe /f /t /pid %%a >nul 2>&1
 )
 
-rem 4. Start core services using concurrently
+rem 5. Start core services using concurrently
 echo ==========================================
 echo Starting core services concurrently in a single window...
 echo Frontend will run at http://localhost:12703/

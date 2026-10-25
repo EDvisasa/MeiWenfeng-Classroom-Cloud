@@ -61,8 +61,6 @@ domain: core-architecture
 
 **如何运行**：在 `frontend` 目录下执行 `npm test -- --run`（单次全量非交互执行）或 `npm test`（交互式监听热更新模式）即可自动运行前端测试。
 
-> 💡 **前端依赖维护守则 (Frontend Dependency Safety)**：  
-> 当为前端新增运行时库（例如 `remark-gfm` 等富文本渲染依赖）时，必须将 `package.json` 与 `package-lock.json` 一并提交，且须在根目录启动脚本 [`start.bat`](file:///d:/MeiWenfeng-Classroom/start.bat) 的依赖探针中挂载对新增核心库的探测逻辑。这样旧开发机在通过 `git pull` 拉取更新后双击启动脚本，即可自动触发增量 `npm install` 补全依赖，防止因缺失模块触发 `[vite] Failed to resolve import` 编译阻断。
 
 ---
 
