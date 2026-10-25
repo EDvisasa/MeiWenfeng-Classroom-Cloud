@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../config';
 export default function DatabaseViewer({ onClose }) {
   const [tables, setTables] = useState([]);
@@ -6,6 +6,8 @@ export default function DatabaseViewer({ onClose }) {
   const [tableData, setTableData] = useState({ columns: [], data: [] });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [expandedCell, setExpandedCell] = useState(null);
+  const dragPosRef = useRef({ x: 0, y: 0 });
 
   // Fetch list of tables on mount
   useEffect(() => {
@@ -14,12 +16,28 @@ export default function DatabaseViewer({ onClose }) {
 
   // Fetch table data when a table is selected
   useEffect(() => {
+    setExpandedCell(null);
     if (selectedTable) {
       fetchTableData(selectedTable);
     } else {
       setTableData({ columns: [], data: [] });
     }
   }, [selectedTable]);
+
+  // Handle Escape key to collapse expanded cell first, or close modal
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        if (expandedCell) {
+          setExpandedCell(null);
+        } else if (onClose) {
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [expandedCell, onClose]);
 
   const fetchTables = async () => {
     try {
@@ -41,6 +59,7 @@ export default function DatabaseViewer({ onClose }) {
   const fetchTableData = async (tableName) => {
     setLoading(true);
     setError('');
+    setExpandedCell(null);
     try {
       const res = await fetch(`${API_BASE}/api/chat/db/tables/${tableName}`);
       if (res.ok) {
@@ -119,8 +138,13 @@ export default function DatabaseViewer({ onClose }) {
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-primary)' }}>
             
             {/* Toolbar */}
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{selectedTable || '请选择数据表'}</span>
+            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 20, background: 'var(--bg-primary)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{selectedTable || '请选择数据表'}</span>
+                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                  💡 点击单元格可原地展开 / 展开后右下角可自由拉伸宽高
+                </span>
+              </div>
               <button 
                 onClick={() => selectedTable && fetchTableData(selectedTable)}
                 disabled={!selectedTable || loading}
@@ -148,13 +172,22 @@ export default function DatabaseViewer({ onClose }) {
             )}
 
             {/* Table Area */}
-            <div style={{ flex: 1, overflow: 'auto', padding: '16px' }}>
+            <div style={{ flex: 1, overflow: 'auto', padding: '0 16px 16px 16px', position: 'relative' }}>
               {tableData.columns.length > 0 ? (
-                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '13px', textAlign: 'left' }}>
-                  <thead>
+                <table style={{ width: '100%', borderCollapse: 'separate', borderSpacing: 0, fontSize: '13px', textAlign: 'left' }}>
+                  <thead style={{ position: 'sticky', top: 0, zIndex: 10 }}>
                     <tr>
                       {tableData.columns.map(col => (
-                        <th key={col} style={{ padding: '8px 12px', borderBottom: '2px solid var(--border-color)', background: 'var(--bg-secondary)', position: 'sticky', top: 0, zIndex: 1 }}>
+                        <th key={col} style={{ 
+                          padding: '10px 12px', 
+                          borderBottom: '2px solid var(--border-color)', 
+                          background: 'var(--bg-secondary)', 
+                          position: 'sticky', 
+                          top: 0, 
+                          zIndex: 10,
+                          color: 'var(--text-primary)',
+                          fontWeight: '600'
+                        }}>
                           {col}
                         </th>
                       ))}
@@ -164,25 +197,72 @@ export default function DatabaseViewer({ onClose }) {
                     {tableData.data.map((row, idx) => (
                       <tr key={idx} style={{ borderBottom: '1px solid var(--border-color)' }}>
                         {tableData.columns.map(col => {
+                          const cellKey = `${idx}_${col}`;
+                          const isExpanded = expandedCell === cellKey;
                           let cellValue = row[col];
-                          if (typeof cellValue === 'object' && cellValue !== null) {
-                            cellValue = JSON.stringify(cellValue);
+                          const isNull = cellValue === null || cellValue === undefined;
+
+                          // 保持完整原始字符串用于缩放展开
+                          let fullText = isNull 
+                            ? 'NULL' 
+                            : (typeof cellValue === 'object' ? JSON.stringify(cellValue, null, 2) : String(cellValue));
+
+                          // 未展开时的紧凑文本：超长文本保留前 160 字符并提示点击缩放
+                          const isLong = fullText.length > 160;
+                          let displayText = fullText;
+                          if (!isExpanded && isLong) {
+                            displayText = fullText.substring(0, 160) + '... (点击缩放展开)';
                           }
-                          // Truncate long text to prevent DOM freezing
-                          let textStr = String(cellValue !== null ? cellValue : 'NULL');
-                          if (textStr.length > 200) {
-                            textStr = textStr.substring(0, 200) + '... (truncated, ' + textStr.length + ' chars)';
-                          }
+
+                          const handleMouseDown = (e) => {
+                            dragPosRef.current = { x: e.clientX, y: e.clientY };
+                          };
+
+                          const handleCellClick = (e) => {
+                            if (isNull) return;
+                            // 如果发生明显拖拽（调整大小或划选文本），则不触发收回切换
+                            const dx = Math.abs(e.clientX - dragPosRef.current.x);
+                            const dy = Math.abs(e.clientY - dragPosRef.current.y);
+                            if (dx > 5 || dy > 5) return;
+                            setExpandedCell(prev => prev === cellKey ? null : cellKey);
+                          };
+
                           return (
-                            <td key={col} style={{ padding: '8px 12px', maxWidth: '300px' }}>
-                              <div style={{
-                                maxHeight: '60px',
-                                overflowY: 'auto',
-                                wordBreak: 'break-all',
-                                color: cellValue === null ? 'var(--text-secondary)' : 'var(--text-primary)',
-                                fontStyle: cellValue === null ? 'italic' : 'normal'
-                              }}>
-                                {textStr}
+                            <td 
+                              key={col} 
+                              style={{ 
+                                padding: '8px 12px', 
+                                minWidth: isExpanded ? '380px' : (col === 'id' ? '50px' : '100px'),
+                                maxWidth: isExpanded ? '850px' : '280px',
+                                verticalAlign: 'top',
+                                transition: 'all 0.2s ease'
+                              }}
+                            >
+                              <div 
+                                className={`db-table-cell ${isExpanded ? 'db-cell-expanded' : 'db-cell-compact'}`}
+                                onMouseDown={handleMouseDown}
+                                onClick={handleCellClick}
+                                title={isExpanded ? '点击缩回紧凑视图（右下角 ◢ 可自由拖拽拉伸）' : (isNull ? '空值 (NULL)' : (isLong ? '点击原地缩放展开查看全文' : '点击缩放查看'))}
+                                style={{
+                                  minWidth: isExpanded ? '360px' : 'auto',
+                                  maxWidth: isExpanded ? '850px' : '280px',
+                                  maxHeight: isExpanded ? '400px' : '52px',
+                                  resize: isExpanded ? 'both' : 'none',
+                                  overflow: isExpanded ? 'auto' : 'hidden',
+                                  wordBreak: 'break-all',
+                                  whiteSpace: isExpanded ? 'pre-wrap' : 'normal',
+                                  color: isNull ? 'var(--text-secondary)' : 'var(--text-primary)',
+                                  fontStyle: isNull ? 'italic' : 'normal',
+                                  cursor: isNull ? 'default' : 'pointer',
+                                  padding: isExpanded ? '10px 14px' : '4px 6px',
+                                  borderRadius: '4px',
+                                  fontSize: isExpanded ? '12px' : '13px',
+                                  lineHeight: isExpanded ? '1.6' : '1.4',
+                                  fontFamily: isExpanded ? 'var(--font-mono, Consolas, Monaco, monospace)' : 'inherit',
+                                  userSelect: isExpanded ? 'text' : 'none'
+                                }}
+                              >
+                                {displayText}
                               </div>
                             </td>
                           );

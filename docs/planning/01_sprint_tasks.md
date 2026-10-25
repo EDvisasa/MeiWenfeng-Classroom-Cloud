@@ -673,6 +673,71 @@ domain: project-planning
 - **Blocked by**: None — can start immediately
 - **Verification Command**: `cd frontend && npm test -- --run`
 
+### <a id="issue-39"></a>[ISSUE-39] 数据库查看器单元格极简原位文本缩放与无图标交互 (DatabaseViewer In-place Cell Scaling & Expansion)
+- **Status**: `DONE` (已完成 / 2026-10-26 经 Vitest 单元测试闭环通过)
+- **Parent**: `ADR-008` / Built-in DatabaseViewer
+- **User Story**: 作为系统开发者或用户，在打开内置数据库查看器审查数据时，我希望点击任意超长或截断的单元格即可原位平滑缩放展开查看完整文本（无需冗余图标干扰视觉），再次点击即可平滑收起回缩，以便我能随时清晰审查完整的对白记录、记忆日志或会话压缩摘要。
+- **What to build**:
+  1. **原位展开状态管理 (In-place Toggle State)**：在 [`frontend/src/components/DatabaseViewer.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.jsx) 中引入 `expandedCell: { rowIdx, col } | null` 选中状态，点击同一单元格在“截断预览”与“原位展开”间无缝切换；
+  2. **废除破坏性硬编码截断**：默认状态保持紧凑限高（如 `max-height: 54px`，溢出省略）；点击展开后渲染完整 `row[col]` 文本（支持自适应最大可视高度如 300px 及局域滚动）；
+  3. **无图标极简视觉与微光反馈**：点击单元格时赋予微光边框高亮（`var(--accent-pink)`）与柔和阴影，增加可点击的手型光标（`cursor: pointer`）与辅助提示 title；
+  4. **TDD 自动化测试闭环**：在 [`frontend/src/components/DatabaseViewer.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.test.jsx) 建立单元测试，断言点击前截断/限高、点击后展示全文并添加展开类名、再次点击收回。
+- **Affected Files**:
+  - [`frontend/src/components/DatabaseViewer.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.jsx)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`frontend/src/components/DatabaseViewer.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.test.jsx)
+- **Acceptance Criteria**:
+  - [x] 数据库查看器单元格无需额外图标，直接点击单元格即可在原位展开并展示完整无截断的文本；
+  - [x] 展开时具备舒适的最小宽度（380px），杜绝因表头短文本被挤压成单字细长竖条；
+  - [x] 支持右下角自由拖拽拉伸宽高（CSS `resize: both`），并配备防误触折叠保护与“点击收起 ✕”专属操作；
+  - [x] 再次点击展开的单元格可平滑收起回退至默认预览状态；
+  - [x] 展开单元格拥有优雅的微光高亮焦点及局域滚动条，层级严格处于吸顶表头下方；
+  - [x] 前端自动化单测 100% 绿灯通过（47/47）。
+- **Blocked by**: None — can start immediately
+- **Verification Command**: `cd frontend && npm test -- --run`
 
 
+### <a id="issue-40"></a>[ISSUE-40] 对话轮次血统追踪与记忆回滚底层接缝 (Turn Lineage Tracking & Memory Invalidation)
+- **Status**: `PENDING` (待进行)
+- **Parent**: `ADR-007` / Context & Memory Pipeline
+- **User Story**: 作为随身课堂记忆与知识库引擎，在将对白沉淀到 `memory_logs` 与 ChromaDB 向量库时，我希望注入 `session_id` 与时序轮次血统（Lineage），并提供原子级单轮逆向回滚端点 `POST /api/chat/sessions/{id}/rollback_step`，以便后续能够安全撤销废弃轮次产生的多余记忆。
+- **What to build**:
+  1. **元数据血统扩展**：在 `memory_logs` 表与 ChromaDB `conversation_memory` 集合的元数据中，记录 `session_id` 和对应轮次 `turn_id` / `message_id`；
+  2. **原子单轮逆向回滚端点**：在 [`backend/routers/memory.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py) 新增 `POST /api/chat/sessions/{session_id}/rollback_step`，接收当前窗口宣称的尾端消息标识；
+  3. **防时序漂移断言 (Recency Guard)**：校验传入的当前尾端条目是否确为数据库中最新的一条；若不匹配则拒绝回滚并返回 409 冲突；
+  4. **记忆物理清理与撤回**：校验通过后，物理或逻辑标记撤销该轮次对应的 `memory_logs` 并从 ChromaDB 中清理对应切片；
+  5. **自动化单测看护**：编写 `backend/tests/test_memory_rollback.py` 覆盖单轮回滚与防漂移拦截。
+- **Affected Files**:
+  - [`backend/database.py`](file:///d:/MeiWenfeng-Classroom/backend/database.py)
+  - [`backend/services/response_pipeline.py`](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py)
+  - [`backend/services/chroma_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py)
+  - [`backend/routers/memory.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py)
+  - [`backend/tests/test_memory_rollback.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_rollback.py)
+- **Acceptance Criteria**:
+  - [ ] 写入记忆时包含关联的 `session_id` 与轮次标识；
+  - [ ] 回滚端点能准确校验最新尾端条目，若不匹配返回清晰冲突警告；
+  - [ ] 回滚成功后，对应轮次的 `memory_logs` 与 ChromaDB 记录被准确撤销；
+  - [ ] 后端 pytest 测试全量绿灯通过。
+- **Blocked by**: None
+- **Verification Command**: `pytest backend/tests/test_memory_rollback.py -v`
 
+### <a id="issue-41"></a>[ISSUE-41] 链式对话逆序递归栈回滚发包协议与重发对齐 (Recursive Tail-First Unwind & Resend Pipeline)
+- **Status**: `PENDING` (待进行)
+- **Parent**: [ISSUE-40]
+- **User Story**: 作为聊天交互系统，当用户点击任一历史轮次的“重新发送”时，前端与后端严格按照最新尾部条目对齐校验，以逆序递归栈（Tail-first recursive unrolling）形式逐轮安全回滚中间状态，直至目标对白位置，完成洁净重发。
+- **What to build**:
+  1. **前端递归/逐轮回滚状态机**：在 [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) 的 `handleEditAndResend` 中，识别重发点到当前末尾的所有待回退轮次；
+  2. **逆序栈解构协议**：自当前最新尾部开始，向后端逐轮请求 `rollback_step`；若某步失败或尾部不匹配，立即安全终止并向用户弹窗报错，防止脏重发；
+  3. **干净重发与视图同步**：全部回退成功后，将编辑后的新消息追加并正常发起 `triggerAIResponse`；
+  4. **端到端集成测试**：在 `ChatPanel.test.jsx` 与前端测试中模拟多轮回退与重发行为。
+- **Affected Files**:
+  - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
+- **Acceptance Criteria**:
+  - [ ] 历史消息重新发送时，前端自尾部向前递归逐轮回滚并同步后端状态；
+  - [ ] 若最新条目校验不通过，拒绝执行回滚并提示；
+  - [ ] 重发后旧轮次产生的记忆在数据库中不留残留孤岛；
+  - [ ] 前端测试全量绿灯通过。
+- **Blocked by**: [ISSUE-40]
+- **Verification Command**: `cd frontend && npm test -- --run`

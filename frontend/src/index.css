@@ -2514,4 +2514,26 @@ body {
 .markdown-table tbody tr:hover {
   background: rgba(244, 114, 182, 0.06);
   transition: background 0.15s ease-in-out;
-}
+}
+
+/* ==========================================================================
+   DatabaseViewer In-place Cell Scaling & Expansion Styles (ISSUE-39)
+   ========================================================================== */
+.db-table-cell {
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 4px;
+}
+
+.db-cell-compact:hover {
+  background: var(--bg-tertiary);
+  outline: 1px dashed var(--accent-pink, #f472b6);
+}
+
+.db-cell-expanded {
+  background: var(--bg-tertiary) !important;
+  border: 1px solid var(--accent-pink, #f472b6) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px var(--accent-pink, #f472b6) !important;
+  z-index: 2 !important;
+}
+
