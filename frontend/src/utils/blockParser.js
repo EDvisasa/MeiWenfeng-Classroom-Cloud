@@ -2,13 +2,13 @@ function stripControlTags(text) {
   if (!text) return '';
   let cleaned = text;
   cleaned = cleaned.replace(/\s*<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|\/>|$)\s*/gi, '');
-  cleaned = cleaned.replace(/\s*<execute_bash>[\s\S]*?(?:<\/execute_bash>|\/>|$)\s*/gi, '');
-  cleaned = cleaned.replace(/\s*<call_tool[\s\S]*?(?:<\/call_tool>|\/>|$)\s*/gi, '');
-  cleaned = cleaned.replace(/\s*<tool_batch>[\s\S]*?(?:<\/tool_batch>|\/>|$)\s*/gi, '');
-  cleaned = cleaned.replace(/\s*<property_update[\s\S]*?(?:<\/property_update>|\/>|$)\s*/gi, '');
-  cleaned = cleaned.replace(/\s*<system_pass[\s\S]*?(?:<\/system_pass>|\/>|$)\s*/gi, '');
-  cleaned = cleaned.replace(/\s*<memory_decay[\s\S]*?(?:<\/memory_decay>|\/>|$)\s*/gi, '');
-  cleaned = cleaned.replace(/\s*<new_course[\s\S]*?(?:<\/new_course>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<execute_bash\b[^>]*>((?:(?!<execute_bash>)[\s\S])*?)(?:<\/execute_bash>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<call_tool\b[^>]*>((?:(?!<call_tool>)[\s\S])*?)(?:<\/call_tool>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<tool_batch\b[^>]*>((?:(?!<tool_batch>)[\s\S])*?)(?:<\/tool_batch>|\/>|$)\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<property_update\b[^>]*\/?>(\s*<\/property_update>)?\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<system_pass\b[^>]*\/?>(\s*<\/system_pass>)?\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<memory_decay\b[^>]*\/?>(\s*<\/memory_decay>)?\s*/gi, '');
+  cleaned = cleaned.replace(/\s*<new_course\b[^>]*\/?>(\s*<\/new_course>)?\s*/gi, '');
   cleaned = cleaned.replace(/\s*\[SYSTEM_PASS\]\s*/gi, '');
   return cleaned;
 }
@@ -27,8 +27,8 @@ function parseBodyCards(bodyText) {
 
   const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/gi;
   const missionRegex = /<mission_proposal([^>]*?)\/?>/gi;
-  const explainerRegex = /<explainer\s+[^>]*?title=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/explainer>|$)/gi;
-  const glossaryRegex = /<glossary\s+[^>]*?term=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/glossary>|$)/gi;
+  const explainerRegex = /<explainer\s+[^>]*?title=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/explainer>|(?!(?:(?!<explainer)[\s\S])*?<\/explainer>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<call_tool\b|<execute_bash\b)|$)/gi;
+  const glossaryRegex = /<glossary\s+[^>]*?term=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/glossary>|(?!(?:(?!<glossary)[\s\S])*?<\/glossary>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<call_tool\b|<execute_bash\b)|$)/gi;
 
   let segments = [];
   let lastQuizIndex = 0;
@@ -138,9 +138,11 @@ function parseBodyCards(bodyText) {
     } else if (segment.isMission) {
       blocks.push({ type: 'mission_proposal', data: segment.data, status: 'done' });
     } else if (segment.isExplainer) {
-      blocks.push({ type: 'explainer', title: segment.title, text: segment.content, status: 'done' });
+      const cleanedContent = stripControlTags(segment.content || '').trim();
+      blocks.push({ type: 'explainer', title: segment.title, text: cleanedContent, status: 'done' });
     } else if (segment.isGlossary) {
-      blocks.push({ type: 'glossary', term: segment.term, text: segment.content, status: 'done' });
+      const cleanedContent = stripControlTags(segment.content || '').trim();
+      blocks.push({ type: 'glossary', term: segment.term, text: cleanedContent, status: 'done' });
     } else {
       const snippet = (segment.content || '').replace(/<\/think>/g, '').trim();
       const cleanedSnippet = stripControlTags(snippet);

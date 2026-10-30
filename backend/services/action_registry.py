@@ -35,5 +35,11 @@ class ActionRegistry:
         """Get a list of all registered tag names."""
         return list(self.handlers.keys())
 
+    def execute(self, tag_name: str, attrs: Dict[str, Any], content: str) -> None:
+        """Execute the handler registered for the tag name."""
+        handler = self.get_handler(tag_name)
+        if handler:
+            handler.handle(attrs, content)
+
 # Global singleton instance
 action_registry = ActionRegistry()

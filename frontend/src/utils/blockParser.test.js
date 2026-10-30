@@ -97,6 +97,17 @@ describe('parseAndMergeBlocks', () => {
     ]);
   });
 
+  // Behavior 12: ISSUE-42
+  it('should NOT let drafted control tags like <property_update> cross-tag bleed or swallow middle text', () => {
+    const input = 'Plan: mention <property_update> here.\n\nGreat story text...\n\n<property_update affection_delta="1" />';
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      { type: 'text', text: 'Plan: mentionhere.\n\nGreat story text...' }
+    ]);
+  });
+
+
   // Behavior 9: ISSUE-37
   it('should NOT let cards (<explainer>, <quiz>) inside <think> prematurely create blocks', () => {
     const input = `<think>
@@ -199,6 +210,53 @@ Definitions with nested double quotes.
         type: 'glossary',
         term: 'Words with "Double Quotes"',
         text: "Definitions with nested double quotes.",
+        status: 'done'
+      }
+    ]);
+  });
+
+  // Behavior 13: ISSUE-43 (unclosed card and control tag isolation)
+  it('should NOT leak control tags (<monologue>, <property_update>) inside <explainer> even if unclosed', () => {
+    const input = `<explainer title="Test FFT">
+Lecture notes here.
+<monologue>This is secret inner thought.</monologue>
+<property_update affection_delta="1" />`;
+
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      {
+        type: 'explainer',
+        title: 'Test FFT',
+        text: 'Lecture notes here.',
+        status: 'done'
+      }
+    ]);
+  });
+
+  it('should strip control tags inside properly closed <explainer> or <glossary> as defense-in-depth', () => {
+    const input = `<explainer title="Safety Test">
+Explanation text.
+<monologue>Accidental thought in explainer</monologue>
+</explainer>
+<glossary term="Term">
+Glossary text.
+<monologue>Accidental thought in glossary</monologue>
+</glossary>`;
+
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      {
+        type: 'explainer',
+        title: 'Safety Test',
+        text: 'Explanation text.',
+        status: 'done'
+      },
+      {
+        type: 'glossary',
+        term: 'Term',
+        text: 'Glossary text.',
         status: 'done'
       }
     ]);

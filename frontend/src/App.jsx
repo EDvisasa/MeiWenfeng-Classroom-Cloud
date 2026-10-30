@@ -248,12 +248,7 @@ export default function App() {
     if (messages && messages.length > 0) {
       const lastAsst = [...messages].reverse().find(m => m.role === 'assistant');
       if (lastAsst) {
-        let textToParse = '';
-        if (lastAsst.blocks) {
-          textToParse = lastAsst.blocks.filter(b => b.type === 'text').map(b => b.text).join('');
-        } else if (lastAsst.content) {
-          textToParse = lastAsst.content;
-        }
+        let textToParse = lastAsst.content || (lastAsst.blocks ? lastAsst.blocks.map(b => b.text || '').join('') : '');
         let cleanText = textToParse.replace(/<think>[\s\S]*?(?:<\/think>|$)/gi, '');
         const thoughtMatch = cleanText.match(/<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|$)/g) || cleanText.match(/【此刻内心】[：:]\s*[（(]([\s\S]*?)[)）]/g);
         if (thoughtMatch && thoughtMatch.length > 0) {

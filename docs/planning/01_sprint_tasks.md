@@ -746,3 +746,63 @@ domain: project-planning
   - [x] 前端测试全量绿灯通过（50/50）。
 - **Blocked by**: [ISSUE-40]
 - **Verification Command**: `cd frontend && npm test -- --run`
+
+### <a id="issue-42"></a>[ISSUE-42] 流式标签拦截器防死锁与全栈控制标签防跨行吞噬 (Stream Tag Interceptor Deadlock Defense & Cross-Tag Bleed Protection)
+- **Status**: `DONE` (已完成 / 2026-10-26 经前后端全量回归测试闭环通过)
+- **Parent**: `ADR-007` / Stream Response Pipeline
+- **User Story**: 作为随身课堂用户与流式交互引擎，在大模型于思维链或正文中草拟、提及单闭合控制标签（如 `<property_update>`、`<monologue>`）或正常流式输出长文本时，我希望后端 `TagStreamInterceptor` 绝不因伪代码或未闭合标签陷入永久缓冲死锁，前端 `blockParser` 亦绝不跨多行贪婪吞噬后续故事与教学正文，确保流式输出始终平滑连贯、完整呈现。
+- **What to build**:
+  1. **后端自闭合标签防死锁 (Self-Closing Only Tags)**: 在 `backend/services/response_pipeline.py` 中明确定义 `SELF_CLOSING_ONLY_TAGS`（如 `property_update`, `memory_decay`, `system_pass`, `finalize_mission`）。若遇到未带 `/>` 的此类标签，严禁将其作为配对容器标签进入 `in_tag = True` 等待闭合标签，直接安全放行，杜绝吞噬死锁。
+  2. **后端思维链沙盒流式放行 (<think> Sandbox Awareness)**: 在 `TagStreamInterceptor` 增加 `<think>...</think>` 状态追踪。在思考链流式输出期间，大模型草拟的任何标签纯属规划，全部原样放行，不触发任何副作用标签拦截。
+  3. **前端控制标签范围收敛 (Single-Tag Scoped Regex)**: 在 `frontend/src/utils/blockParser.js` 的 `stripControlTags` 中，重构单标签清洗正则（如 `<property_update\b[^>]*\/?>`），严禁使用 `[\s\S]*?` 跨越后续正文或贪婪匹配到文末的真实卡片。
+  4. **全栈回归测试看护**:
+     - 后端编写 `backend/tests/test_response_pipeline_guard.py`，验证包含草拟 `<property_update>`、`<think>` 内部提及标签、以及常规长文本时的流式连贯性与副作用准确性；
+     - 前端在 `frontend/src/utils/blockParser.test.js` 中增加测试用例，断言正文中草拟标签绝不吞噬后续文本。
+- **Affected Files**:
+  - [`backend/services/response_pipeline.py`](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py)
+  - [`backend/tests/test_response_pipeline_guard.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_response_pipeline_guard.py)
+  - [`frontend/src/utils/blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js)
+  - [`frontend/src/utils/blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 当模型在输出中写出 `<property_update>`（无 `/>`）时，后端拦截器不挂起，实时逐 chunk 向外推送；
+  - [x] 在 `<think>` 思维链内部草拟的任何标签均安全流向前端，不触发副作用状态机；
+  - [x] 正文末尾真实的 `<property_update ... />` 依然能被准确拦截并执行属性更新；
+  - [x] 前端 `stripControlTags` 不会因前文出现 `<property_update>` 而跨行抹除后续教学文本；
+  - [x] 后端 pytest 与前端 npm test 均 100% 绿灯通过（184/184 pytest, 52/52 vitest）。
+- **Verification Command**: `pytest backend/tests/test_response_pipeline_guard.py && cd frontend && npm test -- --run`
+
+### <a id="issue-43"></a>[ISSUE-43] 未闭合卡片防吞噬与卡片内控制标签清洗防护 (Unclosed Card Boundary Lookahead & Explainer Control Tag Sanitization)
+- **Status**: `DONE` (已完成 / 2026-10-30 经前后端全量回归测试闭环通过)
+- **Parent**: `ADR-007` / Frontend Card Parser & Stream Defense
+- **User Story**: 作为随身课堂用户，当大模型生成 `<explainer>` 讲义或 `<glossary>` 术语卡片但末尾遗漏闭合标签时，我希望前端解析器绝不把后续收尾伴读台词与控制标签（`<monologue>`、`<property_update>`）打包吞入卡片内部，且任何卡片内部的控制标签均被彻底清洗过滤，保证内心独白不泄露且界面布局优雅完整。
+- **What to build**:
+  1. **前端智能前瞻截断 (Smart Boundary Lookahead)**: 在 `frontend/src/utils/blockParser.js` 中，将 `explainerRegex` 和 `glossaryRegex` 的结束回退升级为负向前瞻与控制标签前瞻 `(?:<\/explainer>|(?!(?:(?!<explainer)[\s\S])*?<\/explainer>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<call_tool\b|<execute_bash\b)|$)`。若标签正常闭合则优先匹配到 `</explainer>`；若模型遗漏闭合标签，则在系统控制标签前自动完成卡片截断，严禁越界吞噬；
+  2. **卡片内容纵深清洗 (Card Content Defense-in-Depth)**: 在 `blockParser.js` 组装 `explainer` 与 `glossary` 数据结构时，对 `content` 强制调用 `stripControlTags`，彻底消灭任何嵌套或残留控制标签对 Markdown 渲染的污染；
+  3. **后端深模块防御与 Prompt 范式校准**:
+     - 在 `backend/services/response_pipeline.py` 的 `_execute_side_effects` 中增加 `_clean_card_content` 清洗函数并采用同构正则防溢出；
+     - 在 `backend/services/action_registry.py` 中为 `ActionRegistry` 补全 `execute` 分发接口；
+     - 在 `backend/services/prompts.py` 规则 5 中补充 `<explainer> -> 闭合 -> 对话动作 -> <monologue>` 的标准四步时序 Few-shot 样例；
+     - 在 `frontend/src/App.jsx` 提取 `currentThought` 时优先使用原始 `lastAsst.content`，避免卡片切分干扰。
+  4. **全栈回归单测验证**:
+     - 前端在 `frontend/src/utils/blockParser.test.js` 编写未闭合与已闭合卡片下控制标签清洗的专项测试（54 项前端测试全绿）；
+     - 后端在 `backend/tests/test_response_pipeline_guard.py` 新增 `test_unclosed_explainer_does_not_swallow_monologue_or_property_update`（185 项后端测试全绿）。
+- **Affected Files**:
+  - [`frontend/src/utils/blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js)
+  - [`frontend/src/utils/blockParser.test.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js)
+  - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
+  - [`backend/services/response_pipeline.py`](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py)
+  - [`backend/services/action_registry.py`](file:///d:/MeiWenfeng-Classroom/backend/services/action_registry.py)
+  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`backend/tests/test_response_pipeline_guard.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_response_pipeline_guard.py)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 当模型未闭合 `<explainer>` 时，`<monologue>` 与 `<property_update>` 绝不漏入卡片文本中；
+  - [x] 正常闭合的卡片中若包含意外控制标签，卡片内容亦被彻底清洗；
+  - [x] 前端顶部“此刻内心”能可靠提取未被卡片吞噬的内心独白；
+  - [x] 后端保存讲义教材时，不包含任何控制标签杂质；
+  - [x] 前后端全量自动化测试 100% 绿灯通过（185 pytest, 54 vitest）。
+- **Verification Command**: `pytest backend/tests/test_response_pipeline_guard.py && cd frontend && npm test -- --run`
+
+

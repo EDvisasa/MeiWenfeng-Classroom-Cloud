@@ -32,9 +32,12 @@ class TagStreamInterceptor:
     流式拦截器：处理大模型输出流，缓冲并拦截特定的 XML 标签和 [SYSTEM_PASS]。
     向外只 yield 纯净的（去除了标签的）文本或字典对象。
     """
+    SELF_CLOSING_ONLY_TAGS = {"property_update", "memory_decay", "system_pass", "finalize_mission"}
+
     def __init__(self, target_tags: List[str] = None):
         self.buffer = ""
         self.in_tag = False
+        self.in_think = False  # 追踪大模型是否处于 <think>...</think> 思维链沙盒中
         self.current_tag_name = ""
         self.intercepted_data = {}   # 保存所有被拦截的数据，包括多次出现的标签
         self.clean_text_accumulated = "" # 积累最终的纯净文本
@@ -94,24 +97,50 @@ class TagStreamInterceptor:
                 elif self.buffer.startswith("<"):
                     if char == ">":
                         # 只有在遇到 `>` 时才进行正则匹配，避免 O(N²) 性能问题
-                        if not self.in_tag:
-                            # 尝试匹配起始标签 <tag ...> 或单闭合标签 <tag .../>
-                            start_match = re.match(r'^<([a-zA-Z_]+)([^>]*)>$', self.buffer)
-                            single_match = re.match(r'^<([a-zA-Z_]+)([^>]*)/>$', self.buffer)
+                        if self.in_think:
+                            # 处于 <think> 沙盒中：检查是否遇到 </think> 闭合
+                            if re.match(r'^</think\s*>$', self.buffer.strip(), re.IGNORECASE):
+                                self.in_think = False
+                            # 在 <think> 内部的任何标签或 </think> 本身，全部直接放行，绝不触发副作用拦截
+                            safe_text = self._flush_buffer_safe()
+                            if safe_text:
+                                yield {"type": "text", "text": safe_text} if is_dict else safe_text
+                        elif not self.in_tag:
+                            # 检查是否开启 <think> 沙盒
+                            if re.match(r'^<think\b[^>]*>$', self.buffer.strip(), re.IGNORECASE):
+                                self.in_think = True
+                                safe_text = self._flush_buffer_safe()
+                                if safe_text:
+                                    yield {"type": "text", "text": safe_text} if is_dict else safe_text
+                            else:
+                                # 尝试匹配起始标签 <tag ...> 或单闭合标签 <tag .../>
+                                start_match = re.match(r'^<([a-zA-Z_]+)([^>]*)>$', self.buffer)
+                                single_match = re.match(r'^<([a-zA-Z_]+)([^>]*)/>$', self.buffer)
 
-                            if single_match and single_match.group(1) in self.target_tags:
-                                self._store_tag(single_match.group(1), single_match.group(2), "")
-                                safe_text = self._flush_buffer_safe()
-                                if safe_text:
-                                    yield {"type": "text", "text": safe_text} if is_dict else safe_text
-                            elif start_match and start_match.group(1) in self.target_tags:
-                                self.in_tag = True
-                                self.current_tag_name = start_match.group(1)
-                            elif len(self.buffer) > 1:
-                                # 不是我们要拦截的标签（包括未在 in_tag 状态下的 </...），放行
-                                safe_text = self._flush_buffer_safe()
-                                if safe_text:
-                                    yield {"type": "text", "text": safe_text} if is_dict else safe_text
+                                if single_match and single_match.group(1) in self.target_tags:
+                                    self._store_tag(single_match.group(1), single_match.group(2), "")
+                                    safe_text = self._flush_buffer_safe()
+                                    if safe_text:
+                                        yield {"type": "text", "text": safe_text} if is_dict else safe_text
+                                elif start_match and start_match.group(1) in self.target_tags:
+                                    tag_name = start_match.group(1)
+                                    attrs_str = start_match.group(2)
+                                    if tag_name in self.SELF_CLOSING_ONLY_TAGS:
+                                        # 自闭合专属标签：严禁进入 in_tag 等待闭合标签，杜绝流式死锁
+                                        # 若带有属性（例如模型漏写了 /），安全提取；若为纯草拟伪代码，直接放行
+                                        if attrs_str and '=' in attrs_str:
+                                            self._store_tag(tag_name, attrs_str, "")
+                                        safe_text = self._flush_buffer_safe()
+                                        if safe_text:
+                                            yield {"type": "text", "text": safe_text} if is_dict else safe_text
+                                    else:
+                                        self.in_tag = True
+                                        self.current_tag_name = tag_name
+                                elif len(self.buffer) > 1:
+                                    # 不是我们要拦截的标签（包括未在 in_tag 状态下的 </...），放行
+                                    safe_text = self._flush_buffer_safe()
+                                    if safe_text:
+                                        yield {"type": "text", "text": safe_text} if is_dict else safe_text
                         else:
                             # 在 in_tag 状态下遇到了 `>`，检查是否是结束标签
                             end_tag = f"</{self.current_tag_name}>"
@@ -157,10 +186,13 @@ class TagStreamInterceptor:
 
     def finish(self) -> Generator[Union[str, Dict[str, Any]], None, None]:
         """流结束时调用，清空剩余缓冲"""
+        self.in_think = False
+        self.in_tag = False
         if self.buffer:
             # 如果流结束了还有缓冲，说明是未闭合的标签或普通文本，直接放行
             safe_text = self._flush_buffer_safe()
             if safe_text: yield {"type": "text", "text": safe_text}
+
 
 
 class ResponsePipeline:
@@ -241,17 +273,28 @@ class ResponsePipeline:
         
         # 对于没有被拦截器吞噬、而是流入了前台的标签，我们用正则直接从 clean_text 中提取并执行其副作用
         import re
+        def _clean_card_content(raw: str) -> str:
+            if not raw:
+                return ""
+            c = re.sub(r'\s*<monologue>[\s\S]*?(?:</monologue>|$)\s*', '', raw, flags=re.IGNORECASE)
+            c = re.sub(r'\s*<property_update\b[^>]*\/?>(\s*</property_update>)?\s*', '', c, flags=re.IGNORECASE)
+            c = re.sub(r'\s*<system_pass\b[^>]*\/?>(\s*</system_pass>)?\s*', '', c, flags=re.IGNORECASE)
+            c = re.sub(r'\s*\[SYSTEM_PASS\]\s*', '', c, flags=re.IGNORECASE)
+            return c.strip()
+
         if self.registry:
             if "explainer" in self.handlers or "explainer" in self.registry.get_all_tags():
-                for match in re.finditer(r'<explainer\s+title=[\'"]?([^\'"<>]+)[\'"]?>([\s\S]*?)(?:</explainer>|$)', clean_text, re.IGNORECASE):
+                for match in re.finditer(r'<explainer\s+title=[\'"]?([^\'"<>]+)[\'"]?>([\s\S]*?)(?:</explainer>|(?!(?:(?!<explainer)[\s\S])*?</explainer>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<call_tool\b|<execute_bash\b)|$)', clean_text, re.IGNORECASE):
                     try:
-                        self.registry.execute("explainer", {"title": match.group(1)}, match.group(2).strip())
+                        clean_content = _clean_card_content(match.group(2))
+                        self.registry.execute("explainer", {"title": match.group(1)}, clean_content)
                     except Exception as e:
                         logger.error(f"Error executing action explainer: {e}")
             if "glossary" in self.handlers or "glossary" in self.registry.get_all_tags():
-                for match in re.finditer(r'<glossary\s+term=[\'"]?([^\'"<>]+)[\'"]?>([\s\S]*?)(?:</glossary>|$)', clean_text, re.IGNORECASE):
+                for match in re.finditer(r'<glossary\s+term=[\'"]?([^\'"<>]+)[\'"]?>([\s\S]*?)(?:</glossary>|(?!(?:(?!<glossary)[\s\S])*?</glossary>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<call_tool\b|<execute_bash\b)|$)', clean_text, re.IGNORECASE):
                     try:
-                        self.registry.execute("glossary", {"term": match.group(1)}, match.group(2).strip())
+                        clean_content = _clean_card_content(match.group(2))
+                        self.registry.execute("glossary", {"term": match.group(1)}, clean_content)
                     except Exception as e:
                         logger.error(f"Error executing action glossary: {e}")
 

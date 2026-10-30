@@ -338,7 +338,23 @@ domain: project-planning
   3. 在 `index.css` 落地高质感毛玻璃、交替行与粉色暗亮主题自适应表格样式；
   4. **TDD 自动化测试闭环**：在 [`ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 与 [`PreviewEditModal.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.test.jsx) 落地单测验证表格正常渲染，43 项前端单测 100% 绿灯通过。
 
+### 36. [已解决 / 流式传输与卡片解析] 大模型草拟控制标签触发 TagStreamInterceptor 死锁与前端跨行贪婪吞噬
+- **现象描述**：大模型在生成睡前故事或长篇教学回答时，在思维链草稿（或正文）第 6 步输出 `6. Post-Response: <monologue> + <property_update> at end.`，界面流式输出在刚刚打印完 `<monologue> + ` 后突然彻底卡死，且流结束后数千字的故事正文也未能呈现。
+- **解决路线** (对应 `ISSUE-42`)：
+  1. **后端自闭合单标签防死锁**：在 [response_pipeline.py](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py) 中定义 `SELF_CLOSING_ONLY_TAGS = {"property_update", "memory_decay", "system_pass", "finalize_mission"}`，遇到此类单标签时绝不将其作为配对容器标签进入 `in_tag = True` 陷入等待闭合标签的死锁，带属性时提取属性，无属性时直接作为纯文本安全放行；
+  2. **后端思维链沙盒流式放行**：在 `TagStreamInterceptor` 增加 `in_think` 状态机跟踪，在 `<think>...</think>` 思维链流式输出期间，大模型草拟的任何标签纯属规划，全部原样放行，不触发任何副作用标签拦截；
+  3. **前端控制标签范围收敛**：在 [blockParser.js](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js) 的 `stripControlTags` 中重构清洗正则（`/<property_update\b[^>]*\/?>(\s*<\/property_update>)?/gi`），严禁使用 `[\s\S]*?` 跨多行贪婪匹配导致吞噬正文；
+  4. **全栈回归测试**：在 `backend/tests/test_response_pipeline_guard.py` 与 `frontend/src/utils/blockParser.test.js` 中建立自动化回归看护，前后端测试 100% 绿灯通过（184/184 pytest, 52/52 vitest）。
 
-
-
+### 37. [已解决 / 前端卡片解析与控制标签穿透] 未闭合 <explainer> 导致控制标签 <monologue> 与 <property_update> 泄漏在 UI 界面
+- **现象描述**：大模型在生成睡前故事或技术教学微课时，输出 `<explainer title="...">` 讲义卡片但末尾遗漏了 `</explainer>` 闭合标签，直接输出收尾伴读台词与 `<monologue>`、`<property_update>`，导致前端将后续全部对话与控制标签打包进卡片，并在卡片内原样展示 `<monologue>` 与 `<property_update>` 裸露标签。
+- **根因分析**：
+  1. **前端正则流式贪婪吞噬**：`blockParser.js` 中的 `explainerRegex` 为支持流式而使用 `(?:<\/explainer>|$)`，在无闭合标签时贪婪匹配至文末，吞噬所有后续内容；
+  2. **卡片渲染盲区**：`blockParser.js` 仅在普通文本分支调用 `stripControlTags`，对 `explainer` 和 `glossary` 卡片内容未做清洗，直接传给 `ReactMarkdown`，非标准标签被原样作为纯文本打印；
+  3. **后端副作用清洗盲区**：`response_pipeline.py` 在提取未闭合 `explainer` 时同样吞噬至文末，将控制标签存入讲义。
+- **解决路线** (对应 `ISSUE-43`)：
+  1. **前端智能前瞻截断**：在 `explainerRegex` 和 `glossaryRegex` 增加负向与正向前瞻 `(?:<\/explainer>|(?!(?:(?!<explainer)[\s\S])*?<\/explainer>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<call_tool\b|<execute_bash\b)|$)`，仅在确实未闭合时在控制标签前截断，且 closed 标签优先匹配；
+  2. **卡片内容纵深清洗**：在组装 `explainer` 与 `glossary` block 时强制调用 `stripControlTags`，彻底消灭泄漏；
+  3. **后端深模块防御**：在 `response_pipeline.py` 中增加 `_clean_card_content` 清洗控制标签并修复 `ActionRegistry.execute`；在 `prompts.py` 补充卡片必须立刻闭合的 Few-shot 样例；在 `App.jsx` 优先从原始 `content` 读取独白；
+  4. **全栈回归测试闭环**：前端 `blockParser.test.js` 新增 2 项单测（54/54 全绿），后端 `test_response_pipeline_guard.py` 新增防吞噬单测，全量 185 项 pytest 测试 100% 绿灯通过。
 
