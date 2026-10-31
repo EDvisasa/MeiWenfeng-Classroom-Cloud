@@ -806,3 +806,33 @@ domain: project-planning
 - **Verification Command**: `pytest backend/tests/test_response_pipeline_guard.py && cd frontend && npm test -- --run`
 
 
+### <a id="issue-44"></a>[ISSUE-44] 内置数据库查看器全量记录左右翻页与优雅分页导航器 (DatabaseViewer Pagination & Elegant Page Navigator)
+- **Status**: `DONE` (已完成 / 2026-10-31 经前后端全量回归测试闭环通过)
+- **Parent**: `ADR-008` / Built-in Database Viewer & UX
+- **User Story**: 作为随身课堂管理者与开发者，在使用“内置数据库查看器”查看系统数据表（如 `chat_messages`、`memory_logs` 等）时，系统不再受限于硬编码前 200 条记录的截断展示，我希望在弹窗底部拥有简洁、优雅的左右翻页按钮与分页导航条，支持自选每页条数（50/100/200 条/页）并平滑翻阅历史全部记录，提升数据库审查与调试体验。
+- **What to build**:
+  1. **后端分页聚合统计与元数据回传**: 在 `backend/routers/db_viewer.py` 的 `get_table_data` 接口中，增加对 `limit`（1-500 安全区间）与 `offset`（>=0）的严格边界校验，并引入 `SELECT COUNT(*) as total FROM {table_name}` 查询，在返回字典中完整回传 `total`、`limit` 与 `offset`；
+  2. **前端优雅分页器组件与状态驱动**:
+     - 在 `frontend/src/components/DatabaseViewer.jsx` 中，引入 `currentPage`（1 起始）、`pageSize`（默认 100）与 `totalCount` 状态；
+     - 切换数据表或调整每页条数时，自动重置回第 1 页并按 `offset = (page - 1) * pageSize` 触发数据拉取；
+     - 刷新当前表时保留当前翻页位置与页容；
+     - 设计并渲染极简优雅的底部翻页条：左侧展示总记录数与当前区间（如 `共 208 条记录 (第 1 - 100 条)`），右侧提供极简下拉选择器（`50 / 100 / 200 条/页`）、轻量级无衬线图标与文字的 `‹ 上一页` 与 `下一页 ›` 按钮、以及 `第 1 / 3 页` 状态指示器；支持精准的 disabled 状态（加载中、首尾页防越界）；
+  3. **主题无缝融合样式**: 在 `frontend/src/index.css` 中注入 `.db-pagination-bar`、`.db-pagination-btn`、`.db-pagination-select` 等高质感样式，完全遵循系统 CSS 变量规范（`var(--accent-pink)`、`var(--border-color)` 等）；
+  4. **全栈回归测试看护**:
+     - 后端编写 `backend/tests/test_db_viewer.py`，覆盖数据表枚举、默认分页、自定义 `limit/offset` 与 404 越界拦截测试；
+     - 前端在 `frontend/src/components/DatabaseViewer.test.jsx` 新增 `DatabaseViewer Pagination Feature (ISSUE-44)` 测试集，验证记录数计算、上下翻页偏移量联动、页容量切换重置、以及切换数据表重置页码，共 8 项测试全量绿灯通过。
+- **Affected Files**:
+  - [`backend/routers/db_viewer.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/db_viewer.py)
+  - [`backend/tests/test_db_viewer.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_db_viewer.py)
+  - [`frontend/src/components/DatabaseViewer.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.jsx)
+  - [`frontend/src/components/DatabaseViewer.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.test.jsx)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+- **Acceptance Criteria**:
+  - [x] 后端返回完整 `total` 统计值及分页元数据，单表超过 200 条记录不再被物理丢弃；
+  - [x] 底部翻页栏提供简洁优雅的左右翻页按钮与清晰的当前页/总页数及行数区间；
+  - [x] 点击上一页/下一页、调整条数、切换数据表均正确同步分页请求与视图；
+  - [x] 首尾页与加载中状态下翻页按钮优雅禁用防误触；
+  - [x] 后端 pytest 与前端 vitest 100% 绿灯通过（3/3 db_viewer pytest, 58/58 vitest）。
+- **Verification Command**: `pytest backend/tests/test_db_viewer.py && cd frontend && npm test -- --run`

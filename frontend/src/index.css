@@ -2536,4 +2536,93 @@ body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px var(--accent-pink, #f472b6) !important;
   z-index: 2 !important;
 }
+
 
+/* ==========================================================================
+   DatabaseViewer Pagination Bar Styles (ISSUE-44)
+   ========================================================================== */
+.db-pagination-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 16px;
+  border-top: 1px solid var(--border-color);
+  background: var(--bg-secondary);
+  font-size: 12px;
+  color: var(--text-secondary);
+  user-select: none;
+}
+
+.db-pagination-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-secondary);
+}
+
+.db-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.db-pagination-select {
+  padding: 3px 8px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.db-pagination-select:hover:not(:disabled),
+.db-pagination-select:focus {
+  border-color: var(--accent-pink, #f472b6);
+}
+
+.db-pagination-select:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.db-pagination-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 4px;
+  border: 1px solid var(--border-color);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  outline: none;
+}
+
+.db-pagination-btn:hover:not(:disabled) {
+  border-color: var(--accent-pink, #f472b6);
+  color: var(--accent-pink, #f472b6);
+  background: rgba(244, 114, 182, 0.08);
+}
+
+.db-pagination-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  border-color: transparent;
+}
+
+.db-pagination-page-indicator {
+  font-size: 12px;
+  color: var(--text-secondary);
+  padding: 0 4px;
+}
+
+.db-pagination-page-indicator strong {
+  color: var(--text-primary);
+}

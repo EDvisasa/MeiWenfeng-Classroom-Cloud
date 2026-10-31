@@ -358,3 +358,14 @@ domain: project-planning
   3. **后端深模块防御**：在 `response_pipeline.py` 中增加 `_clean_card_content` 清洗控制标签并修复 `ActionRegistry.execute`；在 `prompts.py` 补充卡片必须立刻闭合的 Few-shot 样例；在 `App.jsx` 优先从原始 `content` 读取独白；
   4. **全栈回归测试闭环**：前端 `blockParser.test.js` 新增 2 项单测（54/54 全绿），后端 `test_response_pipeline_guard.py` 新增防吞噬单测，全量 185 项 pytest 测试 100% 绿灯通过。
 
+
+### 38. [已解决 / 数据库查看器与数据审查] 内置数据库查看器被硬编码 200 条上限截断且无翻页浏览能力
+- **现象描述**：在“内置数据库查看器”弹窗中，当 `chat_messages` 或 `memory_logs` 等表记录超过 200 条时，界面仅展示“共 200 条记录 (最多显示 200 条)”，开发者无法查看早期或全量记录，无法通过翻页回溯历史数据。
+- **根因分析**：
+  1. 后端接口 `GET /api/chat/db/tables/{table_name}` 虽然支持 `limit` 和 `offset`，但未返回 `total` 总记录数；
+  2. 前端 `DatabaseViewer.jsx` 未维护页码与每页容量状态，固定一次性请求且无翻页控制组件。
+- **解决路线** (对应 `ISSUE-44`)：
+  1. **后端增加全表统计与元数据**：在 `db_viewer.py` 中增加 `SELECT COUNT(*) as total` 查询并严格校验 `limit` 与 `offset` 范围，返回 `total`、`limit`、`offset`；
+  2. **前端设计实现极简优雅分页器**：新增 `currentPage`、`pageSize`、`totalCount` 状态驱动；在底部工具栏实现左侧统计信息（`共 N 条记录 (第 A - B 条)`）与右侧翻页控制组（`50/100/200 条/页` 下拉、`‹ 上一页`、`第 X / Y 页`、`下一页 ›`）；
+  3. **主题与交互打磨**：注入 `.db-pagination-bar`、`.db-pagination-btn` 等 CSS 规则，在加载、第一页、最后一页时智能禁用并提供微交互；
+  4. **全栈回归测试看护**：新增 `backend/tests/test_db_viewer.py` 覆盖后端分页，前端 `DatabaseViewer.test.jsx` 新增 4 项专项测试（全量 58 项前端测试与后端单测 100% 绿灯）。

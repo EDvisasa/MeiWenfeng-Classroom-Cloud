@@ -7,6 +7,9 @@ export default function DatabaseViewer({ onClose }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [expandedCell, setExpandedCell] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(100);
+  const [totalCount, setTotalCount] = useState(0);
   const dragPosRef = useRef({ x: 0, y: 0 });
 
   // Fetch list of tables on mount
@@ -17,10 +20,12 @@ export default function DatabaseViewer({ onClose }) {
   // Fetch table data when a table is selected
   useEffect(() => {
     setExpandedCell(null);
+    setCurrentPage(1);
     if (selectedTable) {
-      fetchTableData(selectedTable);
+      fetchTableData(selectedTable, 1, pageSize);
     } else {
       setTableData({ columns: [], data: [] });
+      setTotalCount(0);
     }
   }, [selectedTable]);
 
@@ -56,15 +61,19 @@ export default function DatabaseViewer({ onClose }) {
     }
   };
 
-  const fetchTableData = async (tableName) => {
+  const fetchTableData = async (tableName, page = currentPage, size = pageSize) => {
+    if (!tableName) return;
     setLoading(true);
     setError('');
     setExpandedCell(null);
     try {
-      const res = await fetch(`${API_BASE}/api/chat/db/tables/${tableName}`);
+      const offset = (page - 1) * size;
+      const res = await fetch(`${API_BASE}/api/chat/db/tables/${tableName}?limit=${size}&offset=${offset}`);
       if (res.ok) {
         const data = await res.json();
         setTableData({ columns: data.columns || [], data: data.data || [] });
+        const total = typeof data.total === 'number' ? data.total : (data.data ? data.data.length : 0);
+        setTotalCount(total);
       } else {
         setError(`Failed to fetch data for ${tableName}`);
       }
@@ -73,6 +82,33 @@ export default function DatabaseViewer({ onClose }) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / pageSize));
+  const startRow = totalCount === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+  const endRow = Math.min(currentPage * pageSize, totalCount);
+
+  const handlePrevPage = () => {
+    if (currentPage > 1 && !loading) {
+      const newPage = currentPage - 1;
+      setCurrentPage(newPage);
+      fetchTableData(selectedTable, newPage, pageSize);
+    }
+  };
+
+  const handleNextPage = () => {
+    if (currentPage < totalPages && !loading) {
+      const newPage = currentPage + 1;
+      setCurrentPage(newPage);
+      fetchTableData(selectedTable, newPage, pageSize);
+    }
+  };
+
+  const handlePageSizeChange = (e) => {
+    const newSize = Number(e.target.value);
+    setPageSize(newSize);
+    setCurrentPage(1);
+    fetchTableData(selectedTable, 1, newSize);
   };
 
   return (
@@ -146,7 +182,7 @@ export default function DatabaseViewer({ onClose }) {
                 </span>
               </div>
               <button 
-                onClick={() => selectedTable && fetchTableData(selectedTable)}
+                onClick={() => selectedTable && fetchTableData(selectedTable, currentPage, pageSize)}
                 disabled={!selectedTable || loading}
                 style={{
                   padding: '6px 12px',
@@ -285,9 +321,62 @@ export default function DatabaseViewer({ onClose }) {
               )}
             </div>
             
-            {/* Footer */}
-            <div style={{ padding: '8px 16px', borderTop: '1px solid var(--border-color)', fontSize: '11px', color: 'var(--text-secondary)', background: 'var(--bg-secondary)', textAlign: 'right' }}>
-              共 {tableData.data.length} 条记录 (最多显示 200 条)
+            {/* Footer Pagination */}
+            <div className="db-pagination-bar">
+              <div className="db-pagination-info">
+                <span>共 {totalCount} 条记录</span>
+                {totalCount > 0 && (
+                  <span style={{ opacity: 0.8 }}>
+                    (第 {startRow} - {endRow} 条)
+                  </span>
+                )}
+              </div>
+
+              <div className="db-pagination-controls">
+                <select 
+                  className="db-pagination-select"
+                  value={pageSize}
+                  onChange={handlePageSizeChange}
+                  disabled={loading}
+                  aria-label="每页显示条数"
+                >
+                  <option value={50}>50 条/页</option>
+                  <option value={100}>100 条/页</option>
+                  <option value={200}>200 条/页</option>
+                </select>
+
+                <button 
+                  type="button"
+                  className="db-pagination-btn"
+                  onClick={handlePrevPage}
+                  disabled={currentPage <= 1 || loading}
+                  title="上一页"
+                  aria-label="上一页"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                    <path fillRule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+                  </svg>
+                  <span>上一页</span>
+                </button>
+
+                <div className="db-pagination-page-indicator">
+                  第 <strong>{currentPage}</strong> / {totalPages} 页
+                </div>
+
+                <button 
+                  type="button"
+                  className="db-pagination-btn"
+                  onClick={handleNextPage}
+                  disabled={currentPage >= totalPages || loading}
+                  title="下一页"
+                  aria-label="下一页"
+                >
+                  <span>下一页</span>
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+                  </svg>
+                </button>
+              </div>
             </div>
 
           </div>

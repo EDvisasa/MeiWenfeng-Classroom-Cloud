@@ -19,6 +19,8 @@ def list_tables():
 @router.get("/tables/{table_name}")
 def get_table_data(table_name: str, limit: int = 200, offset: int = 0):
     try:
+        limit = max(1, min(limit, 500))
+        offset = max(0, offset)
         conn = get_db_connection()
         cursor = conn.cursor()
         
@@ -27,6 +29,10 @@ def get_table_data(table_name: str, limit: int = 200, offset: int = 0):
         if not cursor.fetchone():
             raise HTTPException(status_code=404, detail="Table not found")
             
+        # Get total count
+        cursor.execute(f"SELECT COUNT(*) as total FROM {table_name}")
+        total_count = cursor.fetchone()["total"]
+
         # For chat_messages and memory_logs, order by id descending to show newest first
         if table_name in ["chat_messages", "memory_logs"]:
             cursor.execute(f"SELECT * FROM {table_name} ORDER BY id DESC LIMIT ? OFFSET ?", (limit, offset))
@@ -44,7 +50,10 @@ def get_table_data(table_name: str, limit: int = 200, offset: int = 0):
         return {
             "table": table_name,
             "columns": columns,
-            "data": [dict(row) for row in rows]
+            "data": [dict(row) for row in rows],
+            "total": total_count,
+            "limit": limit,
+            "offset": offset
         }
     except HTTPException:
         raise
