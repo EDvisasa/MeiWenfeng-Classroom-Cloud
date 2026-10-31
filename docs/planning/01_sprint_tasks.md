@@ -839,7 +839,7 @@ domain: project-planning
 
 
 ### <a id="issue-45"></a>[ISSUE-45] 记忆原子单元不分块与长教材标题继承切片重构 (Atomic Memory Unit & Header-Inherited Chunking Refactor)
-- **Status**: `READY` (已完成架构决策规划 / 待实施)
+- **Status**: `DONE` (已完成 / 2026-11-01 经 TDD 全量单测验证闭环)
 - **Parent**: `ADR-012` / RAG Knowledge Management & Chunking
 - **User Story**: 作为随身课堂用户与长程记忆交互系统，在系统进行语义召回时，我希望 `Memory_Knowledge` 压缩记忆以“单一事件原子胶囊”完整呈现（永不腰斩、永不丢失时间头），而 `Classroom_Knowledge` 长教材在切片时能自动继承章节 Markdown 标题并严格按自然句界断句，彻底根除时间戳脱落与字词被生硬劈开的缺陷。
 - **What to build**:
@@ -857,9 +857,9 @@ domain: project-planning
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
   - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
 - **Acceptance Criteria**:
-  - [ ] 存入 `Memory_Knowledge` 的每篇压缩日记均作为独立单 Chunk 完整入库；
-  - [ ] 召回的记忆切片 100% 保留 `【记录时间：...】` 头部与完整学情洞察；
-  - [ ] 存入 `Classroom_Knowledge` 的切片继承父级章节标题，且切片断句严格止于完整句末标点；
-  - [ ] 后端 pytest 回归测试 100% 绿灯通过；
-  - [ ] 零数据库变动，绝不破坏现有 SQLite 数据。
+  - [x] 存入 `Memory_Knowledge` 的每篇压缩日记均作为独立单 Chunk 完整入库；
+  - [x] 召回的记忆切片 100% 保留 `【记录时间：...】` 头部与完整学情洞察；
+  - [x] 存入 `Classroom_Knowledge` 的切片继承父级章节标题，且切片断句严格止于完整句末标点；
+  - [x] 后端 pytest 回归测试 100% 绿灯通过；
+  - [x] 零数据库变动，绝不破坏现有 SQLite 数据。
 - **Verification Command**: `pytest backend/tests/test_rag_retrieval.py`

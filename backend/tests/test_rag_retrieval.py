@@ -127,3 +127,76 @@ def test_chunk_text_uses_natural_boundaries_without_character_truncation_bug_11(
                 prev_char = text[idx - 1]
                 assert prev_char in ["。", "！", "？", "\n"], f"Chunk {i} started at middle of sentence! prev_char='{prev_char}', chunk start='{c[:20]}'"
 
+
+def test_memory_knowledge_sync_atomic_unit_not_chunked_issue_45():
+    """
+    TDD [ISSUE-45 / ADR-012]:
+    验证 Memory_Knowledge (压缩日记) 永远作为原子胶囊完整存储，绝不被 400 字符机械切割。
+    即使全文达到 550 字以上，也必须作为 1 个独立 Chunk 入库，完整保留时间头与学情洞察。
+    """
+    from backend.services.chroma_client import chroma_rag_client
+
+    test_filename = "Memory_Level_1_99999_test.md"
+    diary_content = (
+        "【记录时间：2026-10-31 12:00:00】\n"
+        "【时间跨度】：2026-10-30 08:00 ~ 2026-10-31 12:00\n"
+        "【面向对象】：用户、媚吻锋\n"
+        "【详细纪要】：用户讨论了流体力学与算法，深入探讨了网格划分与雷诺数计算。\n"
+        + ("这是一个关于学习与工程复盘的测试长文本段落，用来确保日记总字数充分超过四百字符的分块阈值。" * 8)
+        + "\n【学情洞察】：用户具备优秀的数理建模能力，需进一步巩固流体力学纳维-斯托克斯方程基础。"
+    )
+    assert len(diary_content) > 500
+
+    try:
+        res = chroma_rag_client.sync_knowledge({test_filename: diary_content}, dataset_name="Memory_Knowledge")
+        assert res["status"] == "success"
+
+        # 检查已索引块数：必须精确为 1 块，绝不允许被切为 2 块
+        status = chroma_rag_client.get_sync_status(dataset_name="Memory_Knowledge")
+        assert test_filename in status["documents"]
+        assert status["documents"][test_filename]["chunk_count"] == 1, (
+            f"Expected exactly 1 chunk for atomic memory diary, but got: {status['documents'][test_filename]['chunk_count']}"
+        )
+
+        # 检索测试：召回文本必须同时包含头部时间戳与尾部学情洞察
+        coll = chroma_rag_client._get_collection("memory_knowledge")
+        retrieved_docs = coll.get(where={"source_file": test_filename})["documents"]
+        assert len(retrieved_docs) == 1
+        assert "【记录时间：2026-10-31 12:00:00】" in retrieved_docs[0]
+        assert "【学情洞察】" in retrieved_docs[0]
+    finally:
+        # 清理测试数据
+        try:
+            coll = chroma_rag_client._get_collection("memory_knowledge")
+            existing = coll.get(where={"source_file": test_filename})
+            if existing and existing.get("ids"):
+                coll.delete(ids=existing["ids"])
+        except Exception:
+            pass
+
+
+def test_classroom_knowledge_chunk_inherits_headers_issue_45():
+    """
+    TDD [ISSUE-45 / ADR-012]:
+    验证长篇教材文档在切片时，后续分块能够自动继承 Markdown 一级标题或文档元数据头（Header Inheritance），
+    且保持自然的句界切分，杜绝断词。
+    """
+    from backend.services.chroma_client import _chunk_text
+
+    text = (
+        "# STM32微控制器中断系统详解\n\n"
+        + ("中断向量控制器NVIC负责管理所有的外设中断和系统异常，优先级配置决定了嵌套执行顺序。" * 6) + "。\n\n"
+        + ("抢占优先级决定高优先级中断能否打断正在执行的低优先级中断服务函数完成嵌套调用。" * 6) + "。\n\n"
+        + ("子优先级则在多个中断同时到达且抢占优先级相同时，由硬件仲裁判定谁先得到CPU响应。" * 6) + "。"
+    )
+    assert len(text) > 700
+
+    chunks = _chunk_text(text, chunk_size=300, overlap=50, inherit_header=True)
+    assert len(chunks) >= 2
+
+    # Chunk 0 包含原始标题
+    assert "# STM32微控制器中断系统详解" in chunks[0]
+
+    # Chunk 1 继承标题头
+    assert "【文档：STM32微控制器中断系统详解】" in chunks[1]
+    assert "（接上文）" in chunks[1]

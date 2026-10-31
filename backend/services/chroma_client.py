@@ -116,10 +116,32 @@ def _get_overlap_text(text: str, max_overlap: int) -> str:
     return ""
 
 
-def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 60) -> List[str]:
-    """按句子边界切块，保持一定重叠"""
+def _extract_document_header(text: str) -> str:
+    """提取文档的顶层标题或时间戳元数据头，供后续切片继承 (ADR-012)"""
+    if not text:
+        return ""
+    # 1. 匹配 【记录时间：...】 格式
+    time_match = re.match(r'^(【记录时间：[^】]+】)', text.strip())
+    if time_match:
+        return time_match.group(1).strip()
+    # 2. 匹配 Markdown 一级标题 # Title
+    h1_match = re.search(r'^#\s+([^\n]+)', text, re.MULTILINE)
+    if h1_match:
+        title = h1_match.group(1).strip()
+        return f"【文档：{title}】"
+    return ""
+
+
+def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 60, inherit_header: bool = True) -> List[str]:
+    """按句子边界切块，保持一定重叠，并支持多切片元数据头继承 (ADR-012)"""
+    text_clean = text.strip()
+    if not text_clean:
+        return []
+
+    header_prefix = _extract_document_header(text_clean) if inherit_header else ""
+
     # 先按段落切（两个换行为段落分隔）
-    paragraphs = re.split(r'\n{2,}', text.strip())
+    paragraphs = re.split(r'\n{2,}', text_clean)
     chunks = []
     current = ""
     
@@ -148,7 +170,15 @@ def _chunk_text(text: str, chunk_size: int = 400, overlap: int = 60) -> List[str
     if current.strip():
         chunks.append(current.strip())
     
-    return [c for c in chunks if c.strip()]
+    cleaned_chunks = [c for c in chunks if c.strip()]
+
+    # 若存在多个切片且提取到了头部标识，为后续切片继承头部信息 (ADR-012)
+    if len(cleaned_chunks) > 1 and header_prefix:
+        for i in range(1, len(cleaned_chunks)):
+            if not cleaned_chunks[i].startswith(header_prefix):
+                cleaned_chunks[i] = f"{header_prefix}（接上文）\n{cleaned_chunks[i]}"
+
+    return cleaned_chunks
 
 
 import threading
@@ -199,7 +229,16 @@ class ChromaRAGClient(RAGClient):
                     pass
                 
                 # 2. 切块并写入
-                chunks = _chunk_text(content)
+                if collection_name == "memory_knowledge":
+                    # ADR-012: 压缩日记属于高密度原子事件胶囊，整篇完整入库，绝不切碎
+                    # 避免 400 字符机械切割导致时间戳脱落与文字断句。若偶遇极端超长文档（> 2000字）才进行保护性切分。
+                    if len(content.strip()) <= 2000:
+                        chunks = [content.strip()]
+                    else:
+                        chunks = _chunk_text(content, chunk_size=800, overlap=80, inherit_header=True)
+                else:
+                    # 教材技术文档（Classroom_Knowledge 等）：按句号自然分块并继承文档标题 (ADR-012)
+                    chunks = _chunk_text(content, chunk_size=400, overlap=60, inherit_header=True)
                 if not chunks:
                     continue
 
@@ -320,6 +359,49 @@ class ChromaRAGClient(RAGClient):
         except Exception as e:
             print(f"ChromaDB retrieve_memory error: {e}")
             return []
+
+
+    def heal_memory_knowledge_from_db(self, db_path: Optional[str] = None) -> Dict[str, Any]:
+        """
+        根据 ADR-012 将 SQLite 中的 Level 1~4 日记重新同步为整篇原子切片，
+        消除 ChromaDB 中历史遗留的碎片化 Chunk。
+        纯只读连接 SQLite classroom.db，对原数据库无任何写操作。
+        """
+        import sqlite3
+        if not db_path:
+            db_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "classroom.db"))
+        
+        if not os.path.exists(db_path):
+            return {"status": "error", "message": f"Database file not found: {db_path}"}
+            
+        try:
+            conn = sqlite3.connect(f"file:{db_path}?mode=ro", uri=True)
+            conn.row_factory = sqlite3.Row
+            cursor = conn.cursor()
+            cursor.execute("SELECT id, level, timestamp, summary FROM memory_logs WHERE level > 0 ORDER BY id ASC")
+            rows = cursor.fetchall()
+            conn.close()
+
+            files_content = {}
+            for r in rows:
+                summary = r["summary"] or ""
+                if not summary.strip():
+                    continue
+                filename = f"Memory_Level_{r['level']}_{r['id']}.md"
+                time_str = r["timestamp"] or ""
+                if summary.strip().startswith("【记录时间") or summary.strip().startswith("【时间跨度"):
+                    sync_text = summary.strip()
+                else:
+                    sync_text = f"【记录时间：{time_str}】\n{summary.strip()}"
+                files_content[filename] = sync_text
+
+            if not files_content:
+                return {"status": "success", "message": "没有找到需要同步的日记条目。"}
+
+            res = self.sync_knowledge(files_content, dataset_name="Memory_Knowledge")
+            return res
+        except Exception as e:
+            return {"status": "error", "message": str(e)}
 
 
 chroma_rag_client = ChromaRAGClient()

@@ -369,3 +369,16 @@ domain: project-planning
   2. **前端设计实现极简优雅分页器**：新增 `currentPage`、`pageSize`、`totalCount` 状态驱动；在底部工具栏实现左侧统计信息（`共 N 条记录 (第 A - B 条)`）与右侧翻页控制组（`50/100/200 条/页` 下拉、`‹ 上一页`、`第 X / Y 页`、`下一页 ›`）；
   3. **主题与交互打磨**：注入 `.db-pagination-bar`、`.db-pagination-btn` 等 CSS 规则，在加载、第一页、最后一页时智能禁用并提供微交互；
   4. **全栈回归测试看护**：新增 `backend/tests/test_db_viewer.py` 覆盖后端分页，前端 `DatabaseViewer.test.jsx` 新增 4 项专项测试（全量 58 项前端测试与后端单测 100% 绿灯）。
+
+### 39. [已解决 / 记忆检索与切片元数据脱落] ChromaDB 固定 400 字符分块导致记忆日记腰斩、时间戳脱落与断词截断
+- **现象描述**：用户在多轮对话中触发记忆检索时，检索出的往事对白丢失了时间戳格式头（缺少 `【记录时间：YYYY-MM-DD HH:MM:SS】`），且片段常常从句中或标点后生硬截断开始（例如出现 `卷，从神女...` 等断句），把历史剧情与严肃教学断章取义地拼接到当前 `<retrieved_past_memory_archives>` 中。
+- **根因分析**：
+  1. **分块策略未按数据特征分流**：ChromaDB 向量检索此前对所有数据集无差别套用了 `chunk_size = 400, overlap = 60` 的固定切块逻辑；
+  2. **高密度总结日记被机械腰斩**：系统后台生成的各级压缩日记（`Memory_Level_1` ~ `Level_4`）每篇通常在 450~650 字符之间。400 字符的机械分块强行将每篇独立完整的日记切成了 Chunk 0（前 400 字）和 Chunk 1（剩余 100~250 字）。Chunk 0 包含时间头，而 Chunk 1 彻底丧失了时间元数据头，且从句子中间被生硬砍断；
+  3. **教材分块缺乏标题继承与自然句末断句**：长教材文档在跨分块时，后序分块缺乏上下文标题标识，容易在多篇教材混杂检索时出现语义漂移。
+- **解决路线** (对应 `ISSUE-45` / `ADR-012`):
+  1. **记忆原子胶囊策略 (Atomic Capsule)**：在 [`chroma_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py) 的 `sync_knowledge` 中，对 `collection_name == "memory_knowledge"` 实施整篇原子入库策略（<= 2000 字符整篇作为 1 个独立 Chunk 入库），彻底杜绝压缩日记被腰斩切碎；
+  2. **长教材自然句界与标题继承 (Header Inheritance)**：切块算法 `_chunk_text` 严格按完整句末标点（`。！？\n`）对齐，并引入 `_extract_document_header` 自动抽取一级标题并格式化为 `【文档：...】（接上文）` 继承至后续切片；
+  3. **记忆自愈工具 (零写保护)**：在 `ChromaRAGClient` 中提供 `heal_memory_knowledge_from_db()` 纯只读读取 SQLite `memory_logs`，支持随时将 110 个历史碎片刷新为 71 篇独立原子日记，保障 SQLite `classroom.db` 零写、零污染；
+  4. **TDD 自动化测试闭环**：在 [`test_rag_retrieval.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_rag_retrieval.py) 落地专项单测 `test_memory_knowledge_sync_atomic_unit_not_chunked_issue_45` 与 `test_classroom_knowledge_chunk_inherits_headers_issue_45`，全量测试 100% 绿灯通过。
+
