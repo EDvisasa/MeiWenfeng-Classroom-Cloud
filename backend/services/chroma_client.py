@@ -19,6 +19,9 @@ LOCAL_MODELS_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(
 if not os.environ.get("HF_HOME"):
     os.environ["HF_HOME"] = LOCAL_MODELS_DIR
 
+# 禁用 Transformers 异步多线程权重加载，规避 Windows Python 3.13 下 torch.storage 多线程并发 access violation
+os.environ["HF_DEACTIVATE_ASYNC_LOAD"] = "1" 
+
 def _get_chroma_client():
     try:
         import chromadb
@@ -361,10 +364,11 @@ class ChromaRAGClient(RAGClient):
             return []
 
 
-    def heal_memory_knowledge_from_db(self, db_path: Optional[str] = None) -> Dict[str, Any]:
+    def heal_memory_knowledge_from_db(self, db_path: Optional[str] = None, prune_orphans: bool = True) -> Dict[str, Any]:
         """
         根据 ADR-012 将 SQLite 中的 Level 1~4 日记重新同步为整篇原子切片，
         消除 ChromaDB 中历史遗留的碎片化 Chunk。
+        若 prune_orphans 为 True，同时清理已在 SQLite 中被删除的幽灵孤儿日记 (Orphans)。
         纯只读连接 SQLite classroom.db，对原数据库无任何写操作。
         """
         import sqlite3
@@ -399,6 +403,21 @@ class ChromaRAGClient(RAGClient):
                 return {"status": "success", "message": "没有找到需要同步的日记条目。"}
 
             res = self.sync_knowledge(files_content, dataset_name="Memory_Knowledge")
+
+            if prune_orphans:
+                try:
+                    coll = self._get_collection("memory_knowledge")
+                    all_meta = coll.get(include=["metadatas"])
+                    orphan_ids = []
+                    for meta, doc_id in zip(all_meta.get("metadatas", []), all_meta.get("ids", [])):
+                        src = meta.get("source_file")
+                        if src and src not in files_content:
+                            orphan_ids.append(doc_id)
+                    if orphan_ids:
+                        coll.delete(ids=orphan_ids)
+                except Exception:
+                    pass
+
             return res
         except Exception as e:
             return {"status": "error", "message": str(e)}
