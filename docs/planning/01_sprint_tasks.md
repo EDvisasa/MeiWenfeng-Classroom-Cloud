@@ -836,3 +836,30 @@ domain: project-planning
   - [x] 首尾页与加载中状态下翻页按钮优雅禁用防误触；
   - [x] 后端 pytest 与前端 vitest 100% 绿灯通过（3/3 db_viewer pytest, 58/58 vitest）。
 - **Verification Command**: `pytest backend/tests/test_db_viewer.py && cd frontend && npm test -- --run`
+
+
+### <a id="issue-45"></a>[ISSUE-45] 记忆原子单元不分块与长教材标题继承切片重构 (Atomic Memory Unit & Header-Inherited Chunking Refactor)
+- **Status**: `READY` (已完成架构决策规划 / 待实施)
+- **Parent**: `ADR-012` / RAG Knowledge Management & Chunking
+- **User Story**: 作为随身课堂用户与长程记忆交互系统，在系统进行语义召回时，我希望 `Memory_Knowledge` 压缩记忆以“单一事件原子胶囊”完整呈现（永不腰斩、永不丢失时间头），而 `Classroom_Knowledge` 长教材在切片时能自动继承章节 Markdown 标题并严格按自然句界断句，彻底根除时间戳脱落与字词被生硬劈开的缺陷。
+- **What to build**:
+  1. **知识库类型分流策略**: 在 `backend/services/chroma_client.py` 的 `sync_knowledge` 中，识别 `dataset_name="Memory_Knowledge"` 时实施非切片整条入库策略，单块长度上限提升至 1000 字符以上覆盖完整日记；
+  2. **教材自然句界与标题继承**: 在 `Classroom_Knowledge` 切片算法中，将切块边界严格对齐至自然段落与句号（`。！？
+`），并自动抽取一级与二级标题作为前缀头追加至切片；
+  3. **上下文拼装鲁棒性**: 在 `backend/services/context_manager.py` 的 `rag_context` 组装中，对召回片段保持结构化间距与时间感知；
+  4. **全栈回归测试看护**:
+     - 在 `backend/tests/test_rag_retrieval.py` 增加日记整篇存储测试与长教材标题继承截断测试；
+     - 确保现有所有 185 项后端测试保持 100% 绿灯。
+- **Affected Files**:
+  - [`docs/architecture/ADR-012_记忆原子单元不分块与长教材标题继承切片架构决策.html`](file:///d:/MeiWenfeng-Classroom/docs/architecture/ADR-012_记忆原子单元不分块与长教材标题继承切片架构决策.html)
+  - [`backend/services/chroma_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py)
+  - [`backend/tests/test_rag_retrieval.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_rag_retrieval.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+- **Acceptance Criteria**:
+  - [ ] 存入 `Memory_Knowledge` 的每篇压缩日记均作为独立单 Chunk 完整入库；
+  - [ ] 召回的记忆切片 100% 保留 `【记录时间：...】` 头部与完整学情洞察；
+  - [ ] 存入 `Classroom_Knowledge` 的切片继承父级章节标题，且切片断句严格止于完整句末标点；
+  - [ ] 后端 pytest 回归测试 100% 绿灯通过；
+  - [ ] 零数据库变动，绝不破坏现有 SQLite 数据。
+- **Verification Command**: `pytest backend/tests/test_rag_retrieval.py`

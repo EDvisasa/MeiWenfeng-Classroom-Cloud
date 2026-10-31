@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADR-012: 记忆原子单元不分块与长教材标题继承切片架构决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; align-items: center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已列装生效)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-012</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                📅 决策时间：2026-11-01 | ✍️ 决策方：媚吻锋架构审查团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            记忆原子单元不分块与长教材标题继承切片架构决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            彻底解耦“通用长篇教材切片”与“高密度压缩记忆管理”，将 <code>Memory_Knowledge</code> 记忆集合重构为<strong>【单日记事件原子单元（Atomic Capsule）】</strong>整体入库，永久废除 400 字符腰斩切割；对 <code>Classroom_Knowledge</code> 长教材切片升级为<strong>【语义整句截断 + Markdown 标题前缀继承】</strong>，彻底消除时间戳丢失与碎句断字现象。
+        </p>
+        
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-purple-50 text-purple-700 border border-purple-200">🧠 Atomic-Memory-Unit (记忆原子胶囊整篇入库)</span>
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">🏷️ Header-Inheritance (长教材切片元数据继承)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">✂️ Sentence-Boundary (句号/换行自然边界切分)</span>
+            <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">🛡️ Zero-DB-Pollution (零数据变动代码层无感升级)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">机械定长切片在业务异构知识库中的设计错配</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-red-50/60 rounded-xl p-6 border border-red-100">
+                <h3 class="text-base font-bold text-red-900 mb-2">挑战一：400 字符硬切割导致记忆文档被拦腰切断</h3>
+                <p class="text-sm text-red-800/80 leading-relaxed">
+                    在 <code>chroma_client.py</code> 初始实现中，为了适应本地模型 <code>MiniLM-L12-v2</code> 的 128 Token 窗口，全局硬编码了 <code>chunk_size = 400</code>。然而，记忆衰减生成的 Level 1~4 日记全文约 450~600 字，恰好超过 400 字阈值，导致整篇日记被粗暴横切为 Chunk 0 和 Chunk 1，不仅破坏了词语结构（如将“水镜画卷”截断成 Chunk 0 的“水镜画”和 Chunk 1 的“卷”），更使得第二切片从半句话或残字开头。
+                </p>
+            </div>
+            <div class="bg-amber-50/60 rounded-xl p-6 border border-amber-100">
+                <h3 class="text-base font-bold text-amber-900 mb-2">挑战二：第二切片丢失【记录时间】头，沦为无头公案</h3>
+                <p class="text-sm text-amber-800/80 leading-relaxed">
+                    当大模型在检索记忆时，若根据语义相似度召回了 Chunk 1（如记录中后部的详细事件或学情洞察），因头部仅包含在 Chunk 0 中，Chunk 1 完全不具备 <code>【记录时间：...】</code> 与时间跨度标签，导致注入到大模型动态提示词中的记忆失去时序锚点，甚至诱发角色认知混乱。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">知识分类分流治理：记忆原子胶囊化 + 教材继承分块化</p>
+            </div>
+        </div>
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-purple-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 压缩记忆（Memory_Knowledge）—— 原子单元整篇存储，绝不切片</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    压缩记忆（Level 1~4 日记）本身就是 LLM 高度提炼的结构化事实胶囊，属于单一不可分割的原子事件。在 <code>sync_knowledge</code> 中识别 <code>dataset_name="Memory_Knowledge"</code> 时，<strong>将单块大小阈值提升至 1000 字符以上（完整包裹整篇日记）</strong>，禁止对其切片。每一条入库记忆均包含完整的【记录时间】、【时间跨度】、【详细纪要】与【学情洞察】，一网打尽。
+                </p>
+            </div>
+            <div class="border-l-4 border-indigo-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 长篇教材（Classroom_Knowledge）—— 语义整句截断与标题继承</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    对于数千上万字的技术教材，保留分块机制，但重构切片规则：
+                    <br>1）<strong>自然句号边界对齐</strong>：切片只允许在句号、感叹号、问号或双换行（<code>。！？\n</code>）处换行，严禁在词组中硬截；
+                    <br>2）<strong>元数据头继承（Header Inheritance）</strong>：每个切片生成时，自动提取文档顶级标题与所属二级章节，格式化为 <code>【文档：xxx / 章节：yyy】</code> 预先追加在 Chunk 开头，确保大模型无论抽中哪一碎片都能精准建立全局上下文感知。
+                </p>
+            </div>
+            <div class="border-l-4 border-emerald-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 零数据库破坏与完全向后兼容 (Zero-DB Pollution)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    此改动仅作用于应用层向量切分与 RAG 同步回路，<strong>完全无需清空或改动底层 SQLite <code>classroom.db</code></strong> 中的任何一行用户数据，亦不影响现存 <code>chat_messages</code> 的历史完整性。
+                </p>
+            </div>
+        </div>
+
+        <!-- Before vs After Topological Diagram -->
+        <div class="mt-8">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧架构：无差别 400 字符机械切割 (时间戳丢失与碎词)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    graph TD
+                        Doc["500字完整日记【含记录时间】"] -->|"_chunk_text(400)"| Cut["400字硬切割"]
+                        Cut --> Chunk0["Chunk 0: 包含时间头+前段正文"]
+                        Cut --> Chunk1["Chunk 1: ❌ 无时间头+断词断句开头"]
+                        Chunk1 -->|"向量匹配召回"| Injection["❌ 裸露注入提示词"]
+                        Injection --> Model["大模型感知到断裂碎片与无头信息"]
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新架构：业务分流（记忆原子完整 + 教材标题继承）</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    graph TD
+                        Input["输入同步内容"] --> Router{"知识集类型判定"}
+                        Router -->|"Memory_Knowledge"| MemoryBranch["🧠 原子胶囊整篇入库 (不切分)"]
+                        Router -->|"Classroom_Knowledge"| LessonBranch["📚 句界对齐切分 + 标题继承"]
+                        MemoryBranch --> RAG1["✅ 完整日记 (永远保留记录时间)"]
+                        LessonBranch --> RAG2["✅ 规范切片 (完整句子+章节头)"]
+                        RAG1 --> Assembly["上下文管理器标准化拼装"]
+                        RAG2 --> Assembly
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">后果与架构评估 (Consequences & Evaluation)</h2>
+                <p class="text-sm text-slate-500">系统稳态收益与工程守则</p>
+            </div>
+        </div>
+        <ul class="space-y-3 text-sm text-slate-600">
+            <li><strong>✓ 100% 杜绝时间戳脱落</strong>：记忆日记作为整体存储后，召回的任何切片永远天然携带 <code>【记录时间：YYYY-MM-DD HH:MM:SS】</code>，彻底解决时序识别困难。</li>
+            <li><strong>✓ 彻底消除文字与词组碎裂</strong>：永远不会再发生将“水镜画卷”劈为“画”与“卷”、或将“3.5与3.8”劈为“8、27B”的严重断词故障。</li>
+            <li><strong>✓ 知识库语境高可解释性</strong>：教材切片自动附加章节标题，极大提升了小参数量模型（如 35B-A3B）在长文本复杂提问下的泛化理解能力。</li>
+            <li><strong>✓ 零数据库负担</strong>：完全基于现有向量集合与接口扩展，无需实施破坏性的数据库全量迁移或洗库。</li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>
