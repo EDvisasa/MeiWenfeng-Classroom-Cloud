@@ -5,6 +5,8 @@ export default function StatusPanel({
   affection,
   personaType,
   handlePersonaTypeChange,
+  atmosphereMode = 'daily',
+  handleAtmosphereModeChange,
   models,
   activeModel,
   handleModelChange,
@@ -103,6 +105,29 @@ export default function StatusPanel({
             title="点击切换导师人设类型（蓝色为精简版，透明为原版）"
           >
             {personaType === 'simplified' ? '精简' : '原版'}
+          </button>
+          <button
+            onClick={() => handleAtmosphereModeChange && handleAtmosphereModeChange(atmosphereMode === 'daily' ? 'study' : 'daily')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '2px 10px',
+              height: '24px',
+              fontSize: '12px',
+              fontWeight: 600,
+              borderRadius: '12px',
+              border: '1px solid var(--border-color)',
+              background: atmosphereMode === 'study' ? 'var(--accent-pink)' : 'transparent',
+              color: atmosphereMode === 'study' ? 'white' : 'var(--text-primary)',
+              cursor: 'pointer',
+              transition: 'all 0.2s',
+              outline: 'none',
+              boxSizing: 'border-box'
+            }}
+            title="点击切换氛围模式（粉色为研学，透明为生活）"
+          >
+            {atmosphereMode === 'study' ? '研学' : '生活'}
           </button>
         </div>
       </div>

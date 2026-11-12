@@ -69,4 +69,34 @@ describe('StatusPanel Behavior Tests', () => {
     expect(defaultProps.onFileClick).toHaveBeenCalledWith('Lessons/测试文档.md');
   });
 
+  it('行为4：【生活/研学】氛围模式切换按钮渲染与点击回调 (Atmosphere mode toggle)', () => {
+    const handleAtmosphereModeChange = vi.fn();
+    const { rerender } = render(
+      <StatusPanel
+        {...defaultProps}
+        atmosphereMode="daily"
+        handleAtmosphereModeChange={handleAtmosphereModeChange}
+      />
+    );
+
+    // 生活模式下渲染“生活”按钮
+    const dailyBtn = screen.getByText('生活');
+    expect(dailyBtn).toBeInTheDocument();
+    fireEvent.click(dailyBtn);
+    expect(handleAtmosphereModeChange).toHaveBeenCalledWith('study');
+
+    // 研学模式下渲染“研学”按钮
+    rerender(
+      <StatusPanel
+        {...defaultProps}
+        atmosphereMode="study"
+        handleAtmosphereModeChange={handleAtmosphereModeChange}
+      />
+    );
+    const studyBtn = screen.getByText('研学');
+    expect(studyBtn).toBeInTheDocument();
+    fireEvent.click(studyBtn);
+    expect(handleAtmosphereModeChange).toHaveBeenCalledWith('daily');
+  });
+
 });

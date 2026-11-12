@@ -29,6 +29,7 @@ class ChatRequest(BaseModel):
     session_id: Optional[str] = None
     messages: List[Message]
     persona_type: Optional[str] = "simplified"
+    atmosphere_mode: Optional[str] = "daily"
     current_file_path: Optional[str] = ""
     cursor_line: Optional[int] = 0
     selection_start_line: Optional[int] = 0
@@ -45,7 +46,8 @@ def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str)
         selection_start_line=payload.selection_start_line or 0,
         selection_end_line=payload.selection_end_line or 0,
         selected_text=payload.selected_text or "",
-        persona_type=payload.persona_type or "default"
+        persona_type=payload.persona_type or "default",
+        atmosphere_mode=payload.atmosphere_mode or "daily"
     )
 
 @router.post("/system_context")

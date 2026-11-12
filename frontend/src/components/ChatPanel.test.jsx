@@ -630,4 +630,28 @@ describe('ChatPanel Editing Behavior Tests', () => {
     expect(textBlock).toBeInTheDocument();
     expect(screen.getByTestId('react-markdown')).toHaveTextContent('| 项目 | 内容 |');
   });
+
+  it('TDD 22 [ISSUE-49]: renders atmosphere_suggestion system message with one-click button', () => {
+    const onSwitchAtmosphere = vi.fn();
+    const props = {
+      ...getBaseProps(),
+      onSwitchAtmosphere,
+      messages: [
+        {
+          role: 'system_info',
+          type: 'atmosphere_suggestion',
+          content: '当前正在上课且处于【生活模式】，点击一键切换为【研学模式】以启用高校水准精确推导'
+        }
+      ]
+    };
+    const { container } = render(<ChatPanel {...props} />);
+    const pill = container.querySelector('.system-info-msg');
+    expect(pill).toBeInTheDocument();
+    expect(pill.textContent).toContain('当前正在上课且处于【生活模式】');
+
+    const btn = screen.getByText('一键切换为研学');
+    expect(btn).toBeInTheDocument();
+    fireEvent.click(btn);
+    expect(onSwitchAtmosphere).toHaveBeenCalledWith('study');
+  });
 });

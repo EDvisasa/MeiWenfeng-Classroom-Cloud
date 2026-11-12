@@ -457,3 +457,32 @@ def test_assemble_messages_strips_subsequent_historical_think_issue_36():
     # 4. 原始入参深拷贝防护验证（零外部副作用 / Zero DB Pollution）
     assert "<think>" in multi_turn_messages[2]["content"], "Original messages must not be mutated!"
     assert "<think>" in multi_turn_messages[4]["content"], "Original messages must not be mutated!"
+
+
+def test_atmosphere_mode_injection_issue_48():
+    """
+    TDD [ISSUE-48]:
+    验证 assemble_messages 与 build_base_system_prompt 对生活与研学双氛围模式的动静解耦注入。
+    """
+    from backend.services.context_manager import build_base_system_prompt, assemble_messages, ContextBundle
+
+    # 1. 验证 build_base_system_prompt 传参与 ContextBundle 属性赋值
+    bundle_daily, _, _ = build_base_system_prompt(atmosphere_mode="daily")
+    assert bundle_daily.atmosphere_mode == "daily"
+    assert "You dynamically operate under one of two atmosphere modes" in bundle_daily.static_system_prompt
+    assert "[ATMOSPHERE_MODE 1: DAILY / 生活模式" in bundle_daily.static_system_prompt
+    assert "[ATMOSPHERE_MODE 2: STUDY / 研学模式" in bundle_daily.static_system_prompt
+
+    bundle_study, _, _ = build_base_system_prompt(atmosphere_mode="study")
+    assert bundle_study.atmosphere_mode == "study"
+
+    # 2. 验证 assemble_messages 尾部注入的生活模式标签
+    messages = [{"role": "user", "content": "今天吃什么"}]
+    assembled_daily = assemble_messages(messages, bundle_daily)
+    last_content_daily = assembled_daily[-1]["content"]
+    assert "<active_atmosphere_mode>DAILY (生活模式" in last_content_daily
+
+    # 3. 验证 assemble_messages 尾部注入的研学模式标签
+    assembled_study = assemble_messages(messages, bundle_study)
+    last_content_study = assembled_study[-1]["content"]
+    assert "<active_atmosphere_mode>STUDY (研学模式" in last_content_study

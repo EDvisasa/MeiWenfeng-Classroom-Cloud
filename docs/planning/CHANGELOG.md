@@ -10,6 +10,15 @@ domain: project-planning
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **前端【生活/研学】状态胶囊切换器与微课上课引导微卡 (ISSUE-49)**:
+  - 在右侧 `StatusPanel` 的【精简/原版】按钮右侧新增同等圆框切换按钮（【生活/研学】），粉色高亮即研学，透明即生活；
+  - 采用简洁无括号的系统提示与 `localStorage` 本地存储同步（默认初始为生活模式）；
+  - 在生活模式下发送 `/lesson` 微课指令时，聊天流内嵌一键切换微卡，方便用户即刻切换为高校研学水准；
+  - 全量补齐 `StatusPanel` 与 `ChatPanel` 单元测试，60 项前端测试 100% 绿灯。
+- **【生活/研学】双氛围模式提示词规范与后端全链路路由 (ISSUE-48)**:
+  - 在 `prompts.py` 中将 `<pedagogy_and_worldview>` 升级为动静解耦的双模式静态定义：生活模式（家庭温情伴读）与研学模式（中国高中至大学水准现代数理教学、现代真实案例、杜绝牵强土味比喻）；
+  - `ChatRequest` 增加 `atmosphere_mode` 参数，并在 `context_manager` 运行时尾部注入生效标签，100% 保持静态 System Prompt 的 KV-Cache 命中率；
+  - 后端 21 项回归测试 100% 绿灯。
 - **通用人设压缩提取元结构与调色盘三元组解耦 (ISSUE-47)**:
   - 在 `prompts.py` 中重构 `SUMMARIZATION_SYSTEM_PROMPT`，将所有具体角色字段替换为通用的 `[Concise summary]` 占位符，支持跨角色（如玄一峰等）无损迁移；
   - 性格调色盘与 NSFW 调色盘全面采用 `底色 / 主色调 / 点缀` 三元组方法论，解除硬编码并动态提取原卡性格标签；

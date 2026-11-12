@@ -352,7 +352,8 @@ export default function ChatPanel({
   pendingApproval,
   setPendingApproval,
   selectedImages: propSelectedImages,
-  setSelectedImages: propSetSelectedImages
+  setSelectedImages: propSetSelectedImages,
+  onSwitchAtmosphere
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -976,6 +977,48 @@ export default function ChatPanel({
                     文件路径：{msg.path}
                   </div>
                   {renderNormalizedBlocks(parseAndMergeBlocks(msg.content))}
+                </div>
+              );
+            }
+
+            if (msg.type === 'atmosphere_suggestion') {
+              return (
+                <div key={index} className="system-info-msg" style={{
+                  alignSelf: 'center',
+                  backgroundColor: 'var(--bg-tertiary)',
+                  border: '1px solid var(--accent-pink)',
+                  borderRadius: '6px',
+                  padding: '8px 14px',
+                  fontSize: '12px',
+                  color: 'var(--text-primary)',
+                  margin: '8px 0',
+                  maxWidth: '90%',
+                  textAlign: 'center',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '10px',
+                  boxShadow: '0 2px 8px rgba(244, 114, 182, 0.15)'
+                }}>
+                  <span>💡 {msg.content}</span>
+                  <button
+                    onClick={() => {
+                      if (onSwitchAtmosphere) onSwitchAtmosphere('study');
+                    }}
+                    style={{
+                      padding: '3px 10px',
+                      background: 'var(--accent-pink)',
+                      color: 'white',
+                      border: 'none',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                      fontWeight: 'bold',
+                      flexShrink: 0
+                    }}
+                  >
+                    一键切换为研学
+                  </button>
                 </div>
               );
             }

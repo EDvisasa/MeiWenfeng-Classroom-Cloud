@@ -45,3 +45,12 @@ def test_slash_handler_update_persona():
     assert res is not None
     assert hasattr(res, "body_iterator")
 
+
+
+def test_chat_request_atmosphere_mode():
+    # 验证 ChatRequest 默认 atmosphere_mode 为 daily，且支持 study
+    req_default = ChatRequest(messages=[Message(role="user", content="hello")])
+    assert req_default.atmosphere_mode == "daily"
+
+    req_study = ChatRequest(messages=[Message(role="user", content="hello")], atmosphere_mode="study")
+    assert req_study.atmosphere_mode == "study"

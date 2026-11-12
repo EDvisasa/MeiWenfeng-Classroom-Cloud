@@ -910,7 +910,7 @@ domain: project-planning
 - **Verification Command**: `pytest backend/tests -q`
 
 ### <a id="issue-48"></a>[ISSUE-48] 【生活/研学】双氛围模式提示词规范与后端全链路路由 (Dual Atmosphere Modes Pedagogy & Full Pipeline Routing)
-- **Status**: `TODO` (待开发)
+- **Status**: `DONE` (已完成 / 2026-11-13 经 TDD 全量单测验证闭环)
 - **Parent**: `ADR-002`, `PLAN-02`
 - **User Story**: 作为学习者，我希望系统支持“生活模式”（家庭温情慢调伴读）与“研学模式”（中国高中至大学水准现代数理逻辑与真实案例，杜绝牵强土味比喻）；同时后端 `ChatRequest` 能够接收 `atmosphere_mode`（`daily` vs `study`），通过动静解耦保持静态 System Prompt 的 100% KV-Cache 命中，并在会话请求中忠实执行。
 - **What to build**:
@@ -923,16 +923,17 @@ domain: project-planning
   - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
   - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
   - [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+  - [`backend/tests/test_routers_chat.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_routers_chat.py)
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
 - **Acceptance Criteria**:
-  - [ ] `prompts.py` 静态模版明确区分生活模式与严谨现代研学模式规范；
-  - [ ] `ChatRequest` 接受 `atmosphere_mode` 参数，默认值为 `"daily"`；
-  - [ ] `context_manager` 运行时尾部注入生效的氛围模式指示；
-  - [ ] 后端单元测试 100% 绿灯。
+  - [x] `prompts.py` 静态模版明确区分生活模式与严谨现代研学模式规范；
+  - [x] `ChatRequest` 接受 `atmosphere_mode` 参数，默认值为 `"daily"`；
+  - [x] `context_manager` 运行时尾部注入生效的氛围模式指示；
+  - [x] 后端单元测试 100% 绿灯。
 - **Verification Command**: `pytest backend/tests/test_context_manager.py backend/tests/test_routers_chat.py`
 
 ### <a id="issue-49"></a>[ISSUE-49] 前端【生活/研学】状态胶囊切换器与微课上课引导微卡 (Frontend Atmosphere Switcher & In-Chat Lesson Guidance)
-- **Status**: `TODO` (待开发)
+- **Status**: `DONE` (已完成 / 2026-11-13 经 Vitest 全量 60 项测试验证闭环)
 - **Parent**: `ISSUE-48`, `PLAN-02`
 - **User Story**: 作为前端用户，我希望在右侧状态栏【精简】按钮右侧拥有一个同等的【生活/研学】圆框切换按钮，随时可手动切换氛围状态并持久化到本地（默认初始为生活）；当在“生活”状态下触发 `/lesson` 授课时，聊天流内能呈现轻量级引导微卡（点击一键切换为研学）。
 - **What to build**:
@@ -940,19 +941,20 @@ domain: project-planning
   2. **状态管理与存储**: 在 `frontend/src/App.jsx` 中添加 `atmosphereMode` 状态（初始化优先读取 `localStorage.getItem('atmosphere_mode') || 'daily'`），切换时追加简洁无括号的系统提示（`[模式切换] 已切换氛围模式为：研学模式` / `生活模式`）；
   3. **请求负载集成**: 在 `App.jsx` 发起 `/api/chat` 请求时将 `atmosphere_mode: atmosphereMode` 传入请求体；
   4. **上课感知与一键切换微卡**: 当处于 `daily` 模式且检测到上课指令（如 `/lesson`）时，在聊天气泡中展示轻量提示微卡（`💡 当前处于生活模式，点击此处【一键切换为研学】以启用高校水准精确推导`），点击立即切换为研学模式；
-  5. **前端测试适配**: 更新 `StatusPanel.test.jsx` 与相关测试确保断言通过。
+  5. **前端测试适配**: 更新 `StatusPanel.test.jsx` 与 `ChatPanel.test.jsx`，断言切换与点击回调。
 - **Affected Files**:
   - [`frontend/src/components/StatusPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.jsx)
   - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
   - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
   - [`frontend/src/components/StatusPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.test.jsx)
+  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
 - **Acceptance Criteria**:
-  - [ ] 状态栏出现【生活/研学】对称圆框，点击切换状态并更新存储；
-  - [ ] 切换时在聊天流呈现与人设切换对称的简洁系统提示；
-  - [ ] `/api/chat` 请求准确携带当前 `atmosphere_mode`；
-  - [ ] 生活模式下触发授课出现一键切换微卡，点击即刻切为研学；
-  - [ ] 前端测试用例通过。
-- **Verification Command**: `npm test -- --run`
+  - [x] 状态栏出现【生活/研学】对称圆框，点击切换状态并更新存储；
+  - [x] 切换时在聊天流呈现与人设切换对称的简洁系统提示；
+  - [x] `/api/chat` 请求准确携带当前 `atmosphere_mode`；
+  - [x] 生活模式下触发授课出现一键切换微卡，点击即刻切为研学；
+  - [x] 前端测试用例 100% 通过（60 passed）。
+- **Verification Command**: `npm --prefix frontend test -- --run`
 
 

@@ -365,6 +365,7 @@ export default function App() {
   const [courseProgress, setCourseProgress] = useState([]);
   const [affection, setAffection] = useState(100);
   const [personaType, setPersonaType] = useState(localStorage.getItem('persona_type') || 'simplified');
+  const [atmosphereMode, setAtmosphereMode] = useState(localStorage.getItem('atmosphere_mode') || 'daily');
 
   // Mission & Knowledge Tree states
   const [mission, setMission] = useState({ current_mission: "未知目标", is_drafting: false, draft_details: null });
@@ -410,6 +411,15 @@ export default function App() {
     setMessages(prev => [
       ...prev,
       { role: 'system_info', content: `[人设切换] 已切换导师人设为：${type === 'simplified' ? '精简人设' : '原版人设'}` }
+    ]);
+  };
+
+  const handleAtmosphereModeChange = (mode) => {
+    setAtmosphereMode(mode);
+    localStorage.setItem('atmosphere_mode', mode);
+    setMessages(prev => [
+      ...prev,
+      { role: 'system_info', content: `[模式切换] 已切换氛围模式为：${mode === 'study' ? '研学模式' : '生活模式'}` }
     ]);
   };
 
@@ -1103,6 +1113,13 @@ export default function App() {
     }
 
     const nextMessages = [...messages, userMsg];
+    if (textToSend.trim().startsWith('/lesson') && atmosphereMode === 'daily') {
+      nextMessages.push({
+        role: 'system_info',
+        type: 'atmosphere_suggestion',
+        content: '当前正在进行微课授课且处于【生活模式】，点击一键切换为【研学模式】以启用高校水准精确推导'
+      });
+    }
     setMessages(nextMessages);
     await triggerAIResponse(nextMessages);
   };
@@ -1130,6 +1147,7 @@ export default function App() {
           session_id: activeSessionId,
           messages: apiPayload,
           persona_type: personaType,
+          atmosphere_mode: atmosphereMode,
           current_file_path: selectedFilePath,
           cursor_line: cursorLine,
           selection_start_line: selectionStartLine,
@@ -1575,6 +1593,7 @@ export default function App() {
             setPendingApproval={setPendingApproval}
             selectedImages={chatSelectedImages}
             setSelectedImages={setChatSelectedImages}
+            onSwitchAtmosphere={handleAtmosphereModeChange}
           />
 
           {/* 右侧面板：导师人设与课程大纲 */}
@@ -1585,6 +1604,8 @@ export default function App() {
                 affection={affection}
                 personaType={personaType}
                 handlePersonaTypeChange={handlePersonaTypeChange}
+                atmosphereMode={atmosphereMode}
+                handleAtmosphereModeChange={handleAtmosphereModeChange}
                 models={models}
                 activeModel={activeModel}
                 handleModelChange={handleModelChange}
