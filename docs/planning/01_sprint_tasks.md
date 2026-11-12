@@ -1099,3 +1099,70 @@ domain: project-planning
   - [x] 前端全量单元测试 68 项与生产构建 `vite build` 双双绿灯。
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `npm --prefix frontend test -- --run` & `npm --prefix frontend run build`
+
+### <a id="issue-56"></a>[ISSUE-56] 【自动/手动】记忆整理切换开关与静默累积追平机制 (Auto/Manual Memory Summarization Switcher & Silent Catch-up)
+- **Status**: `TODO` (待做工单 / 经需求调研对齐待排期)
+- **Parent**: `PLAN-02`, `ISSUE-49`
+- **User Story**: 作为使用随身课堂的学习者，我希望在右侧状态面板中拥有【自动整理 / 手动整理】切换开关。在手动模式下，系统暂停后台每满 3 篇未整理对话即刻触发的大模型记忆浓缩（避免在密集交互时后台争抢算力），同时在后台静默累加计数；支持随时通过 `/summarize` 进行手动整理；当我切回自动整理模式后，若累计未整理记忆已达阈值（`uncompacted_count >= 3`），则在下一轮交互时自动无缝追平整理。
+- **What to build**:
+  1. **前端状态控制与模式持久化**：
+     - 在 `StatusPanel.jsx` 顶部状态控制区增加【自动 / 手动】记忆整理切换胶囊按钮；
+     - 状态持久化至 `localStorage`（如 `classroom_memory_summarize_mode = 'auto' | 'manual'`）；
+     - 在 `App.jsx` 发起对话请求 `ChatRequest` 或前端状态同步时传递该标识（`auto_summarize: boolean`）；
+  2. **后端自动整理触发门禁 (Gatekeeper)**：
+     - 在 `backend/services/response_pipeline.py` 的后置处理管线中，拦截 `process_memory_decay` 自动触发逻辑；
+     - 校验请求中的 `auto_summarize` 开关；若为 `False`（手动模式），则跳过异步 `asyncio.create_task(run_decay(...))`，仅记录原始会话与未浓缩计数；
+  3. **静默计数与切回自动追平 (Silent Counter & Catch-up Trigger)**：
+     - 手动模式下保持 `memory_logs` 中 `is_compacted = 0` 的精准统计与状态面板展示；
+     - 当切回 `auto` 模式且 `uncompacted_count >= 3` 时，在下一轮对话结束时立即触发浓缩任务，优雅自愈追平；
+  4. **手动指令畅通无阻**：
+     - 保证 `/summarize` 斜杠指令在手动与自动模式下均可随时调用，执行完毕后重置未浓缩计数；
+  5. **自动化测试覆盖**：
+     - 前端编写 `StatusPanel.test.jsx`，测试开关切换与持久化读写；
+     - 后端编写针对 `response_pipeline.py` 与 `slash_handler.py` 的用例，测试手动模式阻断与自动模式追平。
+- **Affected Files**:
+  - [`frontend/src/components/StatusPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.jsx)
+  - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
+  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
+  - [`backend/services/response_pipeline.py`](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py)
+  - [`backend/services/memory_decay.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_decay.py)
+  - [`backend/tests/test_memory_decay_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_decay_handler.py)
+  - [`frontend/src/components/StatusPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.test.jsx)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [ ] 前端右侧状态面板提供清晰的【自动/手动】整理切换胶囊，刷新页面状态不丢失；
+  - [ ] 手动整理模式下，后台不自动派发大模型记忆总结任务，不挤占推理资源；
+  - [ ] 手动整理模式下，未整理日记条数依然在后台准确递增统计；
+  - [ ] 任何模式下输入 `/summarize` 均可手动触发记忆整理；
+  - [ ] 切回自动整理模式后，若累计未整理条数达到阈值，下一轮对话时自动完成追平整理；
+  - [ ] 前后端自动化测试 100% 绿灯。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_memory_decay_handler.py` & `npm --prefix frontend test -- --run`
+
+### <a id="issue-57"></a>[ISSUE-57] 内置数据库查看器移动端响应式全宽、侧栏折叠与零 Emoji 极简排版 (DatabaseViewer Mobile Responsive Full-width, Collapsible Sidebar & Clean Zero-Emoji Layout)
+- **Status**: `DONE` (已完成 / 2026-11-13 经全量 Vitest 单测与生产构建双绿灯验证)
+- **Parent**: `Bug #42` (移动端数据库查看器侧栏严重挤压)
+- **User Story**: 作为使用手机或窄屏设备查阅学习记录与系统状态的用户，当我打开内置数据库查看器时，我希望弹窗自适应铺满手机屏幕，左侧写死 200px 的列表自动隐藏并由顶部简洁的原生下拉选择框替代，把 100% 宽度全部留给数据表格与横向滑动；同时桌面端支持侧边栏一键收起折叠；界面彻底移除一切 emoji，呈现简洁优雅的工程美学。
+- **What to build**:
+  1. **移动端自适应全宽与响应式类**: 改造 `DatabaseViewer.jsx` 弹窗外框，移除纯内联写死宽度，引入 `.db-viewer-modal` 类，在窄屏（<=768px）下自动铺展至 `width: 96%`、`height: 92vh`；
+  2. **移动端表下拉选择器**: 窄屏下隐藏固定 200px 侧栏，在顶部工具栏以优雅简洁的 `<select>` 下拉框供用户单手切换数据表，100% 宽度留给数据表格；
+  3. **PC 桌面端侧栏折叠支持**: 增加 `isSidebarCollapsed` 状态与收起/展开按钮，让桌面端用户在查阅超宽字段时亦可快速收起左侧栏；
+  4. **零 Emoji (Zero Emoji) 极简工程化**: 彻底清理界面中所有 emoji（提示灯泡、刷新旋转等），替换为纯净的矢量 SVG 图标与清爽文案；
+  5. **分页栏防折行优化**: 在窄屏下对分页说明与按钮文字进行自适应紧凑化，杜绝在窄屏发生折行错位；
+  6. **TDD 自动化测试闭环**: 在 `DatabaseViewer.test.jsx` 增加响应式下拉选择、侧栏折叠切换及全文本零 Emoji 断言。
+- **Affected Files**:
+  - [`frontend/src/components/DatabaseViewer.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.jsx)
+  - [`frontend/src/components/DatabaseViewer.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.test.jsx)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 移动端（<=768px）弹窗宽度自适应铺展为 96%，高度 92vh；
+  - [x] 移动端左侧 200px 栏自动隐藏，顶部工具栏提供简洁原生下拉框可快速切换数据表；
+  - [x] 桌面端提供收起/展开左侧栏的平滑切换按钮；
+  - [x] 组件及弹窗内不包含任何 emoji 字符，采用纯净矢量图标与清爽文案；
+  - [x] 分页栏在移动端自适应紧凑排版不换行；
+  - [x] 前端自动化单元测试 100% 绿灯通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `npm --prefix frontend test -- --run DatabaseViewer` & `npm --prefix frontend run build`
+

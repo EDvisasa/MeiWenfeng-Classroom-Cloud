@@ -10,6 +10,7 @@ export default function DatabaseViewer({ onClose }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(100);
   const [totalCount, setTotalCount] = useState(0);
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
   const dragPosRef = useRef({ x: 0, y: 0 });
 
   // Fetch list of tables on mount
@@ -113,26 +114,17 @@ export default function DatabaseViewer({ onClose }) {
 
   return (
     <div className="crop-modal-overlay" style={{ zIndex: 9999 }}>
-      <div 
-        className="crop-modal-content" 
-        style={{ 
-          width: '80%', 
-          maxWidth: '1000px', 
-          height: '80vh', 
-          display: 'flex', 
-          flexDirection: 'column', 
-          padding: '0', 
-          overflow: 'hidden' 
-        }}
-      >
+      <div className="crop-modal-content db-viewer-modal">
         {/* Header */}
-        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)' }}>
+        <div style={{ padding: '16px 24px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'var(--bg-secondary)', flexShrink: 0 }}>
           <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px', fontSize: '15px' }}>
             <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" style={{ verticalAlign: 'middle' }}><path d="M14 3c0 1.1-2.7 2-6 2S2 4.1 2 3s2.7-2 6-2 6 .9 6 2zm0 4c0 1.1-2.7 2-6 2S2 8.1 2 7V5c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm0 4c0 1.1-2.7 2-6 2S2 12.1 2 11V9c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm-6 4c-3.3 0-6-.9-6-2v-2c.8.6 2.3 1 4 1s3.2-.4 4-1v2c0 1.1-2.7 2-6 2z"/></svg>
             内置数据库查看器 (只读)
           </h3>
           <button 
+            type="button"
             onClick={onClose}
+            aria-label="关闭查看器"
             style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer', color: 'var(--text-secondary)' }}
           >
             ×
@@ -140,11 +132,14 @@ export default function DatabaseViewer({ onClose }) {
         </div>
 
         {/* Body */}
-        <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+        <div className="db-viewer-body">
           
           {/* Sidebar */}
-          <div style={{ width: '200px', borderRight: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', background: 'var(--bg-secondary)' }}>
-            <div style={{ padding: '12px', fontSize: '13px', fontWeight: 'bold', color: 'var(--text-secondary)' }}>数据表列表</div>
+          <div className={`db-viewer-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
+            <div className="db-sidebar-header">
+              <span>数据表列表</span>
+              <span className="db-table-count-tag">{tables.length}</span>
+            </div>
             <div style={{ flex: 1, overflowY: 'auto' }}>
               {tables.map(t => (
                 <div 
@@ -170,34 +165,78 @@ export default function DatabaseViewer({ onClose }) {
             </div>
           </div>
 
+          {/* 桌面端居中半圆折叠手柄 */}
+          <button
+            type="button"
+            className={`db-sidebar-border-handle ${isSidebarCollapsed ? 'collapsed' : ''}`}
+            onClick={() => setIsSidebarCollapsed(prev => !prev)}
+            title={isSidebarCollapsed ? "展开数据表列表" : "收起数据表列表"}
+            aria-label={isSidebarCollapsed ? "展开数据表列表" : "收起数据表列表"}
+          >
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+              {isSidebarCollapsed ? (
+                <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+              ) : (
+                <path fillRule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+              )}
+            </svg>
+          </button>
+
           {/* Main Content */}
-          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg-primary)' }}>
+          <div className="db-viewer-main">
             
             {/* Toolbar */}
-            <div style={{ padding: '12px 16px', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'relative', zIndex: 20, background: 'var(--bg-primary)' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                <span style={{ fontSize: '14px', fontWeight: 'bold' }}>{selectedTable || '请选择数据表'}</span>
-                <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                  💡 点击单元格可原地展开 / 展开后右下角可自由拉伸宽高
-                </span>
+            <div className="db-viewer-toolbar">
+              <div className="db-toolbar-left">
+                {/* 桌面端：数据表名称徽章（主） */}
+                <div className="db-table-title-badge">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="db-title-icon">
+                    <path d="M1 3h14v10H1V3zm2 2v2h3V5H3zm5 0v2h5V5H8zM3 8v3h3V8H3zm5 0v3h5V8H8z"/>
+                  </svg>
+                  <span className="db-desktop-table-title">{selectedTable || '请选择数据表'}</span>
+                </div>
+
+                {/* 移动端数据表原生下拉切换器（在窄屏下自动显现） */}
+                <select
+                  className="db-table-select"
+                  value={selectedTable}
+                  onChange={(e) => setSelectedTable(e.target.value)}
+                  aria-label="选择数据表"
+                >
+                  {tables.map(t => (
+                    <option key={t} value={t}>{t}</option>
+                  ))}
+                </select>
+
+                {/* 主次视觉分割线 */}
+                <span className="db-toolbar-divider" />
+
+                {/* 展开提示（次级操作提示：柔和居中对齐） */}
+                <div className="db-toolbar-tip">
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0, opacity: 0.65 }}>
+                    <path d="M8 15A7 7 0 1 1 8 1a7 7 0 0 1 0 14zm0 1A8 8 0 1 0 8 0a8 8 0 0 0 0 16z"/>
+                    <path d="m8.93 6.588-2.29.287-.082.38.45.083c.294.07.352.176.288.469l-.738 3.468c-.194.897.105 1.319.808 1.319.545 0 1.178-.252 1.465-.598l.088-.416c-.2.176-.492.246-.686.246-.275 0-.375-.193-.304-.533L8.93 6.588zM9 4.5a1 1 0 1 1-2 0 1 1 0 0 1 2 0z"/>
+                  </svg>
+                  <span>点击单元格原地展开 / 拖拽右下角拉伸</span>
+                </div>
               </div>
-              <button 
-                onClick={() => selectedTable && fetchTableData(selectedTable, currentPage, pageSize)}
-                disabled={!selectedTable || loading}
-                style={{
-                  padding: '6px 12px',
-                  background: 'var(--accent-pink)',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: (selectedTable && !loading) ? 'pointer' : 'not-allowed',
-                  fontSize: '12px',
-                  fontWeight: 'bold',
-                  opacity: loading ? 0.7 : 1
-                }}
-              >
-                {loading ? '刷新中...' : '🔄 刷新当前表'}
-              </button>
+
+              <div className="db-toolbar-right">
+                <button 
+                  type="button"
+                  className="db-refresh-btn"
+                  onClick={() => selectedTable && fetchTableData(selectedTable, currentPage, pageSize)}
+                  disabled={!selectedTable || loading}
+                  title="刷新当前表"
+                  aria-label="刷新当前表"
+                >
+                  <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style={{ flexShrink: 0 }}>
+                    <path fillRule="evenodd" d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/>
+                    <path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/>
+                  </svg>
+                  <span>{loading ? '刷新中...' : '刷新'}</span>
+                </button>
+              </div>
             </div>
 
             {/* Error Message */}
@@ -278,7 +317,7 @@ export default function DatabaseViewer({ onClose }) {
                                 className={`db-table-cell ${isExpanded ? 'db-cell-expanded' : 'db-cell-compact'}`}
                                 onMouseDown={handleMouseDown}
                                 onClick={handleCellClick}
-                                title={isExpanded ? '点击缩回紧凑视图（右下角 ◢ 可自由拖拽拉伸）' : (isNull ? '空值 (NULL)' : (isLong ? '点击原地缩放展开查看全文' : '点击缩放查看'))}
+                                title={isExpanded ? '点击缩回紧凑视图（右下角可自由拖拽拉伸）' : (isNull ? '空值 (NULL)' : (isLong ? '点击原地缩放展开查看全文' : '点击缩放查看'))}
                                 style={{
                                   minWidth: isExpanded ? '360px' : 'auto',
                                   maxWidth: isExpanded ? '850px' : '280px',
@@ -326,7 +365,7 @@ export default function DatabaseViewer({ onClose }) {
               <div className="db-pagination-info">
                 <span>共 {totalCount} 条记录</span>
                 {totalCount > 0 && (
-                  <span style={{ opacity: 0.8 }}>
+                  <span className="db-pagination-range" style={{ opacity: 0.8 }}>
                     (第 {startRow} - {endRow} 条)
                   </span>
                 )}
@@ -356,7 +395,7 @@ export default function DatabaseViewer({ onClose }) {
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
                     <path fillRule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
                   </svg>
-                  <span>上一页</span>
+                  <span className="db-pagination-btn-text">上一页</span>
                 </button>
 
                 <div className="db-pagination-page-indicator">
@@ -371,7 +410,7 @@ export default function DatabaseViewer({ onClose }) {
                   title="下一页"
                   aria-label="下一页"
                 >
-                  <span>下一页</span>
+                  <span className="db-pagination-btn-text">下一页</span>
                   <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor">
                     <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
                   </svg>

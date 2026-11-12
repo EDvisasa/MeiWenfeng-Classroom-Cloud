@@ -410,3 +410,17 @@ domain: project-planning
   2. **胶囊按钮防挤压**：在 [`StatusPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.jsx) 提炼 `pillStyle({ active, muted })` 统一三按钮样式（消除三份重复内联对象），加入 `whiteSpace: 'nowrap'`、`flexShrink: 0`、`lineHeight: 1`，并把 `padding: '2px 10px'` 修正为 `'0 10px'` 以防 24px 高度溢出；
   3. **清除重复挤压源**：删去按钮组的 `marginRight: '14px'` 与 `marginTop: '2px'`；标题容器加 `whiteSpace: 'nowrap'`、`overflow: 'hidden'`、`minWidth: 0`，极端窄屏时优先省略标题而非折行；
   4. **TDD 自动化测试闭环**：在 [`StatusPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.test.jsx) 新增「行为5：顶部三个胶囊按钮强制单行」与「行为6：区块标题单行展示」两项单测，前端全量 68 项测试与生产构建双双绿灯。
+
+### 42. [已解决 / 移动端自适应布局与极简工程美学] 内置数据库查看器左侧栏移动端自适应全宽、桌面折叠与零 Emoji 极简排版
+- **现象描述**：在移动端或窄屏设备（屏幕宽度 <= 768px）打开“内置数据库查看器”弹窗时，弹窗宽度写死为 `80%`（在 360~400px 手机屏上仅剩 280~320px 可用），而左侧「数据表列表」侧边栏硬编码写死 `width: 200px` 且无法调节或折叠，强行吞噬了 65%~70% 的宽度；导致右侧主内容区（表名、提示语、刷新按钮、数据表格、分页栏）被挤压至仅剩 ~100px，提示文字与按钮严重纵向折叠错位，表格几乎无法横向阅读。
+- **根因分析**：
+  1. **弹窗外框未做移动端响应式全宽处理**：`DatabaseViewer.jsx` 外层内联写死 `width: '80%'`，在窄屏设备上产生大量无意义的左右遮罩留白，压缩有效视口；
+  2. **侧边栏宽度写死且缺少移动端自适应机制**：左侧栏硬编码 `width: '200px'`，未提供桌面折叠手柄，且在移动端未做响应式隐藏或切换；
+  3. **工具栏与分页栏在窄屏下缺乏弹性排版**：提示说明与按钮在极窄宽度下无省略或堆叠适配，且此前混入了多余的 emoji 字符。
+- **解决路线** (对应 `ISSUE-57`):
+  1. **移动端自适应全宽与响应式样式**：在 [`index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 规范定义 `.db-viewer-modal`，窄屏（<=768px）下自适应扩大至 `width: 96%`、`height: 92vh`，最大化手机屏幕利用率；
+  2. **移动端表下拉选择器 (方案 A)**：窄屏媒体查询下自动隐藏 200px 侧栏（`display: none !important`），在顶部工具栏以优雅简洁的 `<select className="db-table-select">` 下拉框供单手一键切换数据表，将 100% 宽度全部释放给数据表格平滑横向滚动；
+  3. **桌面端侧栏折叠支持**：在 `DatabaseViewer.jsx` 引入 `isSidebarCollapsed` 状态，侧边栏头部增加折叠图标按钮，工具栏增加展开/收起切换按钮，桌面用户查阅超宽字段时亦可随时折叠侧栏；
+  4. **零 Emoji (Zero Emoji) 极简工程化**：彻底移除界面中所有 emoji 字符（灯泡、刷新旋转等），替换为纯净的矢量 SVG 图标与清爽文案；
+  5. **分页栏防折行紧凑化**：在 <=640px 窄屏下自适应隐藏说明区间并以矢量箭头紧凑展示翻页按钮，杜绝文字垂直错位；
+  6. **TDD 自动化测试闭环**：在 [`DatabaseViewer.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.test.jsx) 新增移动端下拉切表、侧栏折叠状态切换及全文本 Unicode 零 Emoji 审查单测，前端全量 71 项测试与生产构建双双绿灯。
