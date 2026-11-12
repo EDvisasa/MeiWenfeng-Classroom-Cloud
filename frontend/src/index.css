@@ -3329,13 +3329,6 @@ body {
   flex-shrink: 0;
 }
 
-.kl-header-left {
-  display: flex;
-  align-items: center;
-  gap: 18px;
-  flex-wrap: wrap;
-}
-
 .kl-header-title {
   display: flex;
   align-items: center;
@@ -3343,6 +3336,7 @@ body {
   font-weight: 600;
   font-size: 15px;
   color: var(--text-primary);
+  flex-shrink: 0;
 }
 
 .kl-header-icon {
@@ -3360,6 +3354,8 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 13px;
+  flex: 1;
+  max-width: 440px;
 }
 
 .kl-selector-label {
@@ -3407,6 +3403,8 @@ body {
   display: flex;
   align-items: center;
   gap: 12px;
+  margin-left: auto;
+  flex-shrink: 0;
 }
 
 .kl-draft-lock-badge {
@@ -4156,29 +4154,37 @@ body {
   .kl-modal-header {
     display: grid !important;
     grid-template-columns: 1fr auto;
-    row-gap: 8px;
+    grid-template-areas:
+      "title actions"
+      "course course";
+    row-gap: 10px;
     column-gap: 8px;
-    padding: 10px 14px;
-  }
-
-  .kl-header-left {
-    display: contents !important;
+    padding: 12px 14px;
   }
 
   .kl-header-title {
-    grid-column: 1 / 2;
-    font-size: 13.5px;
+    grid-area: title;
+    font-size: 14px;
+    align-self: center;
   }
 
   .kl-header-right {
-    grid-column: 2 / 3;
+    grid-area: actions;
     justify-self: end;
+    align-self: center;
     gap: 8px;
+    margin-left: 0;
+  }
+
+  .kl-draft-lock-badge {
+    padding: 2px 6px;
+    font-size: 11px;
   }
 
   .kl-course-selector-wrapper {
-    grid-column: 1 / 3;
+    grid-area: course;
     width: 100%;
+    max-width: 100%;
     display: flex;
     align-items: center;
     gap: 6px;
@@ -4193,20 +4199,28 @@ body {
     min-width: 0;
     max-width: 100%;
     font-size: 12px;
-    padding: 4px 6px;
+    padding: 5px 8px;
   }
 
   .kl-btn-subtle {
-    padding: 4px 8px;
+    padding: 5px 10px;
     font-size: 11px;
     white-space: nowrap;
     flex-shrink: 0;
   }
 
+  /* 移动端彻底隐藏半圆折叠手柄（单栏下无需桌面折叠） */
+  .kl-sidebar-border-handle {
+    display: none !important;
+  }
+
   /* Single-column Master-Detail Drill-Down */
-  .kl-modal-body.mobile-view-tree .kl-sidebar {
+  .kl-modal-body.mobile-view-tree .kl-sidebar,
+  .kl-modal-body.mobile-view-tree .kl-sidebar.collapsed {
     display: flex !important;
     width: 100% !important;
+    opacity: 1 !important;
+    pointer-events: auto !important;
     border-right: none !important;
   }
 
@@ -4214,7 +4228,8 @@ body {
     display: none !important;
   }
 
-  .kl-modal-body.mobile-view-workbench .kl-sidebar {
+  .kl-modal-body.mobile-view-workbench .kl-sidebar,
+  .kl-modal-body.mobile-view-workbench .kl-sidebar.collapsed {
     display: none !important;
   }
 

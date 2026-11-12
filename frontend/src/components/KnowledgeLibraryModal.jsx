@@ -317,36 +317,34 @@ const KnowledgeLibraryModal = ({
       <div className="kl-modal-dialog" onClick={(e) => e.stopPropagation()} onKeyDown={handleKeyDown}>
         {/* Top Header */}
         <header className="kl-modal-header">
-          <div className="kl-header-left">
-            <div className="kl-header-title">
-              <span className="kl-header-icon"><Icons.Library /></span>
-              <span className="kl-title-text">知识与微课档案库</span>
-            </div>
+          <div className="kl-header-title">
+            <span className="kl-header-icon"><Icons.Library /></span>
+            <span className="kl-title-text">知识与微课档案库</span>
+          </div>
 
-            {/* Course Project Selector */}
-            <div className="kl-course-selector-wrapper">
-              <span className="kl-selector-label">课程课题:</span>
-              <select
-                className="kl-course-select"
-                value={currentCourseId}
-                onChange={handleCourseChange}
-                aria-label="切换课程课题"
-              >
-                {courses.map(course => (
-                  <option key={course.id} value={course.id}>
-                    {course.name} {course.is_default ? '(基础)' : ''}
-                  </option>
-                ))}
-              </select>
-              <button
-                type="button"
-                className="kl-btn-subtle"
-                onClick={() => setShowCreateCourseModal(true)}
-                title="新建独立课程课题"
-              >
-                <Icons.Plus /> 新建课题
-              </button>
-            </div>
+          {/* Course Project Selector */}
+          <div className="kl-course-selector-wrapper">
+            <span className="kl-selector-label">课程课题:</span>
+            <select
+              className="kl-course-select"
+              value={currentCourseId}
+              onChange={handleCourseChange}
+              aria-label="切换课程课题"
+            >
+              {courses.map(course => (
+                <option key={course.id} value={course.id}>
+                  {course.name} {course.is_default ? '(基础)' : ''}
+                </option>
+              ))}
+            </select>
+            <button
+              type="button"
+              className="kl-btn-subtle"
+              onClick={() => setShowCreateCourseModal(true)}
+              title="新建独立课程课题"
+            >
+              <Icons.Plus /> 新建课题
+            </button>
           </div>
 
           <div className="kl-header-right">
