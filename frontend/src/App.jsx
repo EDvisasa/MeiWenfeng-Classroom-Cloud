@@ -8,6 +8,7 @@ import StatusPanel from './components/StatusPanel';
 import CropModal from './components/CropModal';
 import DatabaseViewer from './components/DatabaseViewer';
 import PreviewEditModal from './components/PreviewEditModal';
+import KnowledgeLibraryModal from './components/KnowledgeLibraryModal';
 
 import { COMMANDS } from './constants/commands';
 
@@ -48,6 +49,7 @@ export default function App() {
   const [isRollingBack, setIsRollingBack] = useState(false);
   const abortControllerRef = useRef(null);
   const [showDbViewer, setShowDbViewer] = useState(false);
+  const [showKnowledgeLibrary, setShowKnowledgeLibrary] = useState(false);
   const [initialDbTable, setInitialDbTable] = useState(null);
   const [autoSummarize, setAutoSummarize] = useState(() => localStorage.getItem('classroom_auto_summarize') !== 'false');
   const [memoryStatus, setMemoryStatus] = useState({ uncompacted_count: 0, threshold: 10, total_diaries: 0, recent_diaries: [] });
@@ -1557,8 +1559,8 @@ export default function App() {
       >
         {/* 顶部工具栏 */}
         <header className="header-bar">
-          {/* 左上角：数据库图标 */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '2px' }}>
+          {/* 左上角：数据库与档案库图标 */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
               className="cc-icon-btn"
               onClick={() => setShowDbViewer(true)}
@@ -1567,6 +1569,25 @@ export default function App() {
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M14 3c0 1.1-2.7 2-6 2S2 4.1 2 3s2.7-2 6-2 6 .9 6 2zm0 4c0 1.1-2.7 2-6 2S2 8.1 2 7V5c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm0 4c0 1.1-2.7 2-6 2S2 12.1 2 11V9c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm-6 4c-3.3 0-6-.9-6-2v-2c.8.6 2.3 1 4 1s3.2-.4 4-1v2c0 1.1-2.7 2-6 2z" />
               </svg>
+            </button>
+
+            <button
+              className="header-archive-btn"
+              onClick={() => setShowKnowledgeLibrary(true)}
+              title={statusSummary?.mission?.is_drafting ? "知识与微课档案库 (当前处于目标拟定期·只读锁定)" : "知识与微课档案库"}
+              aria-label="知识与微课档案库"
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
+                <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v11A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-11zm1.5-.5a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5h-3zM9 2.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v11a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-11zm1.5-.5a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5h-3z" />
+              </svg>
+              <span>知识档案库</span>
+              {statusSummary?.mission?.is_drafting && (
+                <span className="header-archive-lock-dot" title="目标拟定期锁定">
+                  <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor">
+                    <path d="M8 1a2 2 0 0 0-2 2v4H5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zm1 6V3a1 1 0 0 0-2 0v4h2z" />
+                  </svg>
+                </span>
+              )}
             </button>
           </div>
 
@@ -2350,6 +2371,15 @@ export default function App() {
         fileData={previewModal}
         onSaveSuccess={(newContent) => {
           setPreviewModal(prev => prev ? { ...prev, content: newContent } : null);
+        }}
+      />
+
+      <KnowledgeLibraryModal
+        isOpen={showKnowledgeLibrary}
+        onClose={() => setShowKnowledgeLibrary(false)}
+        isDrafting={Boolean(statusSummary?.mission?.is_drafting)}
+        onFileSaved={() => {
+          fetchStatus();
         }}
       />
     </>

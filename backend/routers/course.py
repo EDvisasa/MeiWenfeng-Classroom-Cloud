@@ -1,5 +1,5 @@
 from fastapi import APIRouter, HTTPException, Body, BackgroundTasks
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 from backend.database import get_db_connection
 from backend.services.mission_manager import MissionManager
 from backend.services.materials_manager import MaterialsManager
@@ -59,12 +59,47 @@ def get_status_summary():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/materials/content")
-def get_material(path: str):
-    """获取具体的 Markdown 文件内容"""
+@router.get("/materials/courses")
+def list_courses():
+    """获取所有可用课程项目列表（包含全局基础课程与独立课程项目）"""
     try:
-        content = MaterialsManager.get_material_content(path)
-        return {"content": content}
+        courses = MaterialsManager.list_courses()
+        return {"courses": courses}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/materials/courses/create")
+def create_course(payload: Dict[str, Any] = Body(...)):
+    """创建新的分课程项目隔离目录及标准子文件夹"""
+    course_id = payload.get("course_id")
+    name = payload.get("name")
+    if not course_id:
+        raise HTTPException(status_code=400, detail="Missing course_id")
+    try:
+        course = MaterialsManager.create_course(course_id, name)
+        return {"status": "success", "course": course}
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/materials/tree")
+def get_materials_tree(course_id: Optional[str] = None):
+    """获取指定课程的知识与微课目录大纲树"""
+    try:
+        tree = MaterialsManager.build_knowledge_tree(course_id=course_id)
+        return {"knowledge_tree": tree, "course_id": course_id or "default"}
+    except ValueError as e:
+        raise HTTPException(status_code=403, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/materials/content")
+def get_material(path: str, course_id: Optional[str] = None):
+    """获取指定课程下的 Markdown 文件内容"""
+    try:
+        content = MaterialsManager.get_material_content(path, course_id=course_id)
+        return {"content": content, "path": path, "course_id": course_id or "default"}
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:
@@ -72,20 +107,22 @@ def get_material(path: str):
 
 @router.post("/materials/save")
 def save_material(payload: Dict[str, Any] = Body(...), background_tasks: BackgroundTasks = None):
-    """保存具体的 Markdown 文件内容并异步同步到 RAG 向量知识库"""
+    """保存指定课程下的 Markdown 文件内容并异步同步到 RAG 向量知识库"""
     path = payload.get("path")
     content = payload.get("content")
+    course_id = payload.get("course_id")
     if not path or content is None:
         raise HTTPException(status_code=400, detail="Missing path or content")
     try:
-        MaterialsManager.save_material_content(path, content)
+        MaterialsManager.save_material_content(path, content, course_id=course_id)
         if background_tasks:
             try:
                 rag_client = get_rag_client()
-                background_tasks.add_task(rag_client.sync_knowledge, {path: content}, "Classroom_Knowledge")
+                rag_key = f"{course_id}/{path}" if course_id and course_id != "default" else path
+                background_tasks.add_task(rag_client.sync_knowledge, {rag_key: content}, "Classroom_Knowledge")
             except Exception:
                 pass
-        return {"status": "success", "message": "Material saved and RAG sync initiated"}
+        return {"status": "success", "message": "Material saved and RAG sync initiated", "course_id": course_id or "default"}
     except ValueError as e:
         raise HTTPException(status_code=403, detail=str(e))
     except Exception as e:

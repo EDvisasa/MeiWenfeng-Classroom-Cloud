@@ -1171,12 +1171,12 @@ domain: project-planning
 - **Verification Command**: `npm --prefix frontend test -- --run DatabaseViewer` & `npm --prefix frontend run build`
 
 ### <a id="issue-58"></a>[ISSUE-58] 顶部知识与微课档案库大屏弹窗与分课程项目目录隔离系统 (Phase 2: Knowledge Library Studio Modal & Multi-Course Project Directory Isolation System)
-- **Status**: `TODO` (Phase 2 待做工单 / 经需求调研对齐待排期)
+- **Status**: `DONE`
 - **Parent**: `PLAN-02`, `ISSUE-56`
 - **User Story**: 作为使用随身课堂的学习者，我希望在顶部导航栏拥有独立的「知识与微课档案库」入口按钮，点击后弹出一个宽屏沉浸式文档大屏；支持根据当前课程课题名称切换文件目录（每个课程计划拥有独立的 Lessons/Sandbox/References/LDRs 目录），彻底避免不同课程资料相互串扰；并在右侧栏移除旧文件树后将精力聚焦于导师心智与记忆。
 - **What to build**:
   1. **导航栏独立入口与状态联动**：
-     - 在顶部 HeaderBar 增加 `[ 📚 知识与微课档案库 ]` 图标按钮；
+     - 在顶部 HeaderBar 增加 `[ 知识与微课档案库 ]` 纯矢量 SVG 图标按钮（严禁 emoji）；
      - 当处于目标拟定期（`is_drafting`）时，该按钮呈现安全锁定状态角标；
   2. **知识与微课档案大屏弹窗 (`KnowledgeLibraryModal.jsx`)**：
      - 新建弹窗组件，左侧展示结构化目录树，右侧直接嵌入宽屏 Markdown 精读与编辑视图；
@@ -1189,17 +1189,20 @@ domain: project-planning
      - 覆盖弹窗展开、目录树渲染、课程切换、文件预览与保存 RAG 同步。
 - **Affected Files**:
   - `frontend/src/components/KnowledgeLibraryModal.jsx`
+  - `frontend/src/components/KnowledgeLibraryModal.test.jsx`
   - `frontend/src/App.jsx`
   - `frontend/src/index.css`
-  - `backend/routers/materials.py`
+  - `backend/services/materials_manager.py`
+  - `backend/routers/course.py`
+  - `backend/tests/test_materials_courses.py`
   - `docs/planning/01_sprint_tasks.md`
 - **Acceptance Criteria**:
-  - [ ] 顶部导航栏提供清晰的知识档案库入口图标；
-  - [ ] 弹窗左侧大纲树，右侧宽屏预览/编辑，排版优雅；
-  - [ ] 支持按课程课题项目切换查看独立目录，各课程文件物理隔离无串扰；
-  - [ ] 拟定期安全锁定正确联动；
-  - [ ] 前后端自动化测试 100% 绿灯。
+  - [x] 顶部导航栏提供清晰的知识档案库入口图标；
+  - [x] 弹窗左侧大纲树，右侧宽屏预览/编辑，排版优雅；
+  - [x] 支持按课程课题项目切换查看独立目录，各课程文件物理隔离无串扰；
+  - [x] 拟定期安全锁定正确联动；
+  - [x] 前后端自动化测试 100% 绿灯。
 - **Blocked by**: `ISSUE-56` (Phase 1 记忆中枢就绪后接续)
-- **Verification Command**: `npm --prefix frontend test -- --run KnowledgeLibraryModal`
+- **Verification Command**: `npm --prefix frontend test -- --run KnowledgeLibraryModal` & `pytest backend/tests/test_materials_courses.py`
 
 
