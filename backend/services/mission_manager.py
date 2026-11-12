@@ -7,13 +7,21 @@ logger = logging.getLogger(__name__)
 
 class MissionManager:
     @staticmethod
-    def get_user_mission() -> str:
+    def get_user_mission(course_id: str | None = None) -> str:
+        from backend.services.course_manager import get_active_course_id
+        cid = course_id if course_id is not None else get_active_course_id()
         mission_text = "未知目标"
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
-            cursor.execute("SELECT mission_text FROM user_mission WHERE id = 1")
+            if cid == "default":
+                cursor.execute("SELECT mission_text FROM user_mission WHERE (course_id = 'default' OR course_id IS NULL) ORDER BY id DESC LIMIT 1")
+            else:
+                cursor.execute("SELECT mission_text FROM user_mission WHERE course_id = ? ORDER BY id DESC LIMIT 1", (cid,))
             row = cursor.fetchone()
+            if not row and cid == "default":
+                cursor.execute("SELECT mission_text FROM user_mission WHERE id = 1")
+                row = cursor.fetchone()
             if row and row["mission_text"]:
                 mission_text = row["mission_text"]
             conn.close()

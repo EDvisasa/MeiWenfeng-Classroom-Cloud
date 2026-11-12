@@ -27,6 +27,7 @@ class SessionSavePayload(BaseModel):
     id: str
     title: str
     messages: List[Message]
+    course_id: Optional[str] = None
 
 
 from backend.services.memory_decay import check_decay_needed
@@ -219,13 +220,15 @@ def get_sessions():
             conn.commit()
 
         # 获取所有会话，按最后更新时间降序排列
-        cursor.execute("SELECT id, title, updated_at FROM chat_sessions ORDER BY updated_at DESC")
+        cursor.execute("SELECT id, title, updated_at, course_id FROM chat_sessions ORDER BY updated_at DESC")
         raw_sessions = [dict(row) for row in cursor.fetchall()]
         
         # 将 openclaw_trio_chat 强制固定在第一位
         trio_sess = None
         other_sessions = []
         for s in raw_sessions:
+            if "course_id" not in s or not s["course_id"]:
+                s["course_id"] = "default"
             if s["id"] == "openclaw_trio_chat":
                 s["title"] = "小白有话说..."
                 trio_sess = s
@@ -271,9 +274,16 @@ def save_session(payload: SessionSavePayload):
         cursor = conn.cursor()
         
         # 1. 插入或覆盖更新会话
+        existing_course_id = "default"
+        cursor.execute("SELECT course_id FROM chat_sessions WHERE id = ?", (payload.id,))
+        row = cursor.fetchone()
+        if row and row["course_id"]:
+            existing_course_id = row["course_id"]
+        cid = payload.course_id or existing_course_id
+
         cursor.execute(
-            "INSERT OR REPLACE INTO chat_sessions (id, title, updated_at) VALUES (?, ?, datetime('now'))",
-            (payload.id, payload.title)
+            "INSERT OR REPLACE INTO chat_sessions (id, title, updated_at, course_id) VALUES (?, ?, datetime('now'), ?)",
+            (payload.id, payload.title, cid)
         )
         
         # 2. 删除原有的消息
@@ -298,6 +308,23 @@ def save_session(payload: SessionSavePayload):
         return {"status": "success", "session_id": payload.id}
     except Exception as e:
         logger.error(f"Failed to save session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/sessions/{session_id}/course")
+def update_session_course(session_id: str, payload: dict):
+    """更新会话关联的 course_id 并激活该课题"""
+    course_id = payload.get("course_id", "default")
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("UPDATE chat_sessions SET course_id = ? WHERE id = ?", (course_id, session_id))
+        conn.commit()
+        conn.close()
+        from backend.services.course_manager import set_active_course_id
+        set_active_course_id(course_id)
+        return {"status": "success", "session_id": session_id, "course_id": course_id}
+    except Exception as e:
+        logger.error(f"Failed to update session course: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.delete("/sessions/{session_id}")

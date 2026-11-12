@@ -235,7 +235,43 @@ def init_db():
     );
     """)
 
+    # 多课题实体主表 (ADR-013 & ISSUE-61)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS courses (
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        status TEXT DEFAULT 'active',
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        last_accessed_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+
+    # 兼容性升级：多课题隔离字段迁移 (ISSUE-61)
+    for tbl in ["user_mission", "course_progress", "glossary", "mission_draft", "chat_sessions"]:
+        try:
+            cursor.execute(f"ALTER TABLE {tbl} ADD COLUMN course_id TEXT DEFAULT 'default'")
+        except sqlite3.OperationalError:
+            pass
+
+    try:
+        cursor.execute("ALTER TABLE course_progress ADD COLUMN lesson_no INTEGER DEFAULT 1")
+    except sqlite3.OperationalError:
+        pass
+
+    for tbl in ["user_mission", "course_progress", "glossary", "mission_draft", "chat_sessions"]:
+        try:
+            cursor.execute(f"UPDATE {tbl} SET course_id = 'default' WHERE course_id IS NULL OR course_id = ''")
+        except sqlite3.OperationalError:
+            pass
+
     # 2. 预置初始数据
+    # 初始化全局基础课程
+    cursor.execute("SELECT COUNT(*) FROM courses")
+    if cursor.fetchone()[0] == 0:
+        cursor.execute(
+            "INSERT OR IGNORE INTO courses (id, name, status) VALUES ('default', '全局基础课程 (通用)', 'active')"
+        )
+
     # 初始化好感度
     cursor.execute("SELECT COUNT(*) FROM affection")
     if cursor.fetchone()[0] == 0:

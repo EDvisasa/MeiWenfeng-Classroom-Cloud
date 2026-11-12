@@ -1275,7 +1275,7 @@ domain: project-planning
 ---
 
 ### ISSUE-61: [Database & Schema] 多课题数据表结构扩展与活跃课题上下文跟踪
-- **Status**: [~] In Progress
+- **Status**: [x] Completed
 - **Triage**: ready-for-agent
 - **Description**:
   - 为实现多课程物理与数据隔离，迁移扩展数据库表结构：
@@ -1288,17 +1288,17 @@ domain: project-planning
   - `backend/services/course_manager.py`
   - `backend/tests/test_course_isolation_db.py`
 - **Acceptance Criteria**:
-  - [ ] 数据库初次运行及升级迁移时，自动创建 `courses` 表且存量表平滑新增 `course_id` 列；
-  - [ ] 查询 `user_mission`、`course_progress`、`glossary` 时支持按 `course_id` 进行精准隔离；
-  - [ ] `chat_sessions` 记录绑定 `course_id`，支持会话切换时联动切换活跃课题上下文；
-  - [ ] 现有测试全量通过，不产生任何回归破坏。
+  - [x] 数据库初次运行及升级迁移时，自动创建 `courses` 表且存量表平滑新增 `course_id` 列；
+  - [x] 查询 `user_mission`、`course_progress`、`glossary` 时支持按 `course_id` 进行精准隔离；
+  - [x] `chat_sessions` 记录绑定 `course_id`，支持会话切换时联动切换活跃课题上下文；
+  - [x] 现有测试全量通过，不产生任何回归破坏。
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_course_isolation_db.py`
 
 ---
 
 ### ISSUE-62: [/set_mission] 目标确立自动创建课题物理文件夹与配置绑定
-- **Status**: [ ] Pending
+- **Status**: [~] In Progress
 - **Triage**: ready-for-agent
 - **Description**:
   - 在 `/set_mission` 强力审问完成并签署契约时：
