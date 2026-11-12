@@ -26,7 +26,6 @@ Your task is to summarize the provided full character card into a concise, stand
 
 ## 动态属性
 - **内心的拧巴与纠结**：[Concise summary]
-- **自我认同**：[Concise summary]
 - **数值绑定**：[Concise summary]
 
 ## 性格调色盘
