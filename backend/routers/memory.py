@@ -53,6 +53,53 @@ def force_decay():
         logger.error(f"Force decay failed: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@router.get("/memory/status")
+def get_memory_status():
+    """获取当前记忆中枢状态与近期浓缩日记"""
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+
+        # 未归档原始对话记录数 (level = 0, status = 'active')
+        cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
+        uncompacted_count = cursor.fetchone()[0]
+
+        # 浓缩日记总篇数 (level >= 1)
+        cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level >= 1")
+        total_diaries = cursor.fetchone()[0]
+
+        # 最新 3 篇已浓缩日记 (按时间降序)
+        cursor.execute("""
+            SELECT id, timestamp, summary, level 
+            FROM memory_logs 
+            WHERE level >= 1 
+            ORDER BY timestamp DESC, id DESC 
+            LIMIT 3
+        """)
+        recent_rows = cursor.fetchall()
+        recent_diaries = []
+        for row in recent_rows:
+            recent_diaries.append({
+                "id": row["id"],
+                "timestamp": row["timestamp"],
+                "summary": row["summary"] or "",
+                "level": row["level"]
+            })
+
+        from backend.services.memory_decay import LEVEL0_COMPACTION_THRESHOLD
+        conn.close()
+        return {
+            "status": "success",
+            "uncompacted_count": uncompacted_count,
+            "threshold": LEVEL0_COMPACTION_THRESHOLD,
+            "total_diaries": total_diaries,
+            "recent_diaries": recent_diaries
+        }
+    except Exception as e:
+        logger.error(f"Get memory status failed: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/memory/summarize")
 @router.post("/summarize")
 def summarize_memory():
     """触发记忆压缩和遗忘算法"""

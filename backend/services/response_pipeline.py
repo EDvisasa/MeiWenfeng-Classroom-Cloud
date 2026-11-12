@@ -200,11 +200,12 @@ class ResponsePipeline:
     聊天响应管道：负责流缓冲、SSE 格式化和副作用派发。
     这是一个纯粹的流处理组件，不包含具体的数据库写入逻辑。
     """
-    def __init__(self, on_stream_end: Callable[[str], None] = None, registry: ActionRegistry = None, session_id: Optional[str] = None):
+    def __init__(self, on_stream_end: Callable[[str], None] = None, registry: ActionRegistry = None, session_id: Optional[str] = None, auto_summarize: Optional[bool] = True):
         self.on_stream_end = on_stream_end
         self.original_user_msg = ""
         self.session_id = session_id
         self.registry = registry
+        self.auto_summarize = True if auto_summarize is None else auto_summarize
         # 兼容旧代码，直到完全迁移
         self.handlers: Dict[str, Callable] = {}
 
@@ -380,7 +381,8 @@ class ResponsePipeline:
             # 自动压缩检查
             cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
             active_level0_count = cursor.fetchone()[0]
-            if active_level0_count >= 10:
+            from backend.services.memory_decay import LEVEL0_COMPACTION_THRESHOLD
+            if self.auto_summarize and active_level0_count >= LEVEL0_COMPACTION_THRESHOLD:
                 if self.registry and self.registry.get_handler("memory_decay"):
                     try:
                         self.registry.get_handler("memory_decay").handle({"phase_a_only": True}, "")

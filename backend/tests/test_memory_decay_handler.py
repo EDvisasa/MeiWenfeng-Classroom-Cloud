@@ -70,3 +70,69 @@ def test_force_decay_api_failure_does_not_return_success(test_db):
         with pytest.raises(HTTPException) as exc_info:
             force_decay()
         assert exc_info.value.status_code >= 500
+
+def test_get_memory_status_endpoint(test_db):
+    """Test get_memory_status returns correct uncompacted_count, threshold, and recent diaries"""
+    from backend.routers.memory import get_memory_status
+    cursor = test_db.cursor()
+    # Insert 2 level 0 active records
+    cursor.execute("INSERT INTO memory_logs (content, level, status, timestamp) VALUES ('msg1', 0, 'active', datetime('now', '-2 minute'))")
+    cursor.execute("INSERT INTO memory_logs (content, level, status, timestamp) VALUES ('msg2', 0, 'active', datetime('now', '-1 minute'))")
+    # Insert 2 level 1 records
+    cursor.execute("INSERT INTO memory_logs (content, summary, level, status, timestamp) VALUES ('', '日记一', 1, 'active', datetime('now', '-2 days'))")
+    cursor.execute("INSERT INTO memory_logs (content, summary, level, status, timestamp) VALUES ('', '日记二', 1, 'active', datetime('now', '-1 day'))")
+    test_db.commit()
+
+    res = get_memory_status()
+    assert res["status"] == "success"
+    assert res["uncompacted_count"] == 2
+    assert res["threshold"] == 3
+    assert res["total_diaries"] == 2
+    assert len(res["recent_diaries"]) == 2
+    # Verify descending sort order: '日记二' before '日记一'
+    assert res["recent_diaries"][0]["summary"] == "日记二"
+    assert res["recent_diaries"][1]["summary"] == "日记一"
+
+def test_response_pipeline_auto_summarize_control(test_db):
+    """Test that ResponsePipeline respects auto_summarize flag when uncompacted count reaches threshold"""
+    from backend.services.response_pipeline import ResponsePipeline
+    from backend.services.action_registry import ActionRegistry
+    from unittest.mock import MagicMock
+
+    cursor = test_db.cursor()
+    # Pre-populate 2 active level 0 items
+    cursor.execute("INSERT INTO memory_logs (content, level, status) VALUES ('pre1', 0, 'active')")
+    cursor.execute("INSERT INTO memory_logs (content, level, status) VALUES ('pre2', 0, 'active')")
+    test_db.commit()
+
+    # Case A: auto_summarize = False
+    mock_decay_handler = MagicMock()
+    registry = ActionRegistry()
+    registry.register("memory_decay", mock_decay_handler)
+
+    pipeline_manual = ResponsePipeline(registry=registry, session_id="test_sess", auto_summarize=False)
+    pipeline_manual.original_user_msg = "User says hello"
+
+    with patch("backend.services.response_pipeline.get_rag_client"):
+        # Consume the stream so finally executes
+        list(pipeline_manual.process_stream(iter(["Assistant says hi"])))
+
+    # Since auto_summarize was False, decay handler must NOT be called
+    mock_decay_handler.handle.assert_not_called()
+    cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
+    assert cursor.fetchone()[0] == 3
+
+    # Case B: auto_summarize = True (with 3 already in DB + 1 new = 4 >= 3)
+    mock_decay_handler_auto = MagicMock()
+    registry_auto = ActionRegistry()
+    registry_auto.register("memory_decay", mock_decay_handler_auto)
+
+    pipeline_auto = ResponsePipeline(registry=registry_auto, session_id="test_sess", auto_summarize=True)
+    pipeline_auto.original_user_msg = "Another question"
+
+    with patch("backend.services.response_pipeline.get_rag_client"):
+        list(pipeline_auto.process_stream(iter(["Another answer"])))
+
+    # With auto_summarize=True, decay handler MUST be triggered
+    mock_decay_handler_auto.handle.assert_called_once_with({"phase_a_only": True}, "")
+

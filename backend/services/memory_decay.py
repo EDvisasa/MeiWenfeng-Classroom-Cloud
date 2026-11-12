@@ -14,6 +14,9 @@ logger = logging.getLogger(__name__)
 # Global lock to prevent concurrent decay processes
 _decay_lock = threading.Lock()
 
+# Level 0 即时归档触发阈值 (篇数)
+LEVEL0_COMPACTION_THRESHOLD = 3
+
 # 定义延时降级配置
 DECAY_CONFIGS = [
     {"level": 1, "threshold": "-2 days", "next_level": 2, "prompt": "请将以下几天的纪要高度浓缩。客观记录这期间的核心突破与转折点。\n请严格遵循第三方客观视角，不得加入情绪化语言、主观推测或过度升华。\n务必严格按照以下4个字段格式输出：\n【时间跨度】：{time_span}\n【面向对象】：（列出参与这段时间事件的所有人物/实体）\n【详细纪要】：（客观记录这几天的核心事件经过与转折点，不超过200字）\n【学情洞察】：（提炼这段时间总体的认知成长方向和下一步学习目标。若无则填“无”）"},
@@ -112,7 +115,7 @@ def check_decay_needed(phase_b_only=True) -> bool:
     try:
         if not phase_b_only:
             cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
-            if cursor.fetchone()[0] >= 10:
+            if cursor.fetchone()[0] >= LEVEL0_COMPACTION_THRESHOLD:
                 return True
 
         for config in DECAY_CONFIGS:

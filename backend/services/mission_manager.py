@@ -22,6 +22,32 @@ class MissionManager:
         return mission_text
 
     @staticmethod
+    def parse_mission_markdown(raw: str) -> dict:
+        """解析 Markdown 格式的 Mission 文本为结构化 UI 字段"""
+        import re
+        if not raw or raw == "未知目标":
+            return {"goal": "自由探索中 (未指定长期课题)", "time_budget": "", "constraints": "", "skill_level": ""}
+        
+        goal_m = re.search(r'\*\*Goal\*\*:\s*([^\n\r]+)', raw, re.IGNORECASE)
+        time_m = re.search(r'\*\*Time Budget\*\*:\s*([^\n\r]+)', raw, re.IGNORECASE)
+        cons_m = re.search(r'\*\*Constraints\*\*:\s*([^\n\r]+)', raw, re.IGNORECASE)
+        skill_m = re.search(r'\*\*Verified Skill Level\*\*:\s*([^\n\r]+)', raw, re.IGNORECASE)
+        
+        if goal_m:
+            return {
+                "goal": goal_m.group(1).strip(),
+                "time_budget": time_m.group(1).strip() if time_m else "",
+                "constraints": cons_m.group(1).strip() if cons_m else "",
+                "skill_level": skill_m.group(1).strip() if skill_m else ""
+            }
+        
+        # 回退逻辑：剔除标题 # 和加粗语法
+        cleaned = re.sub(r'^#+\s+', '', raw, flags=re.MULTILINE)
+        cleaned = re.sub(r'\*\*(.*?)\*\*', r'\1', cleaned)
+        cleaned = re.sub(r'__(.*?)__', r'\1', cleaned).strip()
+        return {"goal": cleaned or "自由探索中", "time_budget": "", "constraints": "", "skill_level": ""}
+
+    @staticmethod
     def get_active_draft() -> dict:
         draft = None
         try:

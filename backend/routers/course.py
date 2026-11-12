@@ -33,6 +33,7 @@ def get_status_summary():
         # 获取 Mission 相关状态
         active_draft = MissionManager.get_active_draft()
         user_mission = MissionManager.get_user_mission()
+        parsed_mission = MissionManager.parse_mission_markdown(user_mission)
         
         # 获取知识树
         knowledge_tree = MaterialsManager.build_knowledge_tree()
@@ -46,6 +47,10 @@ def get_status_summary():
             "active_sub_model": active_sub_model,
             "mission": {
                 "current_mission": user_mission,
+                "parsed_goal": parsed_mission.get("goal") or user_mission,
+                "time_budget": parsed_mission.get("time_budget", ""),
+                "constraints": parsed_mission.get("constraints", ""),
+                "skill_level": parsed_mission.get("skill_level", ""),
                 "is_drafting": active_draft is not None,
                 "draft_details": active_draft
             },

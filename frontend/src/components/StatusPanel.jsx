@@ -1,5 +1,71 @@
 import React, { useState } from 'react';
 
+// 解析 Markdown 格式的 Mission 文本为易于界面优雅排版的结构化数据
+export function parseMissionObjective(mission) {
+  if (!mission) {
+    return {
+      isUnknown: true,
+      goal: '自由探索中 (未指定长期课题)',
+      timeBudget: '',
+      constraints: '',
+      skillLevel: ''
+    };
+  }
+
+  // 优先采用后端直接解析并返回的结构化字段
+  if (mission.parsed_goal && mission.parsed_goal !== '未知目标') {
+    return {
+      isUnknown: false,
+      goal: mission.parsed_goal,
+      timeBudget: mission.time_budget || '',
+      constraints: mission.constraints || '',
+      skillLevel: mission.skill_level || ''
+    };
+  }
+
+  const raw = mission.current_mission || '';
+  if (!raw || raw === '未知目标') {
+    return {
+      isUnknown: true,
+      goal: '自由探索中 (未指定长期课题)',
+      timeBudget: '',
+      constraints: '',
+      skillLevel: ''
+    };
+  }
+
+  // 正则提取标准 4 要素（Matt Pocock 模板）
+  const goalMatch = raw.match(/\*\*Goal\*\*:\s*([^\n\r]+)/i);
+  const timeMatch = raw.match(/\*\*Time Budget\*\*:\s*([^\n\r]+)/i);
+  const constraintsMatch = raw.match(/\*\*Constraints\*\*:\s*([^\n\r]+)/i);
+  const skillMatch = raw.match(/\*\*Verified Skill Level\*\*:\s*([^\n\r]+)/i);
+
+  if (goalMatch) {
+    return {
+      isUnknown: false,
+      goal: goalMatch[1].trim(),
+      timeBudget: timeMatch ? timeMatch[1].trim() : '',
+      constraints: constraintsMatch ? constraintsMatch[1].trim() : '',
+      skillLevel: skillMatch ? skillMatch[1].trim() : ''
+    };
+  }
+
+  // 兜底清洗：剥离 Markdown 标题符 (#) 与加粗符 (**)
+  let cleaned = raw
+    .replace(/^#+\s+/gm, '')
+    .replace(/\*\*(.*?)\*\*/g, '$1')
+    .replace(/__(.*?)__/g, '$1')
+    .trim();
+
+  return {
+    isUnknown: false,
+    goal: cleaned || '自由探索中',
+    timeBudget: '',
+    constraints: '',
+    skillLevel: ''
+  };
+}
+
 export default function StatusPanel({
   currentThought,
   affection,
@@ -13,8 +79,16 @@ export default function StatusPanel({
   activeSubModel,
   mission,
   knowledgeTree,
-  onFileClick
+  onFileClick,
+  autoSummarize = true,
+  onToggleAutoSummarize,
+  memoryStatus = { uncompacted_count: 0, threshold: 3, total_diaries: 0, recent_diaries: [] },
+  onSummarizeMemory,
+  isSummarizingMemory = false,
+  onOpenDatabaseViewer
 }) {
+  const [expandedDiaries, setExpandedDiaries] = useState({});
+  const [showMissionDetails, setShowMissionDetails] = useState(false);
 
   // 解析好感度对应的文字状态（隐藏数值）
   const getAffectionText = (val) => {
@@ -25,32 +99,23 @@ export default function StatusPanel({
     return '若即若离 (冷静防备)';
   };
 
-  const [expandedCategories, setExpandedCategories] = useState(() => {
-    const saved = localStorage.getItem('statusPanelExpanded');
-    if (saved) {
-      try {
-        return JSON.parse(saved);
-      } catch (e) {}
-    }
-    return {
-      Lessons: false,
-      LDRs: false,
-      References: false,
-      Settings: false
-    };
-  });
-
-  const toggleCategory = (cat) => {
-    setExpandedCategories(prev => {
-      const next = { ...prev, [cat]: !prev[cat] };
-      localStorage.setItem('statusPanelExpanded', JSON.stringify(next));
-      return next;
-    });
+  const toggleDiaryExpand = (id) => {
+    setExpandedDiaries((prev) => ({
+      ...prev,
+      [id]: !prev[id]
+    }));
   };
 
-  const isDrafting = mission?.is_drafting;
+  const isDrafting = Boolean(mission?.is_drafting);
+  const parsedMission = parseMissionObjective(mission);
+  const uncompactedCount = memoryStatus?.uncompacted_count ?? 0;
+  const threshold = memoryStatus?.threshold ?? 3;
+  const totalDiaries = memoryStatus?.total_diaries ?? 0;
+  const recentDiaries = memoryStatus?.recent_diaries ?? [];
 
-  // 人设 / 氛围切换胶囊按钮：统一视觉并强制单行不换行，避免面板变窄时被挤成两行
+  const progressPercent = Math.min(100, Math.round((uncompactedCount / (threshold || 3)) * 100));
+
+  // 人设 / 氛围 / 整理切换胶囊按钮：统一视觉并强制单行不换行，避免面板变窄时被挤成两行
   const pillStyle = ({ active, muted = false } = {}) => ({
     display: 'flex',
     alignItems: 'center',
@@ -91,7 +156,7 @@ export default function StatusPanel({
             媚吻锋
           </button>
           <button
-            onClick={() => handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
+            onClick={() => handlePersonaTypeChange && handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
             style={pillStyle({ active: personaType === 'simplified' })}
             title="点击切换导师人设类型（粉色为精简版，透明为原版）"
           >
@@ -107,7 +172,7 @@ export default function StatusPanel({
         </div>
       </div>
 
-      <div className="right-content" style={{ flex: 'none', padding: '12px 16px 12px 16px', flexShrink: 0, gap: '6px' }}>
+      <div className="right-content" style={{ flex: 'none', padding: '12px 16px 12px 16px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div className="character-widget" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
           <div className="thought-box" style={{ padding: '12px 16px' }}>
             <div className="thought-header" style={{ marginBottom: '4px' }}>
@@ -121,170 +186,231 @@ export default function StatusPanel({
             {currentThought}
           </div>
           <div className="character-details" style={{ paddingLeft: '8px' }}>
-            <div className="character-role" style={{ fontSize: '12px' }}>当前状态：{mission?.current_mission !== "未知目标" ? "任务执行中" : "自由探索中"}</div>
-            <div style={{ marginTop: '4px', fontSize: '12px', color: 'var(--text-secondary)' }}>
+            <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
               当前态度：<span style={{ color: 'var(--accent-pink)', fontWeight: '600' }}>{getAffectionText(affection)}</span>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* 区块 2: 学习任务与资料 */}
-      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '4px', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
-            <path d="M4 19.5v-15A2.5 2.5 0 0 1 6.5 2H20v20H6.5a2.5 2.5 0 0 1 0-5H20"/>
-          </svg>
-          <span>学习任务与资料</span>
+        {/* 当前学习课题卡片 */}
+        <div className={`mission-card ${isDrafting ? 'mission-card-drafting' : ''}`}>
+          <div className="mission-card-header">
+            {isDrafting ? (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                </svg>
+                <span className="mission-status-badge drafting">目标拟定中 · 锁定</span>
+              </>
+            ) : (
+              <>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                </svg>
+                <span className="mission-status-badge active">
+                  {!parsedMission.isUnknown ? '课题执行中' : '自由探索中'}
+                </span>
+                {parsedMission.timeBudget && (
+                  <span className="mission-time-chip" title="每日学习时间预算">
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '3px' }}>
+                      <circle cx="12" cy="12" r="10"></circle>
+                      <polyline points="12 6 12 12 16 14"></polyline>
+                    </svg>
+                    {parsedMission.timeBudget}
+                  </span>
+                )}
+              </>
+            )}
+          </div>
+
+          {/* 核心目标标题 */}
+          <div className="mission-goal-title">
+            {parsedMission.goal}
+          </div>
+
+          {isDrafting ? (
+            <div className="mission-draft-tip">
+              当前正在拟定学习计划，输入框将定向进行需求拷问，完成后自动固化。
+            </div>
+          ) : (
+            (parsedMission.constraints || parsedMission.skillLevel) && (
+              <div className="mission-details-wrapper">
+                <button
+                  type="button"
+                  className="mission-expand-toggle"
+                  onClick={() => setShowMissionDetails(!showMissionDetails)}
+                >
+                  <svg
+                    width="11"
+                    height="11"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      transform: showMissionDetails ? 'rotate(180deg)' : 'rotate(0deg)',
+                      transition: 'transform 0.2s',
+                      marginRight: '4px'
+                    }}
+                  >
+                    <polyline points="6 9 12 15 18 9"></polyline>
+                  </svg>
+                  {showMissionDetails ? '收起规划详情' : '查看约束与基准水平'}
+                </button>
+
+                {showMissionDetails && (
+                  <div className="mission-meta-list">
+                    {parsedMission.constraints && (
+                      <div className="mission-meta-item">
+                        <span className="mission-meta-label">约束条件:</span>
+                        <span className="mission-meta-val">{parsedMission.constraints}</span>
+                      </div>
+                    )}
+                    {parsedMission.skillLevel && (
+                      <div className="mission-meta-item">
+                        <span className="mission-meta-label">当前基础:</span>
+                        <span className="mission-meta-val">{parsedMission.skillLevel}</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )
+          )}
         </div>
       </div>
 
-      <div className="right-content" style={{ flex: '1 0 40%', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'visible', padding: '0 16px 0 16px' }}>
-        {/* 草稿期间的视觉压制遮罩 */}
-        {isDrafting && (
-          <div style={{
-            position: 'absolute',
-            top: '4px', left: 0, right: 0, bottom: '10px',
-            background: 'rgba(0,0,0,0.6)',
-            backdropFilter: 'blur(4px)',
-            zIndex: 10,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: 'white',
-            textShadow: '0 2px 4px rgba(0,0,0,0.5)',
-            flexDirection: 'column',
-            gap: '10px',
-            textAlign: 'center',
-            padding: '20px',
-            borderRadius: '8px'
-          }}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="var(--accent-pink)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-              <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-            </svg>
-            <span>目标拟定中，知识库已锁定。<br/>(等待确认目标)</span>
-          </div>
-        )}
+      {/* 区块 2: 记忆与学情沉淀 */}
+      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border-color)', paddingTop: '12px', marginTop: '4px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden' }}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px' }}>
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"></path>
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96"></polyline>
+            <line x1="12" y1="22.08" x2="12" y2="12"></line>
+          </svg>
+          <span>记忆与学情沉淀</span>
+        </div>
+        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
+          <button
+            onClick={() => onToggleAutoSummarize && onToggleAutoSummarize()}
+            style={pillStyle({ active: autoSummarize })}
+            title={autoSummarize ? '当前为自动整理模式（每满 3 篇自动浓缩），点击切换为手动' : '当前为手动整理模式（静默累加），点击切回自动并立即追平'}
+          >
+            {autoSummarize ? '自动整理' : '手动整理'}
+          </button>
+        </div>
+      </div>
 
-        <div className="knowledge-tree" style={{ 
-          flex: 1,
-          filter: isDrafting ? 'blur(1px) grayscale(1)' : 'none',
-          background: 'var(--bg-primary)',
-          border: '1px solid var(--border-color)',
-          borderRadius: '8px',
-          padding: '12px',
-          margin: '0 0 10px 0',
-          boxShadow: '0 2px 6px rgba(0,0,0,0.02)'
-        }}>
-          {knowledgeTree && knowledgeTree.length > 0 ? (
-            knowledgeTree.map((catNode) => (
-              <div key={catNode.category} style={{ marginBottom: '8px' }}>
-                <div 
-                  onClick={() => toggleCategory(catNode.category)}
-                  style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    cursor: 'pointer', 
-                    fontWeight: '600', 
-                    color: 'var(--text-primary)',
-                    padding: '8px 10px',
-                    borderRadius: '6px',
-                    background: expandedCategories[catNode.category] ? 'var(--bg-hover)' : 'transparent',
-                    userSelect: 'none',
-                    transition: 'background 0.2s'
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg-hover)'}
-                  onMouseLeave={e => { if(!expandedCategories[catNode.category]) e.currentTarget.style.background = 'transparent' }}
-                >
-                  <svg 
-                    width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" 
-                    style={{ 
-                      marginRight: '8px', 
-                      transform: expandedCategories[catNode.category] ? 'rotate(90deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                      color: 'var(--text-secondary)'
-                    }}
-                  >
-                    <polyline points="9 18 15 12 9 6"></polyline>
-                  </svg>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', color: 'var(--accent-pink)' }}>
-                    <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
-                  </svg>
-                  <span style={{ flex: 1, fontSize: '13px' }}>{catNode.category}</span>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', background: 'var(--bg-tertiary)', padding: '2px 6px', borderRadius: '10px' }}>
-                    {catNode.files.length}
-                  </span>
-                </div>
-                
-                <div style={{
-                  overflow: 'hidden',
-                  transition: 'max-height 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s',
-                  maxHeight: expandedCategories[catNode.category] ? '500px' : '0',
-                  opacity: expandedCategories[catNode.category] ? 1 : 0
-                }}>
-                  <ul style={{ listStyle: 'none', paddingLeft: '34px', margin: '4px 0 8px 0', display: 'flex', flexDirection: 'column', gap: '2px' }}>
-                    {catNode.files.length > 0 ? (
-                      catNode.files.map(f => (
-                        <li 
-                          key={f.path} 
-                          onClick={() => !isDrafting && onFileClick && onFileClick(f.path)}
+      <div className="right-content" style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', padding: '0 16px 16px 16px', gap: '10px' }}>
+        <div className="memory-panel">
+          
+          {/* 未归档记录进度卡片 */}
+          <div className="memory-progress-card">
+            <div className="memory-progress-header">
+              <span className="memory-progress-title">未归档记录</span>
+              <span className="memory-progress-count">{uncompactedCount} / {threshold} 篇</span>
+            </div>
+            <div className="memory-progress-track">
+              <div 
+                className="memory-progress-fill" 
+                style={{ width: `${progressPercent}%` }} 
+              />
+            </div>
+            <div className="memory-progress-hint">
+              {autoSummarize
+                ? '自动模式：满 3 篇自动触发后台浓缩归档'
+                : '手动模式：已暂停自动触发，原始记录静默累加中'}
+            </div>
+            <button
+              className="memory-archive-btn"
+              onClick={() => onSummarizeMemory && onSummarizeMemory()}
+              disabled={isSummarizingMemory || uncompactedCount === 0}
+              title={uncompactedCount === 0 ? '暂无未归档对话' : '一键将当前未归档对话压缩为日记'}
+            >
+              {isSummarizingMemory ? '正在整理中...' : '立即归档'}
+            </button>
+          </div>
+
+          {/* 最近浓缩日记时间轴 */}
+          <div className="memory-diaries-section">
+            <div className="memory-diaries-header">
+              <span>近期浓缩日记</span>
+              <span className="memory-diaries-badge">共 {totalDiaries} 篇</span>
+            </div>
+
+            {recentDiaries && recentDiaries.length > 0 ? (
+              <div className="memory-diary-list">
+                {recentDiaries.map((diary) => {
+                  const isExpanded = expandedDiaries[diary.id];
+                  const timeDisplay = diary.timestamp ? diary.timestamp.replace('T', ' ').slice(0, 16) : '';
+                  const summaryText = diary.summary || '';
+                  const shortSummary = summaryText.length > 70 && !isExpanded
+                    ? summaryText.slice(0, 70) + '...'
+                    : summaryText;
+
+                  return (
+                    <div key={diary.id} className="memory-diary-item">
+                      <div 
+                        className="memory-diary-header"
+                        onClick={() => toggleDiaryExpand(diary.id)}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span className="memory-diary-level-badge">L{diary.level || 1} 纪要</span>
+                          <span className="memory-diary-time">{timeDisplay}</span>
+                        </div>
+                        <svg
+                          width="12"
+                          height="12"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="2.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
                           style={{
-                            display: 'flex',
-                            alignItems: 'center',
-                            padding: '6px 8px',
-                            cursor: isDrafting ? 'not-allowed' : 'pointer',
-                            color: 'var(--text-secondary)',
-                            fontSize: '12px',
-                            borderRadius: '4px',
-                            whiteSpace: 'nowrap',
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            transition: 'all 0.15s'
-                          }}
-                          onMouseEnter={(e) => {
-                            if(!isDrafting) {
-                              e.currentTarget.style.background = 'var(--bg-hover)';
-                              e.currentTarget.style.color = 'var(--text-primary)';
-                              e.currentTarget.style.transform = 'translateX(4px)';
-                            }
-                          }}
-                          onMouseLeave={(e) => {
-                            if(!isDrafting) {
-                              e.currentTarget.style.background = 'transparent';
-                              e.currentTarget.style.color = 'var(--text-secondary)';
-                              e.currentTarget.style.transform = 'translateX(0)';
-                            }
+                            transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            transition: 'transform 0.2s',
+                            color: 'var(--text-muted)'
                           }}
                         >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', minWidth: '12px', opacity: 0.6 }}>
-                            <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-                            <polyline points="14 2 14 8 20 8"></polyline>
-                            <line x1="16" y1="13" x2="8" y2="13"></line>
-                            <line x1="16" y1="17" x2="8" y2="17"></line>
-                            <polyline points="10 9 9 9 8 9"></polyline>
-                          </svg>
-                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{f.name}</span>
-                        </li>
-                      ))
-                    ) : (
-                      <li style={{ padding: '6px 8px', color: 'var(--text-muted)', fontSize: '11px', fontStyle: 'italic', display: 'flex', alignItems: 'center' }}>
-                        <span style={{ width: '12px', marginRight: '6px' }} />
-                        暂无档案
-                      </li>
-                    )}
-                  </ul>
-                </div>
+                          <polyline points="6 9 12 15 18 9"></polyline>
+                        </svg>
+                      </div>
+                      <div 
+                        className="memory-diary-preview"
+                        onClick={() => toggleDiaryExpand(diary.id)}
+                        style={{ cursor: 'pointer' }}
+                      >
+                        {shortSummary}
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
-            ))
-          ) : (
-            <div style={{ color: 'var(--text-muted)', fontSize: '13px', textAlign: 'center', padding: '20px 0' }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px auto', display: 'block', opacity: 0.5 }}>
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path>
+            ) : (
+              <div className="memory-empty-tip">
+                暂无已归档日记<br/>(累计 3 篇对话后自动生成)
+              </div>
+            )}
+          </div>
+
+          {/* 底部查看数据库快捷入口 */}
+          <div className="memory-panel-footer">
+            <button
+              className="memory-db-link"
+              onClick={() => onOpenDatabaseViewer && onOpenDatabaseViewer('memory_logs')}
+              title="查看底层 memory_logs 数据表"
+            >
+              <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '5px' }}>
+                <path d="M14 3c0 1.1-2.7 2-6 2S2 4.1 2 3s2.7-2 6-2 6 .9 6 2zm0 4c0 1.1-2.7 2-6 2S2 8.1 2 7V5c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm0 4c0 1.1-2.7 2-6 2S2 12.1 2 11V9c.8.6 2.3 1 4 1s3.2-.4 4-1v2zm-6 4c-3.3 0-6-.9-6-2v-2c.8.6 2.3 1 4 1s3.2-.4 4-1v2c0 1.1-2.7 2-6 2z" />
               </svg>
-              暂无物理文件缓存
-            </div>
-          )}
+              查看完整 memory_logs 数据表
+            </button>
+          </div>
+
         </div>
       </div>
     </section>

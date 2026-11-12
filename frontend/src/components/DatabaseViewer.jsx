@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { API_BASE } from '../config';
-export default function DatabaseViewer({ onClose }) {
+export default function DatabaseViewer({ onClose, initialTable }) {
   const [tables, setTables] = useState([]);
   const [selectedTable, setSelectedTable] = useState('');
   const [tableData, setTableData] = useState({ columns: [], data: [] });
@@ -52,7 +52,11 @@ export default function DatabaseViewer({ onClose }) {
         const data = await res.json();
         setTables(data.tables || []);
         if (data.tables && data.tables.length > 0) {
-          setSelectedTable(data.tables[0]);
+          if (initialTable && data.tables.includes(initialTable)) {
+            setSelectedTable(initialTable);
+          } else {
+            setSelectedTable(data.tables[0]);
+          }
         }
       } else {
         setError('Failed to fetch tables');

@@ -36,6 +36,7 @@ class ChatRequest(BaseModel):
     selection_end_line: Optional[int] = 0
     selected_text: Optional[str] = ""
     custom_max_tokens: Optional[int] = 8192
+    auto_summarize: Optional[bool] = True
 
 def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str):
     from backend.services.context_manager import build_base_system_prompt
@@ -296,7 +297,11 @@ def send_message(payload: ChatRequest):
         keep_recent_turns=10
     )
 
-    pipeline = ResponsePipeline(registry=action_registry, session_id=payload.session_id)
+    pipeline = ResponsePipeline(
+        registry=action_registry,
+        session_id=payload.session_id,
+        auto_summarize=payload.auto_summarize
+    )
     pipeline.original_user_msg = original_last_user_msg
 
     def event_generator():

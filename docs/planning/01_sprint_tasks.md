@@ -1100,44 +1100,48 @@ domain: project-planning
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `npm --prefix frontend test -- --run` & `npm --prefix frontend run build`
 
-### <a id="issue-56"></a>[ISSUE-56] 【自动/手动】记忆整理切换开关与静默累积追平机制 (Auto/Manual Memory Summarization Switcher & Silent Catch-up)
-- **Status**: `TODO` (待做工单 / 经需求调研对齐待排期)
+### <a id="issue-56"></a>[ISSUE-56] 右侧栏心智与全景式记忆中枢改造、自动/手动整理切换与静默计数追平机制 (Phase 1: Agent Persona & Memory Cognition Panel, Auto/Manual Summarization Switcher & Silent Catch-up)
+- **Status**: `DONE` (已完成 / 2026-11-13 经前后端全量单测与构建验证)
 - **Parent**: `PLAN-02`, `ISSUE-49`
-- **User Story**: 作为使用随身课堂的学习者，我希望在右侧状态面板中拥有【自动整理 / 手动整理】切换开关。在手动模式下，系统暂停后台每满 3 篇未整理对话即刻触发的大模型记忆浓缩（避免在密集交互时后台争抢算力），同时在后台静默累加计数；支持随时通过 `/summarize` 进行手动整理；当我切回自动整理模式后，若累计未整理记忆已达阈值（`uncompacted_count >= 3`），则在下一轮交互时自动无缝追平整理。
+- **User Story**: 作为使用随身课堂的学习者，我希望右侧面板从混杂静态文件树中解脱，完全升格为「导师感知与记忆系统」。下半区常驻全景式记忆中枢：提供【自动整理 / 手动整理】切换开关，在手动模式下暂停后台自动浓缩并静默累加未整理计数，提供一键 `[立即归档]` 按钮与最近浓缩日记时间轴；切回自动后若达到阈值立即静默追平整理；上半区常驻当前学习课题卡片与拟定期锁定动效。
 - **What to build**:
-  1. **前端状态控制与模式持久化**：
-     - 在 `StatusPanel.jsx` 顶部状态控制区增加【自动 / 手动】记忆整理切换胶囊按钮；
-     - 状态持久化至 `localStorage`（如 `classroom_memory_summarize_mode = 'auto' | 'manual'`）；
-     - 在 `App.jsx` 发起对话请求 `ChatRequest` 或前端状态同步时传递该标识（`auto_summarize: boolean`）；
-  2. **后端自动整理触发门禁 (Gatekeeper)**：
-     - 在 `backend/services/response_pipeline.py` 的后置处理管线中，拦截 `process_memory_decay` 自动触发逻辑；
-     - 校验请求中的 `auto_summarize` 开关；若为 `False`（手动模式），则跳过异步 `asyncio.create_task(run_decay(...))`，仅记录原始会话与未浓缩计数；
-  3. **静默计数与切回自动追平 (Silent Counter & Catch-up Trigger)**：
-     - 手动模式下保持 `memory_logs` 中 `is_compacted = 0` 的精准统计与状态面板展示；
-     - 当切回 `auto` 模式且 `uncompacted_count >= 3` 时，在下一轮对话结束时立即触发浓缩任务，优雅自愈追平；
-  4. **手动指令畅通无阻**：
-     - 保证 `/summarize` 斜杠指令在手动与自动模式下均可随时调用，执行完毕后重置未浓缩计数；
-  5. **自动化测试覆盖**：
-     - 前端编写 `StatusPanel.test.jsx`，测试开关切换与持久化读写；
-     - 后端编写针对 `response_pipeline.py` 与 `slash_handler.py` 的用例，测试手动模式阻断与自动模式追平。
+  1. **右侧栏下半区全景式记忆管理面板**：
+     - 剥离原下半区文件树，替换为全新的「记忆与学情沉淀」卡片；
+     - 顶部配备【自动 / 手动】整理切换胶囊按钮，持久化至 `localStorage` 与 `ChatRequest` 透传；
+     - 提供未整理记录进度条（如 `2 / 3 篇`，满 3 篇触发浓缩），并带有手动模式状态提示；
+     - 提供 `[ 立即归档 ]` 按钮（触发 `/api/chat/memory/summarize`，免手敲 `/summarize`）；
+     - 渲染最新 3 篇已浓缩日记（Level 1）折叠卡片列表，支持快速查阅与一键打开数据库查看器；
+  2. **右侧栏上半区课题卡片与拟定锁定**：
+     - 在「此刻内心」下方常驻精致的「当前学习课题卡片」，展示当前课题与状态；
+     - 拟定期（`is_drafting`）时保持安全锁定动效与确认提示；
+  3. **后端自动整理触发门禁与追平逻辑 (Gatekeeper & Catch-up Engine)**：
+     - 在 `backend/services/response_pipeline.py` 中判断 `auto_summarize`，若为手动模式则跳过后台异步 `process_memory_decay`，仅记录原始交互与未浓缩计数；
+     - 切回自动模式时，若 `uncompacted_count >= 3`，立即在后台异步发起追平整理，前端显示微型进度状态；
+     - 新增 `GET /api/chat/memory/status` 接口，提供未整理计数、总篇数及最新 3 篇已浓缩日记摘要；
+  4. **自动化测试覆盖**：
+     - 前端编写 `StatusPanel.test.jsx`，覆盖模式切换、进度条、立即归档触发与日记流展示；
+     - 后端编写针对 `response_pipeline.py`、`memory.py` 的用例，测试手动模式阻断、自动模式追平与状态查询。
 - **Affected Files**:
   - [`frontend/src/components/StatusPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.jsx)
   - [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)
-  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`backend/routers/memory.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py)
   - [`backend/services/response_pipeline.py`](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py)
   - [`backend/services/memory_decay.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_decay.py)
+  - [`backend/routers/chat.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py)
   - [`backend/tests/test_memory_decay_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_decay_handler.py)
   - [`frontend/src/components/StatusPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.test.jsx)
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
 - **Acceptance Criteria**:
-  - [ ] 前端右侧状态面板提供清晰的【自动/手动】整理切换胶囊，刷新页面状态不丢失；
-  - [ ] 手动整理模式下，后台不自动派发大模型记忆总结任务，不挤占推理资源；
-  - [ ] 手动整理模式下，未整理日记条数依然在后台准确递增统计；
-  - [ ] 任何模式下输入 `/summarize` 均可手动触发记忆整理；
-  - [ ] 切回自动整理模式后，若累计未整理条数达到阈值，下一轮对话时自动完成追平整理；
-  - [ ] 前后端自动化测试 100% 绿灯。
+  - [x] 前端右侧栏下半区升级为全景式记忆中枢，支持【自动/手动】整理模式切换与持久化；
+  - [x] 手动模式下后台不自动派发大模型记忆总结任务，不挤占推理资源，计数静默累加；
+  - [x] 手动模式下提供 `[ 立即归档 ]` 按钮可一键触发记忆整理；
+  - [x] 切回自动模式后，若累计未整理条数达到阈值，立即自动追平完成浓缩；
+  - [x] 面板展示最新 3 篇日记时间轴卡片与进度条；
+  - [x] 右侧栏上半区展示精致的课题卡片与拟定期安全锁定；
+  - [x] 前后端自动化测试 100% 绿灯。
 - **Blocked by**: None - can start immediately
-- **Verification Command**: `pytest backend/tests/test_memory_decay_handler.py` & `npm --prefix frontend test -- --run`
+- **Verification Command**: `pytest backend/tests/test_memory_decay_handler.py` & `npm --prefix frontend test -- --run StatusPanel`
 
 ### <a id="issue-57"></a>[ISSUE-57] 内置数据库查看器移动端响应式全宽、侧栏折叠与零 Emoji 极简排版 (DatabaseViewer Mobile Responsive Full-width, Collapsible Sidebar & Clean Zero-Emoji Layout)
 - **Status**: `DONE` (已完成 / 2026-11-13 经全量 Vitest 单测与生产构建双绿灯验证)
@@ -1165,4 +1169,37 @@ domain: project-planning
   - [x] 前端自动化单元测试 100% 绿灯通过。
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `npm --prefix frontend test -- --run DatabaseViewer` & `npm --prefix frontend run build`
+
+### <a id="issue-58"></a>[ISSUE-58] 顶部知识与微课档案库大屏弹窗与分课程项目目录隔离系统 (Phase 2: Knowledge Library Studio Modal & Multi-Course Project Directory Isolation System)
+- **Status**: `TODO` (Phase 2 待做工单 / 经需求调研对齐待排期)
+- **Parent**: `PLAN-02`, `ISSUE-56`
+- **User Story**: 作为使用随身课堂的学习者，我希望在顶部导航栏拥有独立的「知识与微课档案库」入口按钮，点击后弹出一个宽屏沉浸式文档大屏；支持根据当前课程课题名称切换文件目录（每个课程计划拥有独立的 Lessons/Sandbox/References/LDRs 目录），彻底避免不同课程资料相互串扰；并在右侧栏移除旧文件树后将精力聚焦于导师心智与记忆。
+- **What to build**:
+  1. **导航栏独立入口与状态联动**：
+     - 在顶部 HeaderBar 增加 `[ 📚 知识与微课档案库 ]` 图标按钮；
+     - 当处于目标拟定期（`is_drafting`）时，该按钮呈现安全锁定状态角标；
+  2. **知识与微课档案大屏弹窗 (`KnowledgeLibraryModal.jsx`)**：
+     - 新建弹窗组件，左侧展示结构化目录树，右侧直接嵌入宽屏 Markdown 精读与编辑视图；
+     - 顶部设计「课程课题切换器（Course Project Selector）」；
+  3. **分课程项目目录隔离体系 (Directory Isolation Architecture)**：
+     - 规范 `data/materials/courses/<course_id>/`（或课题目录映射），隔离各课程的 `Lessons/`、`Sandbox/`、`References/` 与 `LDRs/`；
+     - 默认兼容根目录 `data/materials/` 作为全局基础课程；
+     - 后端提供针对指定课题目录的文件扫描与保存接口，防范跨课程数据串扰；
+  4. **全链路自动化测试**：
+     - 覆盖弹窗展开、目录树渲染、课程切换、文件预览与保存 RAG 同步。
+- **Affected Files**:
+  - `frontend/src/components/KnowledgeLibraryModal.jsx`
+  - `frontend/src/App.jsx`
+  - `frontend/src/index.css`
+  - `backend/routers/materials.py`
+  - `docs/planning/01_sprint_tasks.md`
+- **Acceptance Criteria**:
+  - [ ] 顶部导航栏提供清晰的知识档案库入口图标；
+  - [ ] 弹窗左侧大纲树，右侧宽屏预览/编辑，排版优雅；
+  - [ ] 支持按课程课题项目切换查看独立目录，各课程文件物理隔离无串扰；
+  - [ ] 拟定期安全锁定正确联动；
+  - [ ] 前后端自动化测试 100% 绿灯。
+- **Blocked by**: `ISSUE-56` (Phase 1 记忆中枢就绪后接续)
+- **Verification Command**: `npm --prefix frontend test -- --run KnowledgeLibraryModal`
+
 

@@ -79,3 +79,23 @@ def test_finalize_draft_updates_user_mission_and_writes_files(tmp_path):
         content = f.read()
         assert final_goal in content
         assert final_time in content
+
+def test_parse_mission_markdown():
+    """测试行为 4：Markdown 课题文本结构化解析"""
+    raw = (
+        "# Mission Objective\n\n"
+        "**Goal**: 捋顺OpenAI关于Navier-Stokes方程有限时间爆破论文的核心逻辑\n\n"
+        "**Time Budget**: 每日1小时\n\n"
+        "**Constraints**: 零预算、不看视频教程、以放松探索为主\n\n"
+        "**Verified Skill Level**: 大学高数/线代基础，微积分尚可，但散度与矩阵运动学概念已生锈\n"
+    )
+    parsed = MissionManager.parse_mission_markdown(raw)
+    assert parsed["goal"] == "捋顺OpenAI关于Navier-Stokes方程有限时间爆破论文的核心逻辑"
+    assert parsed["time_budget"] == "每日1小时"
+    assert parsed["constraints"] == "零预算、不看视频教程、以放松探索为主"
+    assert "大学高数" in parsed["skill_level"]
+
+    # 回退纯净文本
+    raw_plain = "### 学 Rust 并写一个 OS"
+    parsed_plain = MissionManager.parse_mission_markdown(raw_plain)
+    assert parsed_plain["goal"] == "学 Rust 并写一个 OS"

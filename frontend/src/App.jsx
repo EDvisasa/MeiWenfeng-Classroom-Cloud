@@ -48,6 +48,10 @@ export default function App() {
   const [isRollingBack, setIsRollingBack] = useState(false);
   const abortControllerRef = useRef(null);
   const [showDbViewer, setShowDbViewer] = useState(false);
+  const [initialDbTable, setInitialDbTable] = useState(null);
+  const [autoSummarize, setAutoSummarize] = useState(() => localStorage.getItem('classroom_auto_summarize') !== 'false');
+  const [memoryStatus, setMemoryStatus] = useState({ uncompacted_count: 0, threshold: 3, total_diaries: 0, recent_diaries: [] });
+  const [isSummarizingMemory, setIsSummarizingMemory] = useState(false);
   const [showMobileStatus, setShowMobileStatus] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('mei_theme') || 'light');
   const [showSessionList, setShowSessionList] = useState(false);
@@ -501,6 +505,7 @@ export default function App() {
     loadSessions();
 
     fetchStatus();
+    fetchMemoryStatus();
     fetchModels();
     fetchAvatars();
     fetchRagConfig();
@@ -634,6 +639,73 @@ export default function App() {
       }
     } catch (e) {
       console.error('Failed to fetch status:', e);
+    }
+  };
+
+  const fetchMemoryStatus = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/memory/status`);
+      if (res.ok) {
+        const data = await res.json();
+        setMemoryStatus({
+          uncompacted_count: data.uncompacted_count ?? 0,
+          threshold: data.threshold ?? 3,
+          total_diaries: data.total_diaries ?? 0,
+          recent_diaries: data.recent_diaries ?? []
+        });
+      }
+    } catch (err) {
+      console.error('Failed to fetch memory status:', err);
+    }
+  };
+
+  const handleSummarizeMemory = async () => {
+    if (isSummarizingMemory) return;
+    setIsSummarizingMemory(true);
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/memory/summarize`, {
+        method: 'POST'
+      });
+      if (res.ok) {
+        await fetchMemoryStatus();
+      }
+    } catch (err) {
+      console.error('Failed to summarize memory:', err);
+    } finally {
+      setIsSummarizingMemory(false);
+    }
+  };
+
+  const handleToggleAutoSummarize = async () => {
+    const nextVal = !autoSummarize;
+    setAutoSummarize(nextVal);
+    localStorage.setItem('classroom_auto_summarize', String(nextVal));
+
+    if (nextVal) {
+      // 切回自动模式时，若未整理篇数达到阈值，立即追平整理
+      try {
+        const res = await fetch(`${API_BASE}/api/chat/memory/status`);
+        if (res.ok) {
+          const data = await res.json();
+          setMemoryStatus({
+            uncompacted_count: data.uncompacted_count ?? 0,
+            threshold: data.threshold ?? 3,
+            total_diaries: data.total_diaries ?? 0,
+            recent_diaries: data.recent_diaries ?? []
+          });
+          if ((data.uncompacted_count ?? 0) >= (data.threshold ?? 3)) {
+            setIsSummarizingMemory(true);
+            const sumRes = await fetch(`${API_BASE}/api/chat/memory/summarize`, { method: 'POST' });
+            if (sumRes.ok) {
+              await fetchMemoryStatus();
+            }
+            setIsSummarizingMemory(false);
+          }
+        }
+      } catch (err) {
+        console.error('Catch-up summarization error:', err);
+        setIsSummarizingMemory(false);
+      }
     }
   };
 
@@ -780,6 +852,7 @@ export default function App() {
         setActiveModel(data.active_model);
         fetchModels();
         fetchStatus();
+      fetchMemoryStatus();
         // 关闭弹窗行为取消，已变为右侧边栏常驻
         setMessages(prev => [
           ...prev,
@@ -988,6 +1061,7 @@ export default function App() {
         setActiveModel(data.active_model);
         fetchModels();
         fetchStatus();
+      fetchMemoryStatus();
 
         if (switchedObj) {
           setSelectedConfigId(switchedObj.id);
@@ -1153,7 +1227,8 @@ export default function App() {
           selection_start_line: selectionStartLine,
           selection_end_line: selectionEndLine,
           selected_text: selectedText,
-          custom_max_tokens: maxTokens
+          custom_max_tokens: maxTokens,
+          auto_summarize: autoSummarize
         })
       });
 
@@ -1200,6 +1275,7 @@ export default function App() {
                   // Trigger status refresh immediately to update UI locks/unlocks
                   if (parsed.type === 'draft_warning' || (parsed.type === 'system_hint' && parsed.icon === 'check')) {
                     fetchStatus();
+      fetchMemoryStatus();
                   }
                   continue;
                 }
@@ -1367,6 +1443,7 @@ export default function App() {
       });
 
       fetchStatus();
+      fetchMemoryStatus();
 
     } catch (e) {
       if (e.name === 'AbortError') {
@@ -1612,6 +1689,15 @@ export default function App() {
                 activeSubModel={activeSubModel}
                 mission={mission}
                 knowledgeTree={knowledgeTree}
+                autoSummarize={autoSummarize}
+                onToggleAutoSummarize={handleToggleAutoSummarize}
+                memoryStatus={memoryStatus}
+                onSummarizeMemory={handleSummarizeMemory}
+                isSummarizingMemory={isSummarizingMemory}
+                onOpenDatabaseViewer={(table) => {
+                  setInitialDbTable(table || 'memory_logs');
+                  setShowDbViewer(true);
+                }}
                 onFileClick={async (path) => {
                   try {
                     const res = await fetch(`${API_BASE}/api/chat/materials/content?path=${encodeURIComponent(path)}`);
@@ -2106,7 +2192,13 @@ export default function App() {
 
         {/* 内置数据库查看器 */}
         {showDbViewer && (
-          <DatabaseViewer onClose={() => setShowDbViewer(false)} />
+          <DatabaseViewer
+            onClose={() => {
+              setShowDbViewer(false);
+              setInitialDbTable(null);
+            }}
+            initialTable={initialDbTable}
+          />
         )}
 
         {/* 新增 API 配置模态弹窗 */}
