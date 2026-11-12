@@ -1339,24 +1339,24 @@ domain: project-planning
 
 ---
 
-### ISSUE-64: [/lesson & /end_lesson] 课题选定、按课时授课与下课切回公共档案闭环
+### ISSUE-64: [/plan, /lesson & /end_lesson] 课题大纲规划、课时授课与下课切回公共档案闭环
 - **Status**: [ ] Pending
 - **Triage**: ready-for-agent
 - **Description**:
-  - 升级 `/lesson` 指令与授课大纲系统，并新增 `/end_lesson` 专属下课指令：
-    - 支持 `/lesson [course_id]` 切换选定课题，或直接输入 `/lesson` 继续当前活跃课题；
-    - 授课时自动装载该课题专属隔离档案库（`courses/<course_id>/`）、专属课时大纲与隔离沙盒；
+  - 升级 `/plan`、`/lesson` 与新增 `/end_lesson` 指令形成完整教学闭环：
+    - `/plan [course_id]`：强制切入目标课题隔离环境，读取该课题 `user_mission.md`，输出 `<new_course>` 写入专属 `course_progress` 并在 `courses/<course_id>/Lessons/syllabus.md` 镜像持久化，严禁在 `default` 下盲目工作；
+    - `/lesson [course_id]`：装配该课题专属隔离档案库（`courses/<course_id>/`）、专属课时大纲与隔离沙盒展开授课；
     - 导师系统提示词注入该课题的 `user_mission`、当前课时要求与前序课时掌握度；
     - 课时测试通过后，通过 `<system_pass>` 推进该课题专属课时进度；
-    - 新增 `/end_lesson`（别名 `/recess`, `/dismiss`, `/下课`）：课时达成或主动下课时，系统结算学情并将活跃档案库切回公共基础档案（`default`），卸载教学拦截规约，自然回归日常生活情趣。
+    - `/end_lesson`（别名 `/recess`, `/dismiss`, `/下课`）：课时达成或主动下课时，系统结算学情并将活跃档案库切回公共基础档案（`default`），卸载教学拦截规约，自然回归日常生活情趣。
 - **Affected Files**:
   - `backend/services/slash_handler.py`
   - `backend/services/course_manager.py`
-  - `frontend/src/components/RightSidebar.jsx`
+  - `frontend/src/components/StatusPanel.jsx`
   - `backend/tests/test_lesson_course_flow.py`
 - **Acceptance Criteria**:
+  - [ ] 执行 `/plan` 能够准确锁定课题，读取该课题专属 `user_mission.md` 并生成专属 `syllabus.md`；
   - [ ] 执行 `/lesson` 能够准确选定并切换至目标课题，沙盒与档案库隔离生效；
-  - [ ] 导师授课严格围绕该课题的专属课时大纲展开，呈现高信噪比、启发式教学；
   - [ ] 执行 `/end_lesson` 或课时完成后，档案库指针安全切回公共 `default` 空间，导师转入温存生活化陪伴语境；
   - [ ] 推进某一课程的课时进度，不影响其他课程的进度状态。
 - **Blocked by**: ISSUE-61, ISSUE-63

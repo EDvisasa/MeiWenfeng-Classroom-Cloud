@@ -108,10 +108,15 @@
                 </p>
             </div>
             <div class="border-l-4 border-purple-500 pl-4 py-1">
-                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 双轨选课开课与显式下课档案切换 (/lesson 与 /end_lesson)</h3>
-                <p class="text-sm text-slate-600 leading-relaxed">
-                    在右侧状态栏与档案库下拉菜单提供随时切换活跃课题；同时支持无参 <code>/lesson</code>（推进当前活跃课题）与带参 <code>/lesson &lt;course_id&gt;</code>（一键切课并授课）。在 <code>course_progress</code> 中增加 <code>lesson_no</code> 支持课时序列表。新增专用下课指令 <code>/end_lesson</code>（别名 <code>/recess</code>, <code>/下课</code>），将上课硬核攻坚与下课生活情趣彻底切分开来，给系统提供安全切换档案上下文的物理闸门。
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 课题规划、双轨授课与显式下课档案切换 (/plan, /lesson 与 /end_lesson)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed mb-2">
+                    <code>/plan</code> 与 <code>/lesson</code> 同属于<strong>课题隔离环境（Course-Scoped Context）</strong>的核心研学指令，<strong>绝不在普通的 default 生活状态下工作</strong>：
                 </p>
+                <ul class="text-xs text-slate-600 space-y-1 mb-2">
+                    <li><strong>大纲规划 (/plan [course_id])</strong>：输入 <code>/plan</code>（或 <code>/plan &lt;course_id&gt;</code>）时，系统立即锚定并挂载对应课题目录 <code>courses/course_id/</code>，读取该课题专属的 <code>Settings/user_mission.md</code>。输出的 <code>&lt;new_course&gt;</code> 条目携带 <code>course_id</code> 写入数据库，并在 <code>courses/course_id/Lessons/syllabus.md</code> 镜像生成阶段大纲，绝不污染全局空间。</li>
+                    <li><strong>双轨选课授课 (/lesson [course_id])</strong>：支持通过右侧状态栏下拉切换，或输入 <code>/lesson [course_id]</code> 开课，直接加载该课题对应课时沙盒。</li>
+                    <li><strong>显式下课切回 (/end_lesson)</strong>：仅在执行 <code>/end_lesson</code>（别名 <code>/下课</code>）或点击「生活」时，系统才将活跃档案库安全切回公共空间 <code>default</code>。</li>
+                </ul>
             </div>
             <div class="border-l-4 border-amber-500 pl-4 py-1">
                 <h3 class="text-lg font-bold text-slate-800 mb-1">2.4 术语表、沙盒文件与 RAG 向量多层严格防污染隔离</h3>
@@ -203,8 +208,10 @@
                         SM2["/set_mission 目标设立"] -->|"模型提炼代号"| AutoCreate["自动 MaterialsManager.create_course"]
                         AutoCreate -->|"建立专属文件夹"| CFolder["courses/course_id/ 独立目录"]
                         CFolder -->|"专属配置"| CSet["Settings/user_mission.md 与 glossary.json"]
+                        CFolder -->|"/plan 规划大纲"| PlanNode["读取目标生成 Lessons/syllabus.md"]
+                        PlanNode -->|"落盘课时序列表"| CP["course_progress (course_id, lesson_no)"]
                         Lesson2["/lesson (支持指定课题)"] -->|"双轨选课"| ActiveCourse["锁定 active_course_id"]
-                        ActiveCourse -->|"专属课时编排"| CP["course_progress (course_id, lesson_no)"]
+                        ActiveCourse -->|"装配当前课时"| CP
                         ActiveCourse -->|"沙盒与讲义重定向"| ScopedBox["courses/course_id/Sandbox 与 References"]
                         ActiveCourse -->|"向量 Metadata 过滤"| PureRAG["RAG 仅检索本课程切片 (零污染)"]
                         ActiveCourse -->|"/end_lesson 结课下课"| Recess["档案库切回公共基础档案 (default) 与生活日常"]

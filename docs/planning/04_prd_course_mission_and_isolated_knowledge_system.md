@@ -137,13 +137,19 @@ domain: core-architecture
 - **沙盒文件工具 (`agent_tools.py`)**：
   工具 `create_file`、`replace_file_content`、`read_file` 接收当前会话的 `active_course_id`，将其根目录沙盒限制在 `courses/<course_id>/Sandbox/`，严防跨课题目录遍历。
 
-### 4.4 课时大纲与授课驱动 (`backend/services/course_manager.py` & `slash_handler.py`)
+### 4.4 课时大纲规划与授课驱动 (`course_manager.py` & `slash_handler.py`)
+- **`/plan [course_id]` 课题大纲规划驱动（严格禁止在 default 状态盲目运行）**：
+  - 执行 `/plan` 或 `/plan <course_id>` 时，系统**强制切入目标课题隔离环境（`courses/<course_id>/`）**；
+  - 导师读取该课题专属的 `Settings/user_mission.md` 宏大目标与时间预算；
+  - 导师输出 `<new_course phase="..." topic="..." />` 标签，经 `NewCourseHandler` 拦截后附带 `course_id` 写入 `course_progress` 表，并在 `courses/<course_id>/Lessons/syllabus.md` 镜像生成阶段大纲，绝对不污染全局 `default` 空间；
 - **`get_active_course(course_id: Optional[str] = None)`**：
   支持按 `course_id` 过滤。默认拉取当前激活课题中状态为 `active` 的课时记录。
 - **`/lesson` 指令增强**：
   - 若输入形如 `/lesson [course_id]`，先校验该课程是否存在；若存在则切换当前活跃课程；
   - 若输入 `/lesson`，加载当前活跃课程的当前课时及大纲；
   - 构造包含当前课题名称、目标、课时序号、该课时待解决核心问题及沙盒代码路径的完整 `<system_directive>`。
+- **`/end_lesson` 指令下课与安全回切**：
+  - 执行 `/end_lesson` 时，结算当前课时学情，卸载教学规约，**并将系统活跃档案指针切回公共空间 `default`**。
 
 ### 4.5 RAG 向量切片隔离策略 (`backend/services/rag_service.py` / `chroma_client.py`)
 - **Collection / Metadata 双重隔离**：
