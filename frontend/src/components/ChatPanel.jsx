@@ -2,11 +2,11 @@ import React from 'react';
 import { encode } from 'gpt-tokenizer';
 import { API_BASE } from '../config';
 import { parseAndMergeBlocks } from '../utils/blockParser';
+import { remarkPlugins, rehypePlugins } from '../utils/markdownPlugins';
 import { AlertTriangle, Check, X, Image as ImageIcon } from 'lucide-react';
 import MissionProposalCard from './MissionProposalCard';
 import QuizBlock from './QuizBlock';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus, prism } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { COMMANDS } from '../constants/commands';
@@ -250,7 +250,7 @@ const ExplainerBlock = ({ block, idx, markdownComponents }) => {
       </div>
       {isExpanded && (
         <div style={{ padding: '16px', background: 'var(--bg-panel)', fontSize: '14px', lineHeight: '1.7', color: 'var(--text-primary)', maxWidth: '100%', overflowX: 'auto', minWidth: 0 }}>
-          <div className="text-block explainer-content-wrapper"><ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{block.text}</ReactMarkdown></div>
+          <div className="text-block explainer-content-wrapper"><ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={markdownComponents}>{block.text}</ReactMarkdown></div>
         </div>
       )}
     </div>
@@ -720,7 +720,7 @@ export default function ChatPanel({
       } else if (block.type === 'retry') {
         return <RetryBlock key={`retry_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'text') {
-        return <div key={`text_${idx}`} className="text-block"><ReactMarkdown remarkPlugins={[remarkGfm]} components={MarkdownComponents}>{block.text}</ReactMarkdown></div>;
+        return <div key={`text_${idx}`} className="text-block"><ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={MarkdownComponents}>{block.text}</ReactMarkdown></div>;
       } else if (block.type === 'quiz') {
         return <QuizBlock
           key={`quiz_${idx}`}

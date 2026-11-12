@@ -99,4 +99,31 @@ describe('StatusPanel Behavior Tests', () => {
     expect(handleAtmosphereModeChange).toHaveBeenCalledWith('daily');
   });
 
+  it('行为5：顶部三个胶囊按钮强制单行，绝不换行挤压 (Header pills never wrap)', () => {
+    render(<StatusPanel {...defaultProps} />);
+
+    // "媚吻锋" 三字按钮一旦被挤压就会折成「媚吻 / 锋」，这是本次 UI 缺陷的形态
+    const pills = ['媚吻锋', '精简', '生活'].map((label) => screen.getByText(label));
+
+    pills.forEach((pill) => {
+      const btn = pill.closest('button');
+      expect(btn).not.toBeNull();
+      expect(btn.style.whiteSpace).toBe('nowrap');
+      expect(btn.style.flexShrink).toBe('0');
+    });
+
+    // 按钮容器不得再叠加多余右外边距，避免与 panel-header 的内边距双重挤压
+    const group = pills[0].closest('button').parentElement;
+    expect(group.style.marginRight).toBe('');
+  });
+
+  it('行为6：区块标题单行展示，不折成两行 (Section title stays on one line)', () => {
+    render(<StatusPanel {...defaultProps} />);
+
+    const title = screen.getByText('导师与授课状态');
+    const wrapper = title.parentElement;
+    expect(wrapper.style.whiteSpace).toBe('nowrap');
+    expect(wrapper.style.overflow).toBe('hidden');
+  });
+
 });

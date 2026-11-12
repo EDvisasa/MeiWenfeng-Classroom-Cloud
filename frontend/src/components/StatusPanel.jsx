@@ -50,81 +50,56 @@ export default function StatusPanel({
 
   const isDrafting = mission?.is_drafting;
 
+  // 人设 / 氛围切换胶囊按钮：统一视觉并强制单行不换行，避免面板变窄时被挤成两行
+  const pillStyle = ({ active, muted = false } = {}) => ({
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '0 10px',
+    height: '24px',
+    fontSize: '12px',
+    fontWeight: 600,
+    lineHeight: 1,
+    whiteSpace: 'nowrap',
+    flexShrink: 0,
+    borderRadius: '12px',
+    border: '1px solid var(--border-color)',
+    background: muted ? 'var(--bg-primary)' : (active ? 'var(--accent-pink)' : 'transparent'),
+    color: muted || !active ? 'var(--text-primary)' : 'white',
+    cursor: 'pointer',
+    transition: 'all 0.2s',
+    outline: 'none',
+    boxSizing: 'border-box'
+  });
+
   return (
     <section className="ide-panel right-panel custom-scrollbar" style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', overflowX: 'hidden' }}>
       
       {/* 区块 1: 导师与授课状态 */}
-      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center' }}>
+      <div className="panel-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', minWidth: 0, flexShrink: 1, whiteSpace: 'nowrap', overflow: 'hidden' }}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" style={{ marginRight: '6px' }}>
             <path fillRule="evenodd" clipRule="evenodd" d="M8 1.54L1 4.88v1.37l.86.41v4.83l.25.32 5.56 2.65h.66l5.56-2.65.25-.32V6.66l.86-.41V4.88L8 1.54zm5.14 5.58L8 9.56 2.86 7.12v4.29l5.14 2.45 5.14-2.45V7.12zM8 2.66l5.22 2.5L8 7.66 2.78 5.16 8 2.66z" />
           </svg>
           <span>导师与授课状态</span>
         </div>
-        <div style={{ display: 'flex', gap: '6px', marginRight: '14px', marginTop: '2px' }}>
+        <div style={{ display: 'flex', gap: '6px', flexShrink: 0 }}>
           <button
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '2px 10px',
-              height: '24px',
-              fontSize: '12px',
-              fontWeight: 600,
-              borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-              background: 'var(--bg-primary)',
-              color: 'var(--text-primary)',
-              cursor: 'pointer',
-              outline: 'none',
-              boxSizing: 'border-box'
-            }}
+            style={pillStyle({ muted: true })}
             title="选择导师 (暂未开放)"
           >
             媚吻锋
           </button>
           <button
             onClick={() => handlePersonaTypeChange(personaType === 'original' ? 'simplified' : 'original')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '2px 10px',
-              height: '24px',
-              fontSize: '12px',
-              fontWeight: 600,
-              borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-              background: personaType === 'simplified' ? 'var(--accent-pink)' : 'transparent',
-              color: personaType === 'simplified' ? 'white' : 'var(--text-primary)',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              outline: 'none',
-              boxSizing: 'border-box'
-            }}
-            title="点击切换导师人设类型（蓝色为精简版，透明为原版）"
+            style={pillStyle({ active: personaType === 'simplified' })}
+            title="点击切换导师人设类型（粉色为精简版，透明为原版）"
           >
             {personaType === 'simplified' ? '精简' : '原版'}
           </button>
           <button
             onClick={() => handleAtmosphereModeChange && handleAtmosphereModeChange(atmosphereMode === 'daily' ? 'study' : 'daily')}
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: '2px 10px',
-              height: '24px',
-              fontSize: '12px',
-              fontWeight: 600,
-              borderRadius: '12px',
-              border: '1px solid var(--border-color)',
-              background: atmosphereMode === 'study' ? 'var(--accent-pink)' : 'transparent',
-              color: atmosphereMode === 'study' ? 'white' : 'var(--text-primary)',
-              cursor: 'pointer',
-              transition: 'all 0.2s',
-              outline: 'none',
-              boxSizing: 'border-box'
-            }}
+            style={pillStyle({ active: atmosphereMode === 'study' })}
             title="点击切换氛围模式（粉色为研学，透明为生活）"
           >
             {atmosphereMode === 'study' ? '研学' : '生活'}

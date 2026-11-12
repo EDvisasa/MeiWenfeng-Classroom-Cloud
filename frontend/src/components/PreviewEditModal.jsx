@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import ReactMarkdown from 'react-markdown';
-import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { vscDarkPlus } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { API_BASE } from '../config';
+import { remarkPlugins, rehypePlugins } from '../utils/markdownPlugins';
 
 const PreviewEditModal = ({ isOpen, onClose, fileData, onSaveSuccess }) => {
   const [mode, setMode] = useState('preview');
@@ -409,7 +409,7 @@ const PreviewEditModal = ({ isOpen, onClose, fileData, onSaveSuccess }) => {
                 margin: '0 auto'
               }}
             >
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>{editedContent}</ReactMarkdown>
+              <ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={markdownComponents}>{editedContent}</ReactMarkdown>
             </div>
           ) : (
             <textarea

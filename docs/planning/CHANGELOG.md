@@ -10,6 +10,15 @@ domain: project-planning
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **右侧状态面板加宽与顶部胶囊按钮防挤压 (ISSUE-55 & Bug #41)**:
+  - 将 `.right-panel-container` 宽度由 `300px` 提至 `344px` 确立为宽度单一点 (SSOT)，`.right-panel` 改为 `width: 100%`，彻底解决胶囊按钮挤成两行与字词折行问题；
+  - 提炼 `pillStyle` 统一按钮内联样式，施加 `whiteSpace: 'nowrap'`、`flexShrink: 0` 与 `lineHeight: 1`，清除多余边距与重叠挤压源；
+  - 新增 2 项单测，前端 68 项单测全绿灯。
+- **全站 Markdown 数学公式 KaTeX 原生排版渲染与插件 SSOT (ISSUE-54 & Bug #40)**:
+  - 引入 `remark-math`、`rehype-katex` 与自定义 `remarkDisplayMathFromDoubleDollar` 插件，将行间公式 `$$...$$` 与行内公式 `$...$` 转化为优雅的 KaTeX HTML 排版，杜绝裸美元符外露；
+  - 提炼 `frontend/src/utils/markdownPlugins.js` 作为全库唯一的 Markdown 渲染插件单一点 (SSOT)，聊天气泡与知识档案预览弹窗统一复用；
+  - 引入 `katex.min.css` 并对 `.katex-display` 设置横向平滑滚动防撑破；
+  - 补充 6 项针对性自动化测试，全量测试与生产构建双双通过。
 - **PolyStrata 推理引擎 Tool Calling 400 根治与 Tool Calls Dict 规范化 (ISSUE-50)**:
   - 针对底层端侧 PolyStrata / Jinja 模板严格校验 `tool_call.arguments is string` 触发 `TemplateRequestError` 导致 HTTP 400 崩溃的顽疾，在 `backend/services/agent_executor.py` 实施参数类型规范化；
   - 对原生与 XML 解析提取的 `tool_calls` 参数严格执行深拷贝与 `json.loads` 反序列化为 Python Dict，兼容根层级与 `function` 层级字段；

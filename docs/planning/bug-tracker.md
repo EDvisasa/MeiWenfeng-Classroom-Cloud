@@ -382,3 +382,31 @@ domain: project-planning
   3. **记忆自愈工具 (零写保护)**：在 `ChromaRAGClient` 中提供 `heal_memory_knowledge_from_db()` 纯只读读取 SQLite `memory_logs`，支持随时将 110 个历史碎片刷新为 71 篇独立原子日记，保障 SQLite `classroom.db` 零写、零污染；
   4. **TDD 自动化测试闭环**：在 [`test_rag_retrieval.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_rag_retrieval.py) 落地专项单测 `test_memory_knowledge_sync_atomic_unit_not_chunked_issue_45` 与 `test_classroom_knowledge_chunk_inherits_headers_issue_45`，全量测试 100% 绿灯通过。
 
+### 40. [已解决 / 前端 Markdown 渲染] 聊天气泡与知识档案预览中的数学公式 `$...$` / `$$...$$` 被当作纯文本原样裸露
+- **现象描述**：研学模式下 AI 导师讲解傅里叶变换等数理课程时，气泡里出现的 `$$X(\omega)=\int_{-\infty}^{+\infty}x(t)e^{-i\omega t}\,dt$$`、`$e^{-i\omega t}$`、`$\omega$` 全部以源码形式原样打印，既不渲染成排版公式，长公式还把整行撑出气泡。知识档案预览弹窗（`PreviewEditModal`）同理。
+- **根因分析**：
+  1. **渲染管线缺少数学插件**：`ChatPanel.jsx` 与 `PreviewEditModal.jsx` 的 `ReactMarkdown` 仅挂载 `remark-gfm`，从未引入 `remark-math` / `rehype-katex`，KaTeX 样式表也未被加载，因此 remark 解析器把美元符段落直接降级为普通 `text` 节点；
+  2. **插件配置散落各组件**：同一份 Markdown 渲染能力在两个组件各自手写插件数组，天然存在“改一处漏一处”的漂移风险；
+  3. **模型把行间公式粘在句子中间**：即使补上插件，段中间的 `$$...$$` 也只会产出 `inlineMath` 节点，被当作行内小字渲染，无法居中独立成行。
+- **解决路线** (对应 `ISSUE-54`):
+  1. **插件单一点 (SSOT)**：新建 [`markdownPlugins.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.js) 统一导出 `remarkPlugins = [remarkGfm, remarkMath, remarkDisplayMathFromDoubleDollar]` 与 `rehypePlugins = [rehypeKatex]`，聊天气泡、讲义卡片、知识档案预览三处渲染面全部复用，严禁各组件自行拼接插件清单；
+  2. **行间公式提升插件**：`remarkDisplayMathFromDoubleDollar` 依据 `node.position` 切片原始 markdown 判定分隔符，只把源自 `$$` 的 `inlineMath` 节点的目标类名由 `math-inline` 改写为 `math-display`，交由 `rehype-katex` 以 display 模式渲染；单美元 `$...$` 行内公式完全不受影响；
+  3. **样式与字体接入**：在 [`main.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/main.jsx) 引入 `katex/dist/katex.min.css`（构建后 KaTeX 字体已随产物打包），并在 [`index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 为 `.katex-display` 增加最大宽度限制、横向平滑滚动与主题色继承，杜绝长公式撑破气泡；
+  4. **TDD 自动化测试闭环**：新增 [`markdownPlugins.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.test.jsx) 6 项单测，覆盖行间公式块、行内公式、同段混排、`\text{ Hz}` 单位公式无解析报错、GFM 表格能力未被破坏、无公式文本原样保留；前端全量 66 项测试与生产构建双双绿灯。
+- **复发排查手册 (Troubleshooting)**：公式再次以源码裸露时，按序核查——
+  1. **确认三个前端包已装齐**：`remark-math` / `rehype-katex` / `katex`。在 `frontend` 目录执行 `npm ls --depth=0`，出现 `UNMET DEPENDENCY` 或控制台报 `Failed to resolve import "remark-math"` 即表示缺失，执行 `npm install` 增量补齐；
+  2. **补齐后必须重启 Vite 开发服务器**（`start.bat` 或 `npm run dev`）。Vite 对新依赖的预打包只在启动时进行，**仅刷新浏览器无法让新依赖生效**，此步最易被误判为"代码没改对"；
+  3. **确认渲染面未绕过插件单一点**：任何新增的 `ReactMarkdown` 必须从 [`markdownPlugins.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.js) 导入 `remarkPlugins` / `rehypePlugins`，严禁退回手写 `remarkPlugins={[remarkGfm]}`。
+
+### 41. [已解决 / 右侧状态面板 UI] 顶部三个胶囊按钮与区块标题被挤成两行
+- **现象描述**：右侧导师状态栏顶部并排的【媚吻锋】【精简】【研学】三个胶囊按钮与「导师与授课状态」标题互相挤压，文字在按钮气泡内折成两行（渲染为「媚吻 / 锋」「精 / 简」「研 / 学」），标题也折成「导师与授课状 / 态」，视觉错位且不美观。
+- **根因分析**：
+  1. **面板宽度不足**：`.right-panel-container` 与 `.right-panel` 双双硬编码 `width: 300px`，去掉 `panel-header` 的左右各 20px 内边距后仅剩 260px 可用；而标题（图标 20px + 7 个中文字 ×13px ≈ 111px）加三按钮（58+46+46 加 12px 间距 ≈ 162px）实测需 273px，超出 13px 必然换行；
+  2. **按钮缺少防换行约束**：按钮内联样式未设置 `whiteSpace: 'nowrap'` 与 `flexShrink: 0`，flex 容器在空间不足时优先压缩子项文字宽度，直接触发折行；
+  3. **重复挤压源**：按钮组额外叠加了 `marginRight: '14px'`，与 `panel-header` 的 `padding: 0 20px` 形成双重内缩，进一步吃掉可用宽度；
+  4. **宽度双写隐患**：容器与面板各写一份 `300px`，任何调整都必须两处同步，属易漂移的重复定义。
+- **解决路线** (对应 `ISSUE-55`):
+  1. **加宽并确立宽度 SSOT**：在 [`index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 将 `.right-panel-container` 提升至 `344px`（按 283px 实测需求预留约 21px 余量），并将 `.right-panel` 改为 `width: 100%`，宽度只由容器一处定义；
+  2. **胶囊按钮防挤压**：在 [`StatusPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.jsx) 提炼 `pillStyle({ active, muted })` 统一三按钮样式（消除三份重复内联对象），加入 `whiteSpace: 'nowrap'`、`flexShrink: 0`、`lineHeight: 1`，并把 `padding: '2px 10px'` 修正为 `'0 10px'` 以防 24px 高度溢出；
+  3. **清除重复挤压源**：删去按钮组的 `marginRight: '14px'` 与 `marginTop: '2px'`；标题容器加 `whiteSpace: 'nowrap'`、`overflow: 'hidden'`、`minWidth: 0`，极端窄屏时优先省略标题而非折行；
+  4. **TDD 自动化测试闭环**：在 [`StatusPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.test.jsx) 新增「行为5：顶部三个胶囊按钮强制单行」与「行为6：区块标题单行展示」两项单测，前端全量 68 项测试与生产构建双双绿灯。

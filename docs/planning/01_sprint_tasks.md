@@ -998,5 +998,104 @@ domain: project-planning
   - [x] 全量 17 项 `test_context_manager.py` 测试全部绿灯。
 - **Verification Command**: `pytest backend/tests/test_context_manager.py`
 
+### <a id="issue-52"></a>[ISSUE-52] 智能体自主记忆探针与日记检索工具 (`search_memory`) 核心引擎与 SQLite 全文索引 (Active Memory Search Tool & SQLite Storage Engine)
+- **Status**: `TODO` (待做工单 / 需求规格已由 PRD `PLAN-03` 冻结)
+- **Parent**: `PLAN-03`, `PLAN-02`
+- **User Story**: 作为大模型伴读导师，当预置向量召回的记忆信息密度不足、或需要回查数周前特定约定、精确代码或确切对白时，我希望在 `<think>` 推演阶段自主调用 `search_memory` 工具，按关键词与时间戳翻阅本地数据库（`memory_logs` 与 `chat_messages`），获取结构化记忆片段，彻底杜绝记忆时空幻觉与遗忘。
+- **What to build**:
+  1. **工具类与 Schema 注册**: 在 `backend/services/agent_tools.py` 中新设 `SearchMemoryTool(AgentTool)`，入参包含 `query` (关键词/短语)、`target` (`journals`/`conversations`/`all`)、`date_range` (时间过滤) 与 `limit` (默认 5，最大 15)，注册至 `TOOL_REGISTRY["search_memory"]`；
+  2. **检索深模块实现**: 新建 `backend/services/memory_search_engine.py`，实现针对 `classroom.db` 的参数化安全模糊查询与时间范围匹配，输出带时间戳与条目 ID 的 Markdown 格式记忆卡；
+  3. **流式调度与安全护栏**: 在 `stream_parser.py` 中将 `search_memory` 加入已知工具与 XML 过滤正则；在 `tool_engine.py` 中格式化命令字符串并受 `_sanitize_tool_output` 40000 字符全局上限防护；
+  4. **提示词引导**: 在 `backend/services/prompts.py` 的 `<environment_constraints>` 中注入纯英文引导，指示模型在历史细节缺失时主动调工具查验记忆；
+  5. **单测覆盖**: 编写包含 Schema 校验、精确检索、日期区间过滤与空结果兜底的完整单测集。
+- **Affected Files**:
+  - [`backend/services/agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py)
+  - [`backend/services/memory_search_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py)
+  - [`backend/services/stream_parser.py`](file:///d:/MeiWenfeng-Classroom/backend/services/stream_parser.py)
+  - [`backend/services/tool_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/tool_engine.py)
+  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`backend/tests/test_memory_search_tool.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [ ] `search_memory` 在 `TOOL_REGISTRY` 中成功注册并暴露合法的 OpenAI Tool Schema；
+  - [ ] 针对 `memory_logs` 与 `chat_messages` 能够以 < 50ms 响应时间精准召回匹配关键词的记录；
+  - [ ] 支持日期范围（如 `2026-10`、`2026-10-15`）过滤；
+  - [ ] 输出受字符安全上限与数量上限（max 15）截断保护；
+  - [ ] 后端单元测试 100% 绿灯通过。
+- **Verification Command**: `pytest backend/tests/test_memory_search_tool.py`
+
+### <a id="issue-53"></a>[ISSUE-53] 前端 `Remembering...` 记忆回想动效卡片与打字机流式交互 (Frontend Remembering... UI Card & Stream Lifecycle)
+- **Status**: `TODO` (待做工单 / 需求规格已由 PRD `PLAN-03` 冻结)
+- **Parent**: `PLAN-03`, `ISSUE-52`
+- **User Story**: 作为前端学习者，当 AI 导师在后台调用 `search_memory` 回溯过往记忆时，我希望在聊天流中看到一个呈现浅紫色呼吸灯脉冲点的 `Remembering...` 状态卡片，展示检索的关键词并支持折叠展开查看回溯到的日记切片，获得栩栩如生的“沉思回忆”伴读质感。
+- **What to build**:
+  1. **Friendly Name 与卡片映射**: 在 `frontend/src/components/ChatPanel.jsx` 的 `ToolBlock` 中，将 `block.tool_name === 'search_memory'` 映射为友好名称 `Remembering...`；
+  2. **视觉状态呼吸灯**: 为 `search_memory` 定制运行态视觉样式，采用区别于执行命令的浅紫色/粉色星光脉冲点（`running` 状态呼吸灯），完成时转为优雅的深绿色；
+  3. **输入输出折叠面板**: 在 `IN` 字段呈现搜索词与目标范围，在 `OUT` 字段呈现提取到的日记与对话片段，支持点击头部无缝展开/收起；
+  4. **组件单元测试**: 编写 Vitest 自动化测试，断言 `search_memory` 块正确渲染 `Remembering...` 标题、输入参数与输出内容。
+- **Affected Files**:
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [ ] 前端聊天流接收到 `search_memory` 工具调用时，卡片标题显示为 `Remembering...`；
+  - [ ] 运行态拥有明确的脉冲呼吸灯动效，完成态显示正常输出；
+  - [ ] 支持点击头部自由折叠与展开详情；
+  - [ ] 前端测试用例 100% 绿灯。
+- **Verification Command**: `npm --prefix frontend test -- --run`
 
 
+
+
+
+### <a id="issue-54"></a>[ISSUE-54] 数学公式 (KaTeX) 渲染管线与 Markdown 插件单一点 (Math Rendering Pipeline & Markdown Plugin SSOT)
+- **Status**: `DONE` (已完成 / 2026-11-20 经前端 Vitest 与生产构建双绿灯验证)
+- **Parent**: `ISSUE-38` (Markdown GFM 渲染扩展) / `Bug #40`
+- **User Story**: 作为研学模式下研读数理课程的随身课堂用户，当 AI 导师在气泡中输出傅里叶变换、欧拉公式这类 `$$...$$` 行间公式与 `$...$` 行内公式时，我希望它们被渲染为排版精良的数学公式（长公式在窄屏内可横向滚动而不撑破气泡），而不是以源码形式原样裸露；知识档案预览弹窗中的讲义公式亦须保持一致效果。
+- **What to build**:
+  1. **插件单一点 (SSOT)**：新建 `frontend/src/utils/markdownPlugins.js`，统一导出 `remarkPlugins = [remarkGfm, remarkMath, remarkDisplayMathFromDoubleDollar]` 与 `rehypePlugins = [rehypeKatex]`，聊天气泡、讲义卡片、知识档案预览三处渲染面全部复用；
+  2. **行间公式提升插件**：实现 `remarkDisplayMathFromDoubleDollar`，依据 `node.position` 切片原始 markdown 判定分隔符，仅把源自 `$$` 的 `inlineMath` 节点目标类名由 `math-inline` 改写为 `math-display`，交由 `rehype-katex` 以 display 模式渲染；单美元 `$...$` 行内公式不受影响；
+  3. **依赖与样式接入**：安装 `remark-math` / `rehype-katex` / `katex`，在 `main.jsx` 引入 `katex/dist/katex.min.css`，并在 `index.css` 为 `.katex-display` 增加宽度限制、横向平滑滚动与主题色继承；
+  4. **TDD 自动化测试闭环**：新增 `frontend/src/utils/markdownPlugins.test.jsx`，覆盖行间公式块、行内公式、同段混排、`\text{ Hz}` 单位公式无解析报错、GFM 表格能力未被破坏、无公式文本原样保留。
+- **Affected Files**:
+  - [`frontend/src/utils/markdownPlugins.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.js)
+  - [`frontend/src/utils/markdownPlugins.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.test.jsx)
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`frontend/src/components/PreviewEditModal.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.jsx)
+  - [`frontend/src/main.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/main.jsx)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 气泡中 `$$...$$` 渲染为独立的 `.katex-display` 行间公式块，`$...$` 渲染为行内 `.katex` 节点，页面不再出现裸美元符；
+  - [x] 句子中间被粘连的 `$$...$$` 亦被提升为行间公式，长公式限宽并可横向平滑滚动；
+  - [x] 知识档案预览弹窗（`PreviewEditModal`）与聊天气泡、讲义卡片共用同一套插件配置，杜绝改一处漏一处；
+  - [x] 含 `\text{ Hz}` 等命令的公式不触发 KaTeX 解析报错，GFM 表格能力沿用未退化；
+  - [x] 前端全量单元测试 66 项与生产构建 `vite build` 双双绿灯（KaTeX 字体随产物打包）。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `npm --prefix frontend test -- --run` & `npm --prefix frontend run build`
+
+### <a id="issue-55"></a>[ISSUE-55] 右侧状态面板加宽与顶部胶囊按钮防挤压 (Right Status Panel Width & Header Pill Anti-Cramping)
+- **Status**: `DONE` (已完成 / 2026-11-20 经前端 Vitest 与生产构建双绿灯验证)
+- **Parent**: `ISSUE-49` (生活/研学状态胶囊切换器) / `Bug #41`
+- **User Story**: 作为使用右侧导师状态栏的用户，当【媚吻锋】【精简/原版】【研学/生活】三个胶囊按钮并排时，我希望它们与区块标题都能完整单行展示，而不是被挤成「媚吻 / 锋」「精 / 简」「研 / 学」两行；同时面板本身略微加宽，让内心独白与知识库列表获得更舒展的阅读宽度。
+- **What to build**:
+  1. **面板加宽与宽度单一点**：将 `.right-panel-container` 由 `300px` 提升至 `344px`（按标题 111px + 三按钮 162px + 间距 10px ≈ 283px 实测余量推导），并把 `.right-panel` 的硬编码 `width: 300px` 改为 `width: 100%`，令容器成为宽度 SSOT，消除内外两层各自写死宽度的隐患；
+  2. **胶囊按钮防挤压**：在 `StatusPanel.jsx` 中提炼 `pillStyle({ active, muted })` 统一三按钮的内联样式（原为三份近乎逐字重复的样式对象），新增 `whiteSpace: 'nowrap'`、`flexShrink: 0`、`lineHeight: 1`，并把 `padding: '2px 10px'` 修正为 `'0 10px'` 以保证 `height: 24px` 不因上下内边距溢出；
+  3. **移除重复挤压源**：删去按钮组上多余的 `marginRight: '14px'` 与 `marginTop: '2px'`（`panel-header` 已有 `padding: 0 20px` 且 `align-items: center`），并在标题容器上加 `whiteSpace: 'nowrap'`、`overflow: 'hidden'`、`minWidth: 0`，保证极端窄屏时标题优先省略而非折行；
+  4. **TDD 自动化测试闭环**：在 `StatusPanel.test.jsx` 新增两项单测，断言三个胶囊按钮均具备 `white-space: nowrap` 与 `flex-shrink: 0`、按钮组不再叠加多余右外边距、区块标题容器为单行且溢出隐藏。
+- **Affected Files**:
+  - [`frontend/src/components/StatusPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.jsx)
+  - [`frontend/src/components/StatusPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.test.jsx)
+  - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
+  - [`docs/planning/bug-tracker.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/bug-tracker.md)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 右侧面板加宽至 344px，「此刻内心」独白与知识库列表获得更舒展的阅读宽度；
+  - [x] 【媚吻锋】【精简/原版】【研学/生活】三按钮 100% 单行展示，不再折成两行；
+  - [x] 区块标题「导师与授课状态」单行展示，不再折成两行；
+  - [x] `.right-panel` 宽度改由容器统一控制，消除硬编码宽度重复定义；
+  - [x] 前端全量单元测试 68 项与生产构建 `vite build` 双双绿灯。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `npm --prefix frontend test -- --run` & `npm --prefix frontend run build`
