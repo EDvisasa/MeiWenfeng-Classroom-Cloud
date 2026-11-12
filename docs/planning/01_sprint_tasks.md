@@ -1050,7 +1050,7 @@ domain: project-planning
 
 
 ### <a id="issue-54"></a>[ISSUE-54] 数学公式 (KaTeX) 渲染管线与 Markdown 插件单一点 (Math Rendering Pipeline & Markdown Plugin SSOT)
-- **Status**: `DONE` (已完成 / 2026-11-20 经前端 Vitest 与生产构建双绿灯验证)
+- **Status**: `DONE` (已完成 / 2026-11-13 经前端 Vitest 与生产构建双绿灯验证)
 - **Parent**: `ISSUE-38` (Markdown GFM 渲染扩展) / `Bug #40`
 - **User Story**: 作为研学模式下研读数理课程的随身课堂用户，当 AI 导师在气泡中输出傅里叶变换、欧拉公式这类 `$$...$$` 行间公式与 `$...$` 行内公式时，我希望它们被渲染为排版精良的数学公式（长公式在窄屏内可横向滚动而不撑破气泡），而不是以源码形式原样裸露；知识档案预览弹窗中的讲义公式亦须保持一致效果。
 - **What to build**:
@@ -1077,7 +1077,7 @@ domain: project-planning
 - **Verification Command**: `npm --prefix frontend test -- --run` & `npm --prefix frontend run build`
 
 ### <a id="issue-55"></a>[ISSUE-55] 右侧状态面板加宽与顶部胶囊按钮防挤压 (Right Status Panel Width & Header Pill Anti-Cramping)
-- **Status**: `DONE` (已完成 / 2026-11-20 经前端 Vitest 与生产构建双绿灯验证)
+- **Status**: `DONE` (已完成 / 2026-11-13 经前端 Vitest 与生产构建双绿灯验证)
 - **Parent**: `ISSUE-49` (生活/研学状态胶囊切换器) / `Bug #41`
 - **User Story**: 作为使用右侧导师状态栏的用户，当【媚吻锋】【精简/原版】【研学/生活】三个胶囊按钮并排时，我希望它们与区块标题都能完整单行展示，而不是被挤成「媚吻 / 锋」「精 / 简」「研 / 学」两行；同时面板本身略微加宽，让内心独白与知识库列表获得更舒展的阅读宽度。
 - **What to build**:
