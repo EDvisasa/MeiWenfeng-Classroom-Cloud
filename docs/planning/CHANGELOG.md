@@ -10,6 +10,13 @@ domain: project-planning
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **交互式测验 (Quiz) 静态 Schema 统一定义、选项随机轮换分布与微课指令解耦 (ISSUE-46)**:
+  - 建立了静态提示词层（`prompts.py`）的三大内容卡片规范（微卡、讲义卡、交互题单卡），并使规则说明与结构示例完全解耦（ADR-002 高信噪比）；
+  - 引入答案位置随机轮换铁律（均匀分布于 0, 1, 2, 3），解除 Schema 中固定为 0 的锚定效应；
+  - 补充带 `<quiz>` 的单回合完整闭环示范，杜绝出题后漏掉 `<monologue>` 与 `<property_update>`；
+  - 彻底剥离 `slash_handler.py` 中重复的 15 行 JSON 模板与出题规则，节省 ~300 动态 Token；
+  - 为 `/lesson` 列装 ZPD 三阶认知梯度（0.5-1.0 基础直观概念 / 1.1-2.0 边界执行流程 / 2.1-3.0 底层组合机制）；
+  - 为 `/lesson_continue` 确立自适应进退心流闭环（答对推进/挑战高阶题并触发好感度激励，答错变式题巩固）。
 - **第三阶段深度融合与架构收敛（进行中）**：
   - 斜杠指令（Slash Commands）巨石阵模块化策略模式重构（Bug #15）
   - 潜在边界 Bug 深入排查与交互式长程闭环测试

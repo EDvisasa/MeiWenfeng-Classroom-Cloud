@@ -106,29 +106,20 @@ Action Required:
             "text": f"当前 ZPD 难度系数：{zpd_coefficient}（连对两题自动上调，连错自动回调）",
         }
         system_injection = f"""<system_directive>
-Event: The user just triggered the `/lesson` command.
+Event: The user triggered the `/lesson` command to start a formal lesson.
 User's Ultimate Mission: {user_mission}
 Current Topic: {topic_name}
 Current ZPD Difficulty Coefficient: {zpd_coefficient}
 {file_context}
 
-Action Required: Immediately enter your mentor persona. Proactively start today's lesson focused on the Current Topic.
-Output Format: 
-1. The theory explanation part MUST be extremely easy to understand (Reference 极简). Use living analogies, short paragraphs, and simple language.
-2. ALWAYS conclude your lesson segment with a single interactive question to check the user's understanding, using the exact XML format below.
-CRITICAL RULES FOR THE QUIZ (Quiz 刁钻):
-- Scale the quiz trickiness with the Current ZPD Difficulty Coefficient above: a higher coefficient demands noticeably harder, deeper questions; a lower coefficient demands more scaffolded, simpler questions.
-- The quiz MUST be tricky and test deep understanding, not just surface facts.
-- ALL options MUST be exactly the same length in words/characters. You must artificially pad or truncate them so they look identical in length. Do NOT let the longest option be the correct answer!
-- Do not give away the correct answer through formatting.
-<quiz type="multiple_choice">
-{{
-  "question": "Your tricky question here?",
-  "options": ["Option A (same length)", "Option B (same length)", "Option C (same length)"],
-  "correct_index": 1,
-  "explanation": "Explanation for the correct answer."
-}}
-</quiz>
+Action Required: Enter your mentor persona and teach today's topic with living analogies and short paragraphs.
+Lesson & Quiz Guidelines:
+1. Grounded Pedagogy: The theory explanation MUST be plain, intuitive, and grounded in common-sense analogies (Reference 极简).
+2. Conclude with a Quiz: Conclude this lesson segment with exactly ONE standard 4-option multiple choice `<quiz>` (encapsulated in `<quiz type="multiple_choice">` adhering to response_format_rules).
+3. ZPD Cognitive Gradient (Current Coefficient: {zpd_coefficient}):
+   - 0.5 ~ 1.0: Intuitive core definitions and scaffolded discrimination.
+   - 1.1 ~ 2.0: Execution flow, boundary traps, and common coding pitfalls.
+   - 2.1 ~ 3.0: Deep underlying mechanisms, composite multi-condition deductions, and deceptive distractors.
 </system_directive>"""
     elif clean_cmd == "/lesson_continue":
         from backend.services.course_manager import get_zpd_metrics, record_quiz_result
@@ -162,14 +153,11 @@ Current Topic: {topic_name}
 Current ZPD Difficulty Coefficient: {zpd_coefficient}
 {file_context}
 {slacking_warning}
-Action Required: 
-1. Evaluate their answer based on the `<submit_quiz_result>` tag.
-2. Provide a detailed explanation, correcting any misconceptions. Scale the depth of your explanation and the next question's difficulty with the Current ZPD Difficulty Coefficient.
-3. Keep the mentor persona. Be encouraging or playfully strict depending on whether they got it right.
-4. Continue the lesson on the Current Topic.
-
-Output Format:
-1. If you want to throw another pop quiz to check their understanding of the *new* explanation, use the `<quiz type="multiple_choice">` tag again.
+Action Required & Flow Progression:
+1. Evaluate Answer: Inspect the user's choice and correctness via `<submit_quiz_result>`.
+2. Pedagogical Feedback:
+   - If Correct: Praise and celebrate warmly. Summarize the key takeaway, and ask whether they want to advance to the next topic or challenge a higher-level question. ONLY grant `<property_update affection_delta=\"+1\" />` if this solved a high-difficulty ZPD challenge ({zpd_coefficient} >= 2.0) or significant milestone; otherwise routine correct answers keep affection_delta=\"0\".
+   - If Incorrect: Tenderly and patiently diagnose the misconception. Point out why the chosen option is wrong without scolding (unless slacking warning is active). Follow up with a focused variant `<quiz>` to consolidate, preventing endless blind loops.
 </system_directive>"""
     elif clean_cmd == "/submit":
         system_injection = f"""<system_directive mode="socratic_strict_mentor">

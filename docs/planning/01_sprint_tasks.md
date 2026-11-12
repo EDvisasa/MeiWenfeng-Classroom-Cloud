@@ -863,3 +863,27 @@ domain: project-planning
   - [x] 后端 pytest 回归测试 100% 绿灯通过；
   - [x] 零数据库变动，绝不破坏现有 SQLite 数据。
 - **Verification Command**: `pytest backend/tests/test_rag_retrieval.py`
+
+### <a id="issue-46"></a>[ISSUE-46] 交互式测验 (Quiz) 静态 Schema 统一定义、选项随机轮换分布与微课指令解耦 (Interactive Quiz Schema SSOT, Answer Randomization & Slash Command De-duplication)
+- **Status**: `DONE` (已完成 / 2026-11-12 经全量 192 项回归测试验证闭环)
+- **Parent**: `ADR-002`, `ADR-004`, `PLAN-02`
+- **User Story**: 作为课堂学习者与出题评测系统，我希望大模型在生成 `<quiz>` 测验时答案位置均匀随机分布（拒绝无脑选 A）、四选项字数等长，并且系统在静态提示词层（`prompts.py`）统一定义三大内容卡片 Schema 与回合闭环示范；同时在动态斜杠指令层（`slash_handler.py`）彻底剥离重复冗余模板，结合 ZPD 三阶梯度实现自适应进退心流闭环。
+- **What to build**:
+  1. **静态层三大卡片与 Schema 统一**: 在 `prompts.py` 的 `response_format_rules` 中规范 `<glossary>`（行内微卡）、`<explainer>`（讲义长卡）与 `<quiz>`（交互题单卡），规则说明与结构示例完全解耦；
+  2. **答案位置随机轮换铁律 (Anti-Tell)**: 在 `prompts.py` 与 `slash_handler.py` 中强制列装答案位置随机分布约束（均匀分布于 0, 1, 2, 3），解开原本 Schema 硬编码 `correct_index: 0` 的锚定；
+  3. **出题示范闭环防护**: 补充完整的带 `<quiz>` 回合示范，明确演示 `</quiz> -> 收口台词 -> <monologue> -> <property_update>`，防止出题后漏掉内心独白与状态更新；
+  4. **微课动态指令去重与 ZPD 梯度化**: 在 `slash_handler.py` 的 `/lesson` 和 `/lesson_continue` 中彻底移除重复的 15 行 JSON 模板与重复等长规则，节省 ~300 动态 Token；新增 ZPD 三阶认知梯度（0.5-1.0 基础直观概念，1.1-2.0 边界执行流程，2.1-3.0 底层组合机制）；
+  5. **自适应进退与好感度激励**: `/lesson_continue` 确立“答对表扬询问推进/挑战高阶题（高阶题>=2.0激励好感度+1），答错耐心归因变式巩固”闭环；
+  6. **全栈回归测试看护**: 确保全库 192 项单元与集成回归测试 100% 绿灯。
+- **Affected Files**:
+  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/CHANGELOG.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/CHANGELOG.md)
+- **Acceptance Criteria**:
+  - [x] `prompts.py` 完成说明与示例解耦，补齐 `<quiz>` 标准 JSON Schema 并演示完整闭环；
+  - [x] 出题指令包含答案随机轮换规则，解除 0 索引锚定；
+  - [x] `slash_handler.py` 移除重复的 JSON 模板代码，成功瘦身；
+  - [x] ZPD 认知梯度与进退心流闭环明确写入 `/lesson` 与 `/lesson_continue`；
+  - [x] 全库 192 项 pytest 回归测试全量通过。
+- **Verification Command**: `pytest backend/tests/test_context_manager.py backend/tests/test_routers_chat.py backend/tests/test_zpd_tracking.py`
