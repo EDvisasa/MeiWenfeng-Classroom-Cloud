@@ -1206,6 +1206,15 @@ export default function App() {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    // 显式向后端发送中断信令，物理切断底层与本地/远程大模型服务器的推理长连接
+    const sid = activeSessionId || 'default';
+    fetch(`${API_BASE}/api/chat/stop`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: sid })
+    }).catch(err => {
+      console.warn('Failed to send stop signal to backend', err);
+    });
   };
 
   // 请求 API 获取流式回复

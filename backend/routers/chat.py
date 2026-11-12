@@ -14,6 +14,7 @@ from backend.services.rag_factory import get_rag_client
 from backend.services.slash_handler import handle_slash_command
 from backend.services.response_pipeline import ResponsePipeline, json_escape
 from backend.services.action_registry import action_registry
+from backend.services.stream_registry import stream_registry
 import tiktoken
 
 logger = logging.getLogger(__name__)
@@ -297,6 +298,9 @@ def send_message(payload: ChatRequest):
         keep_recent_turns=10
     )
 
+    session_id = payload.session_id or "default"
+    controller = stream_registry.acquire(session_id)
+
     pipeline = ResponsePipeline(
         registry=action_registry,
         session_id=payload.session_id,
@@ -317,16 +321,40 @@ def send_message(payload: ChatRequest):
                 hint_text = f"🔍 成功检索并加载：{' 和 '.join(parts)}"
                 yield f"data: {json.dumps({'type': 'system_hint', 'text': hint_text}, ensure_ascii=False)}\n\n"
 
-            content_stream = stream_chat(final_messages_for_llm, system_prompt, max_tokens=payload.custom_max_tokens)
+            content_stream = stream_chat(
+                final_messages_for_llm,
+                system_prompt,
+                max_tokens=payload.custom_max_tokens,
+                stream_controller=controller
+            )
             yield from pipeline.process_stream(content_stream)
+        except GeneratorExit:
+            logger.info(f"Client disconnected for session {session_id}, aborting active stream.")
+            controller.abort()
+            raise
         except Exception as e:
             import traceback
             with open("debug_error.log", "a", encoding="utf-8") as f:
                 f.write(f"CRASH CAUGHT: {type(e).__name__}: {str(e)}\n")
                 traceback.print_exc(file=f)
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
+        finally:
+            stream_registry.release(session_id, controller)
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
+
+class StopRequest(BaseModel):
+    session_id: str
+
+@router.post("/stop")
+def stop_chat_generation(payload: StopRequest):
+    """显式中断指定 session 的活动模型推理流"""
+    stopped = stream_registry.abort(payload.session_id)
+    return {
+        "status": "stopped" if stopped else "idle",
+        "session_id": payload.session_id
+    }
+
 class ToolApprovalRequest(BaseModel):
     approval_id: str
     action: str  # "approve" or "reject"

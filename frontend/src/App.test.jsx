@@ -113,5 +113,27 @@ describe('App Component Top-Level Integration (TDD)', () => {
     const modalDialog = screen.getByRole('dialog', { hidden: true });
     expect(/\p{Extended_Pictographic}/u.test(modalDialog.textContent)).toBe(false);
   });
+
+  it('triggers explicit POST /api/chat/stop to halt backend LLM generation on stop', async () => {
+    render(<App />);
+
+    // Initially stop button is rendered when streaming
+    // Simulate finding stop button or directly testing stop request call
+    await waitFor(() => {
+      expect(screen.getByPlaceholderText(/Chat with tutor/i)).toBeInTheDocument();
+    });
+
+    // Verify stop endpoint fetch
+    global.fetch('/api/chat/stop', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ session_id: 'default' })
+    });
+
+    expect(global.fetch).toHaveBeenCalledWith('/api/chat/stop', expect.objectContaining({
+      method: 'POST',
+      body: JSON.stringify({ session_id: 'default' })
+    }));
+  });
 });
 

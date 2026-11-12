@@ -446,3 +446,16 @@ domain: project-planning
   1. **直属三子项网格区域排版 (Grid Template Areas)**：重构 [KnowledgeLibraryModal.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/KnowledgeLibraryModal.jsx) 头部结构，将 `.kl-header-title`、`.kl-course-selector-wrapper`、`.kl-header-right` 作为三项扁平直属子元素；在 [index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 中，桌面端采用 `flex` 单行流式排布，窄屏端采用 `grid-template-areas: "title actions" "course course"`。第一行左右并排标题与关闭按钮（及只读锁定徽章），第二行全宽通栏展示课程课题选择器与新建按钮，彻底根除跨行与错位；
   2. **移动端绝对隐藏桌面手柄**：在 `@media (max-width: 768px)` 中明确加入 `.kl-sidebar-border-handle { display: none !important; }`，并在单栏视图下强化侧边栏样式防穿透；
   3. **自动化测试与全链路回归**：在 `KnowledgeLibraryModal.test.jsx` 与全量前端 85 项单测中验证通过，构建成功，后端 197 项单测全绿，严格保持零 Emoji 规范。
+
+### 45. [已解决 / 本地模型生命周期与算力保护] 停止生成时后台大模型未物理断开连接持续空转
+- **现象描述**：用户在与本地大模型（如 llama.cpp、vLLM、Ollama）进行流式对话过程中，点击前端「停止生成」按钮后，前端打字机虽然停止更新，但后台 AI 服务器的 GPU 依旧保持全速计算并持续输出 token（通过 `/slots` 探针监测 `is_processing: True` 持续数十秒），造成算力、显存空转与响应迟滞。
+- **根因分析**：
+  1. **Starlette 流式响应缺乏 ASGI 断开监听**：FastAPI 后端原使用同步 `StreamingResponse`，Starlette 在工作线程中单向 `send()` 数据，不消费接收通道中的 `http.disconnect` 事件；前端单向中断 fetch 请求时，操作系统 TCP 缓冲区继续吸纳数据，Uvicorn 工作线程无法感知；
+  2. **上游套接字未做严谨回收**：`OpenAILLMClient.stream_completion` 未在 `finally` 中显式调用 `response.close()`；
+  3. **前端缺少显式中断控制信令**：前端仅调用了本地的 `abortController.abort()`，未向后端发送携带 `session_id` 的中止指令。
+- **解决路线** (对应 `ISSUE-60`):
+  1. **通用活动流注册中枢 (`StreamRegistry`)**：在 [stream_registry.py](file:///d:/MeiWenfeng-Classroom/backend/services/stream_registry.py) 建立线程安全的流生命周期控制器字典，按 `session_id` 维护活动中的底层 `OpenAI Stream` 对象；
+  2. **底层套接字物理关闭守卫**：在 [agent_executor.py](file:///d:/MeiWenfeng-Classroom/backend/services/agent_executor.py) 的 `OpenAILLMClient` 中强化资源回收，无论正常结束、客户端断开还是手动终止，通过 `finally: response.close()` 保证 100% 物理切断上游 TCP 套接字；
+  3. **显式中断控制端点 (`POST /api/chat/stop`)**：在 [chat.py](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py) 增设中止端点，接收 `{ session_id }` 并毫秒级触发 `stream.close()` 与事件广播；
+  4. **前端主动双信令协同**：在 [App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) 的 `stopGeneration` 中，在执行本地 `abortController.abort()` 冻结界面的同时，并发下发 `POST /api/chat/stop`；
+  5. **实测与全链路自动化测试验证**：在 [test_stream_stop.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_stream_stop.py) 覆盖流注册、显式停止与异常退出 7 项单测；联合本地真实 `http://127.0.0.1:18200` llama.cpp 服务器进行端到端实测验证，断言在收到 stop 请求后模型在 1.3 秒内瞬间将 `is_processing` 置为 `False` 彻底释放显卡；后端 206 项单测与前端 86 项单测全部绿灯通过。

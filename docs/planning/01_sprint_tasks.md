@@ -1239,7 +1239,7 @@ domain: project-planning
 - **Verification Command**: `npm --prefix frontend test -- --run KnowledgeLibraryModal` & `npm --prefix frontend test -- --run App`
 
 ### <a id="issue-60"></a>[ISSUE-60] 本地与远程大模型通用流式推理中断中枢与显式主动停止机制 (Universal LLM Stream Abort & Active Stop Controller)
-- **Status**: `READY`
+- **Status**: `DONE`
 - **Parent**: `PLAN-02`, 算力保护与推理生命周期管理
 - **User Story**: 作为在本地使用 llama.cpp、Ollama、vLLM、LM Studio 或远程云端大模型进行学习对话的用户，我希望在点击「停止生成」按钮时，系统不仅停止前端文本渲染，而且通过通用协议级机制立即切断与底层大模型服务器的推理长连接，使任何本地/远程模型服务在毫秒级内彻底停止 token 生成，释放 GPU/CPU 计算资源，避免显存空转与无效推理。
 - **What to build**:
@@ -1264,11 +1264,11 @@ domain: project-planning
   - `backend/tests/test_stream_stop.py`
   - `docs/planning/01_sprint_tasks.md`
 - **Acceptance Criteria**:
-  - [ ] 后端拥有全局 `StreamRegistry`，任何会话发起推理时登记底层流句柄，结束或异常时自动释放；
-  - [ ] `OpenAILLMClient` 无论正常结束、客户端断开、还是主动取消，均通过 `finally` 执行 `response.close()`；
-  - [ ] 后端提供 `POST /api/chat/stop`，能精准根据 `session_id` 毫秒级断开上游 LLM 的 HTTP 长连接；
-  - [ ] 前端点击「停止生成」按钮时，并发发送 `/api/chat/stop`，彻底阻断本地大模型（llama.cpp/vLLM/Ollama）继续空转；
-  - [ ] 前后端单测全绿，代码无 Emoji，全链路回归通过。
+  - [x] 后端拥有全局 `StreamRegistry`，任何会话发起推理时登记底层流句柄，结束或异常时自动释放；
+  - [x] `OpenAILLMClient` 无论正常结束、客户端断开、还是主动取消，均通过 `finally` 执行 `response.close()`；
+  - [x] 后端提供 `POST /api/chat/stop`，能精准根据 `session_id` 毫秒级断开上游 LLM 的 HTTP 长连接；
+  - [x] 前端点击「停止生成」按钮时，并发发送 `/api/chat/stop`，彻底阻断本地大模型（llama.cpp/vLLM/Ollama）继续空转；
+  - [x] 前后端单测全绿，代码无 Emoji，全链路回归通过。
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_stream_stop.py` & `npm --prefix frontend test -- --run App`
 

@@ -33,17 +33,29 @@ class OpenAILLMClient:
         if "tools" in kwargs and kwargs["tools"]:
             call_kwargs["tools"] = kwargs["tools"]
 
+        controller = kwargs.get("stream_controller")
+
         max_retries = 10
         base_wait = 2
 
         for attempt in range(1, max_retries + 1):
+            if controller and controller.is_aborted:
+                return
+
+            response = None
             try:
                 response = self.client.chat.completions.create(**call_kwargs)
+                if controller:
+                    controller.set_stream(response)
+                    if controller.is_aborted:
+                        return
                 
                 if attempt > 1:
                     yield {"type": "retry_status", "text": json.dumps({"success": True})}
 
                 for chunk in response:
+                    if controller and controller.is_aborted:
+                        return
                     if chunk.choices and len(chunk.choices) > 0:
                         delta = chunk.choices[0].delta
                         if hasattr(delta, "reasoning_content") and delta.reasoning_content:
@@ -77,6 +89,10 @@ class OpenAILLMClient:
                 httpx.TimeoutException,
                 ConnectionError
             ) as e:
+                # If controller was aborted, exit immediately without retrying
+                if controller and controller.is_aborted:
+                    return
+
                 if attempt == max_retries:
                     yield {"type": "retry_status", "text": json.dumps({"error": str(e).split('\n')[0][:80], "failed": True})}
                     raise e
@@ -91,6 +107,12 @@ class OpenAILLMClient:
                     "error": error_msg
                 })}
                 time.sleep(wait_time)
+            finally:
+                if response is not None:
+                    try:
+                        response.close()
+                    except Exception:
+                        pass
 
 
 class AgentExecutor:
@@ -116,13 +138,19 @@ class AgentExecutor:
         kwargs["tools"] = tools_list
 
         iteration = 0
+        controller = kwargs.get("stream_controller")
 
         while iteration < self.max_iterations:
+            if controller and controller.is_aborted:
+                return
+
             iteration += 1
             parser = StreamParser()
 
             # 1. Pipeline Stage 1: Stream chunks through the Parser
             for chunk in self.llm_client.stream_completion(current_messages, **kwargs):
+                if controller and controller.is_aborted:
+                    return
                 event = parser.process_chunk(chunk)
                 if event:
                     yield event

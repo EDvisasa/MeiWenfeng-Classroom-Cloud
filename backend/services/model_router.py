@@ -3,7 +3,7 @@ import json
 import logging
 import re
 import xml.etree.ElementTree as ET
-from typing import Generator, List, Dict, Any, Protocol
+from typing import Generator, List, Dict, Any, Protocol, Optional
 from openai import OpenAI
 from backend.database import get_db_connection
 from backend.services.agent_executor import LLMClientProtocol, AgentExecutor, OpenAILLMClient
@@ -45,7 +45,8 @@ def update_model_key_if_empty(model_id: int, new_key: str):
 def stream_chat(
     messages: List[Dict[str, str]],
     system_prompt: str,
-    max_tokens: int = 8192
+    max_tokens: int = 8192,
+    stream_controller: Optional[Any] = None
 ) -> Generator[str, None, None]:
     """
     流式对话接口路由器。
@@ -76,7 +77,7 @@ def stream_chat(
         llm_client = OpenAILLMClient(api_key=api_key, base_url=safe_base_url, model_id=model_id_api)
         executor = AgentExecutor(llm_client=llm_client, max_iterations=5)
 
-        yield from executor.run(formatted_messages, max_tokens=max_tokens)
+        yield from executor.run(formatted_messages, max_tokens=max_tokens, stream_controller=stream_controller)
 
     except Exception as e:
         logger.error(f"Error during stream chat via LiteLLM: {e}", exc_info=True)
