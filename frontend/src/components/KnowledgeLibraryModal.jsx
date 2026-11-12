@@ -105,6 +105,7 @@ const KnowledgeLibraryModal = ({
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
   const [mobileView, setMobileView] = useState('tree'); // 'tree' | 'workbench' (responsive drill-down)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false); // Desktop floating toggle handle
 
   // Course creation state
   const [showCreateCourseModal, setShowCreateCourseModal] = useState(false);
@@ -370,7 +371,7 @@ const KnowledgeLibraryModal = ({
         {/* Modal Body: Split Pane Studio */}
         <div className={`kl-modal-body mobile-view-${mobileView}`}>
           {/* Left Pane: Hierarchy Tree Sidebar */}
-          <aside className="kl-sidebar">
+          <aside className={`kl-sidebar ${isSidebarCollapsed ? 'collapsed' : ''}`}>
             <div className="kl-search-bar">
               <span className="kl-search-icon"><Icons.Search /></span>
               <input
@@ -449,6 +450,23 @@ const KnowledgeLibraryModal = ({
               )}
             </div>
           </aside>
+
+          {/* 桌面端边框居中半圆折叠手柄 */}
+          <button
+            type="button"
+            className={`kl-sidebar-border-handle ${isSidebarCollapsed ? 'collapsed' : ''}`}
+            onClick={() => setIsSidebarCollapsed(prev => !prev)}
+            title={isSidebarCollapsed ? "展开课程目录" : "收起课程目录"}
+            aria-label={isSidebarCollapsed ? "展开课程目录" : "收起课程目录"}
+          >
+            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+              {isSidebarCollapsed ? (
+                <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z"/>
+              ) : (
+                <path fillRule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z"/>
+              )}
+            </svg>
+          </button>
 
           {/* Right Pane: Workbench */}
           <main className="kl-workbench">

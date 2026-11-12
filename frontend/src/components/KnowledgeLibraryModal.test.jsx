@@ -272,4 +272,30 @@ describe('KnowledgeLibraryModal Component (TDD - Zero Emoji & Course Isolation)'
     fireEvent.click(backBtn);
     expect(modalBody).toHaveClass('mobile-view-tree');
   });
+
+  it('9. Desktop floating border handle: toggles sidebar collapse and expand', async () => {
+    const { container } = render(
+      <KnowledgeLibraryModal isOpen={true} onClose={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('0001-React基础')).toBeInTheDocument();
+    });
+
+    const sidebar = container.querySelector('.kl-sidebar');
+    const handleBtn = screen.getByRole('button', { name: '收起课程目录' });
+    expect(sidebar).not.toHaveClass('collapsed');
+    expect(handleBtn).not.toHaveClass('collapsed');
+
+    // Click collapse
+    fireEvent.click(handleBtn);
+    expect(sidebar).toHaveClass('collapsed');
+    expect(handleBtn).toHaveClass('collapsed');
+    expect(handleBtn).toHaveAttribute('aria-label', '展开课程目录');
+
+    // Click expand
+    fireEvent.click(handleBtn);
+    expect(sidebar).not.toHaveClass('collapsed');
+    expect(handleBtn).not.toHaveClass('collapsed');
+  });
 });
