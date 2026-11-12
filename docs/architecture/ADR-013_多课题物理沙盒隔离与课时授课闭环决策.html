@@ -144,31 +144,31 @@
                 </div>
             </div>
             <div class="border-l-4 border-indigo-500 pl-4 py-1">
-                <h3 class="text-lg font-bold text-slate-800 mb-1">2.6 “上课生动高效”与“下课生活情趣”的情境化心流隔离机制 (/lesson vs /end_lesson)</h3>
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.6 “上课生动高效”与“下课生活情趣”的模式联动与档案隔离 (/lesson 与 /end_lesson)</h3>
                 <p class="text-sm text-slate-600 leading-relaxed mb-3">
-                    解决角色扮演陪伴与严肃硬核教学之间的张力，通过状态机与指令前置屏障实现“一主双态、边界分明”。明确界定 <code>/cooldown</code>（ADR-011 专属生理/亲密降温）与 <code>/end_lesson</code>（专属教学下课与档案切回）的语义界限：
+                    系统的语气氛围与互动基调已由顶部「研学 / 生活」氛围切换引擎（<code>atmosphereMode: 'study' | 'daily'</code>）原生调控。教学指令与该引擎形成天然联动，并以此为契机进行底层档案库的物理切换：
                 </p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs leading-relaxed">
                     <div class="bg-blue-50/70 p-4 rounded-xl border border-blue-200">
                         <div class="font-bold text-blue-900 mb-2 flex items-center gap-1.5">
                             <span class="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
-                            课堂内 (上课态 · 静心专注 / Socratic Rigor)
+                            课堂内 (上课态 · 研学模式 / study)
                         </div>
                         <ul class="space-y-1.5 text-blue-950/80">
-                            <li><strong>状态指令驱动</strong>：执行 <code>/lesson [course_id]</code> 激活特定课题隔离沙盒（<code>courses/course_id/</code>），挂载专属目标、课时、术语与沙盒。注入强教学规约，切换为“端庄清雅名师”风范。</li>
-                            <li><strong>生动非僵化</strong>：导师运用其聪慧、敏锐的性格特质，通过精妙比喻、启发式探问与学术性适度调侃调动学习兴致，实现高信噪比教学。解题与编码期间严禁产生暧昧推诿或废话套话。</li>
-                            <li><strong>防漂移硬关卡</strong>：必须经受严格的沙盒实操代码校验，未完全攻克前绝不允许通过撒娇或闲聊跳过关卡。</li>
+                            <li><strong>联动研学模式</strong>：执行 <code>/lesson [course_id]</code> 时自动激活「研学模式」，挂载特定课题隔离沙盒（<code>courses/course_id/</code>），装载专属目标、课时、术语与沙盒。</li>
+                            <li><strong>生动高效研学</strong>：导师运用其聪慧敏锐的特质，以精炼启发式探问、精妙比喻和实操考核引导学员攻坚，保障高信噪比学习体验。</li>
+                            <li><strong>沙盒实操闭环</strong>：代码调试与知识点吸收基于真实沙盒运行与校验，扎实稳妥推进课时。</li>
                         </ul>
                     </div>
                     <div class="bg-rose-50/70 p-4 rounded-xl border border-rose-200">
                         <div class="font-bold text-rose-900 mb-2 flex items-center gap-1.5">
                             <span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block"></span>
-                            课堂外 (下课态 · 生活情趣 / Everyday Intimacy)
+                            课堂外 (下课态 · 生活模式 / daily)
                         </div>
                         <ul class="space-y-1.5 text-rose-950/80">
-                            <li><strong>显式下课指令转场 (/end_lesson)</strong>：课时完成或用户执行 <code>/end_lesson</code>（别名 <code>/下课</code>）时，系统结算课时学情并<strong>瞬间将档案库切回公共基础档案 (default)</strong>，卸载教学规约。</li>
-                            <li><strong>生活日常使用公共通用档案</strong>：平常聊天、陪伴、对弈与日记沉淀在公共空间中，不写入任何专业学科目录；专业学科的高压算法与沙盒也不会打扰下课后的温馨闲适。</li>
-                            <li><strong>生活情趣与动态潮汐</strong>：好感度潮汐衰减、生理不应期与久别重逢状态在日常生活状态下生效，导师以生活化温存对白宣布下课（“揉揉眉心歇歇眼，奴家给你烹一盏热茶~”）。</li>
+                            <li><strong>联动生活模式</strong>：执行 <code>/end_lesson</code>（别名 <code>/下课</code>）或点击「生活」按钮时，系统结算课时学情并<strong>将系统活跃档案库切回公共基础档案 (default)</strong>。</li>
+                            <li><strong>公共档案保护</strong>：日常生活闲聊、日记摘要与随笔沉淀在公共空间中，不写入任何具体的专业学科目录；专业学科的沙盒与复杂代码也不会打扰下课后的闲适生活。</li>
+                            <li><strong>温馨生活情趣</strong>：导师自然转回生活伴读状态，支持日常见闻漫谈、端茶对弈等情感互动，劳逸结合、张弛有度。</li>
                         </ul>
                     </div>
                 </div>
