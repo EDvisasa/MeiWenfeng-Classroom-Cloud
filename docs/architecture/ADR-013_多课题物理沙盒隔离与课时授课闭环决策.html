@@ -108,9 +108,9 @@
                 </p>
             </div>
             <div class="border-l-4 border-purple-500 pl-4 py-1">
-                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 双轨选课与阶段化课时授课闭环 (/lesson)</h3>
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 双轨选课开课与显式下课档案切换 (/lesson 与 /end_lesson)</h3>
                 <p class="text-sm text-slate-600 leading-relaxed">
-                    支持在右侧状态栏与档案库下拉菜单随时切换活跃课题；同时支持无参 <code>/lesson</code>（推进当前活跃课题）与带参 <code>/lesson &lt;course_id&gt;</code>（一键切课并授课）。在 <code>course_progress</code> 中增加 <code>lesson_no</code> 支持课时序列表。授课达标后通过 <code>&lt;system_pass&gt;</code> 自动推进该课题专属课时。
+                    在右侧状态栏与档案库下拉菜单提供随时切换活跃课题；同时支持无参 <code>/lesson</code>（推进当前活跃课题）与带参 <code>/lesson &lt;course_id&gt;</code>（一键切课并授课）。在 <code>course_progress</code> 中增加 <code>lesson_no</code> 支持课时序列表。新增专用下课指令 <code>/end_lesson</code>（别名 <code>/recess</code>, <code>/下课</code>），将上课硬核攻坚与下课生活情趣彻底切分开来，给系统提供安全切换档案上下文的物理闸门。
                 </p>
             </div>
             <div class="border-l-4 border-amber-500 pl-4 py-1">
@@ -144,9 +144,9 @@
                 </div>
             </div>
             <div class="border-l-4 border-indigo-500 pl-4 py-1">
-                <h3 class="text-lg font-bold text-slate-800 mb-1">2.6 “上课生动高效”与“下课生活情趣”的情境化心流隔离机制 (In-Class vs Off-Class Separation)</h3>
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.6 “上课生动高效”与“下课生活情趣”的情境化心流隔离机制 (/lesson vs /end_lesson)</h3>
                 <p class="text-sm text-slate-600 leading-relaxed mb-3">
-                    解决角色扮演陪伴与严肃硬核教学之间的张力，通过状态机与指令前置屏障实现“一主双态、边界分明”：
+                    解决角色扮演陪伴与严肃硬核教学之间的张力，通过状态机与指令前置屏障实现“一主双态、边界分明”。明确界定 <code>/cooldown</code>（ADR-011 专属生理/亲密降温）与 <code>/end_lesson</code>（专属教学下课与档案切回）的语义界限：
                 </p>
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs leading-relaxed">
                     <div class="bg-blue-50/70 p-4 rounded-xl border border-blue-200">
@@ -155,8 +155,8 @@
                             课堂内 (上课态 · 静心专注 / Socratic Rigor)
                         </div>
                         <ul class="space-y-1.5 text-blue-950/80">
-                            <li><strong>状态指令驱动</strong>：执行 <code>/lesson</code> 后注入强教学规约，切换为“端庄清雅名师”风范，严禁在解题与编码期间产生暧昧推诿或废话套话。</li>
-                            <li><strong>生动非僵化</strong>：导师运用其聪慧、敏锐的性格特质，通过精妙比喻、启发式探问与学术性适度调侃调动学习兴致，实现高信噪比教学。</li>
+                            <li><strong>状态指令驱动</strong>：执行 <code>/lesson [course_id]</code> 激活特定课题隔离沙盒（<code>courses/course_id/</code>），挂载专属目标、课时、术语与沙盒。注入强教学规约，切换为“端庄清雅名师”风范。</li>
+                            <li><strong>生动非僵化</strong>：导师运用其聪慧、敏锐的性格特质，通过精妙比喻、启发式探问与学术性适度调侃调动学习兴致，实现高信噪比教学。解题与编码期间严禁产生暧昧推诿或废话套话。</li>
                             <li><strong>防漂移硬关卡</strong>：必须经受严格的沙盒实操代码校验，未完全攻克前绝不允许通过撒娇或闲聊跳过关卡。</li>
                         </ul>
                     </div>
@@ -166,9 +166,9 @@
                             课堂外 (下课态 · 生活情趣 / Everyday Intimacy)
                         </div>
                         <ul class="space-y-1.5 text-rose-950/80">
-                            <li><strong>自然转场脱敏</strong>：课时完成或输入 <code>/cooldown</code> 后，系统卸载强教学拦截指令，转回温润细腻的日常陪伴节奏。</li>
-                            <li><strong>生活情趣与动态潮汐</strong>：好感度潮汐衰减、生理不应期与久别重逢状态在此生效，支持端茶对弈、闲聊日常见闻与情感互动。</li>
-                            <li><strong>认知负荷彻底释放</strong>：下课后不强行推销课后作业，给学员留足心智咀嚼空间，确保生活情趣与学术攻坚张弛有度。</li>
+                            <li><strong>显式下课指令转场 (/end_lesson)</strong>：课时完成或用户执行 <code>/end_lesson</code>（别名 <code>/下课</code>）时，系统结算课时学情并<strong>瞬间将档案库切回公共基础档案 (default)</strong>，卸载教学规约。</li>
+                            <li><strong>生活日常使用公共通用档案</strong>：平常聊天、陪伴、对弈与日记沉淀在公共空间中，不写入任何专业学科目录；专业学科的高压算法与沙盒也不会打扰下课后的温馨闲适。</li>
+                            <li><strong>生活情趣与动态潮汐</strong>：好感度潮汐衰减、生理不应期与久别重逢状态在日常生活状态下生效，导师以生活化温存对白宣布下课（“揉揉眉心歇歇眼，奴家给你烹一盏热茶~”）。</li>
                         </ul>
                     </div>
                 </div>
@@ -207,6 +207,7 @@
                         ActiveCourse -->|"专属课时编排"| CP["course_progress (course_id, lesson_no)"]
                         ActiveCourse -->|"沙盒与讲义重定向"| ScopedBox["courses/course_id/Sandbox 与 References"]
                         ActiveCourse -->|"向量 Metadata 过滤"| PureRAG["RAG 仅检索本课程切片 (零污染)"]
+                        ActiveCourse -->|"/end_lesson 结课下课"| Recess["档案库切回公共基础档案 (default) 与生活日常"]
                     </div>
                 </div>
             </div>
