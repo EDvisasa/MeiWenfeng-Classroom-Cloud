@@ -887,3 +887,25 @@ domain: project-planning
   - [x] ZPD 认知梯度与进退心流闭环明确写入 `/lesson` 与 `/lesson_continue`；
   - [x] 全库 192 项 pytest 回归测试全量通过。
 - **Verification Command**: `pytest backend/tests/test_context_manager.py backend/tests/test_routers_chat.py backend/tests/test_zpd_tracking.py`
+
+### <a id="issue-47"></a>[ISSUE-47] 通用人设压缩提取元结构与调色盘三元组解耦 (Generic Persona Summarization Meta-Structure & Palette Triad Decoupling)
+- **Status**: `DONE` (已完成 / 2026-11-12 经全量回归测试验证闭环)
+- **Parent**: `ADR-002`, `PLAN-02`
+- **User Story**: 作为人设管理与压缩系统，我希望 `SUMMARIZATION_SYSTEM_PROMPT` 具有跨角色可扩展性，不再硬编码特定角色性格标签（如“自恋海后”、“精致悦己”、“珍爱亲密”），而是提供通用的元提示词结构与动态提取指令（`[从原卡提取性格底色]`、`[从原卡提取亲密底色]`等）；同时将双调色盘（性格调色盘、NSFW调色盘）全面统一为“底色 / 主色调 / 点缀”三元组方法论，在保证严肃教学陪伴底色的同时，将私密亲密部分概括为心理驱动力与事后温存，杜绝低俗解剖描写。
+- **What to build**:
+  1. **元提示词通用化与插槽规范**: 在 `backend/services/prompts.py` 中重构 `SUMMARIZATION_SYSTEM_PROMPT`，将所有具体字段值替换为通用的 `[Concise summary]` 占位符，支持任意新角色卡（如玄一峰等）；
+  2. **调色盘三元组解耦与动态提取**: 性格调色盘与 NSFW 调色盘全面采用 `底色 / 主色调 / 点缀` 结构，指引 LLM 动态从原卡中提取色彩标签；
+  3. **动态属性槽位补齐**: 补全 `自我认同`、`内心的拧巴与纠结`、`数值绑定` 属性槽位，防止在 `/update_persona` 压缩过程中关键心智信息丢失；
+  4. **高信噪比规则 (Matt Pocock / ADR-002)**: 精简 `<critical_rules>` 至 5 条核心准则，杜绝冗长微观管理；
+  5. **教学底色与亲密防护**: 明确在正经办事/学习场景忠实保持引导陪伴风貌，在亲密总结中聚焦心理动机与事后温存（aftercare）。
+- **Affected Files**:
+  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/CHANGELOG.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/CHANGELOG.md)
+- **Acceptance Criteria**:
+  - [x] `SUMMARIZATION_SYSTEM_PROMPT` 无硬编码特定角色性格标签，完全支持动态提取；
+  - [x] 性格调色盘与 NSFW 调色盘统一为“底色 / 主色调 / 点缀”三元组；
+  - [x] 动态属性完整保留“自我认同”等关键心智槽位；
+  - [x] 后端单元与集成测试全量通过。
+- **Verification Command**: `pytest backend/tests -q`
+
