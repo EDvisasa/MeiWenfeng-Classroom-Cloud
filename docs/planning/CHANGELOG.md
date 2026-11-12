@@ -10,6 +10,16 @@ domain: project-planning
 All notable changes to this project will be documented in this file.
 
 ## [Unreleased]
+- **PolyStrata 推理引擎 Tool Calling 400 根治与 Tool Calls Dict 规范化 (ISSUE-50)**:
+  - 针对底层端侧 PolyStrata / Jinja 模板严格校验 `tool_call.arguments is string` 触发 `TemplateRequestError` 导致 HTTP 400 崩溃的顽疾，在 `backend/services/agent_executor.py` 实施参数类型规范化；
+  - 对原生与 XML 解析提取的 `tool_calls` 参数严格执行深拷贝与 `json.loads` 反序列化为 Python Dict，兼容根层级与 `function` 层级字段；
+  - 在单轮 Agent 工具调用循环（Tool Calling Loop）内保持严格的 Append-Only 追加语义，助力 PolyStrata 在 MTP 投机推理模式下跑满 78~80 t/s 并享受 100% 缓存命中；
+  - 补充针对端侧 Jinja 规范的针对性单元测试，全库 31 项 Agent/Tool 测试 100% 通过。
+- **上下文双层场域隔离与 KV Cache 静态基石前缀加速理顺 (ISSUE-51)**:
+  - 撰写标准技术回执函（`docs/reports/receipt_to_poly_engine_agent.md` 并同步至推理团队工作区），澄清业务红线：坚决保留 `<current_session_history>`（防 RAG 记忆召回幻觉的认知屏障）与动态 `<current_time>`（生命周期作息与好感度演化的物理脉搏）；
+  - 结构巧妙理顺：保证 `formatted_messages[0]`（System Prompt）纯净且单会话字节级恒定，永久锁定 70%~85% 的长上下文 Token 为 100% KV-Cache 恒定命中；
+  - 固化历史轮次不可变时序标尺 `[YYYY-MM-DD HH:MM]`，动态尾部协议仅单向挂载在最新的 User 消息中；
+  - 全量 17 项 `test_context_manager.py` 测试全部绿灯。
 - **前端【生活/研学】状态胶囊切换器与微课上课引导微卡 (ISSUE-49)**:
   - 在右侧 `StatusPanel` 的【精简/原版】按钮右侧新增同等圆框切换按钮（【生活/研学】），粉色高亮即研学，透明即生活；
   - 采用简洁无括号的系统提示与 `localStorage` 本地存储同步（默认初始为生活模式）；

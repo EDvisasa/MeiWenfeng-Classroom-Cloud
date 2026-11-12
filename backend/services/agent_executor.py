@@ -4,6 +4,7 @@ from typing import List, Dict, Any, Generator, Protocol
 from openai import OpenAI
 import openai
 import httpx
+import copy
 
 from backend.services.agent_tools import TOOL_REGISTRY
 from backend.services.stream_parser import StreamParser, ToolFormatter
@@ -139,9 +140,29 @@ class AgentExecutor:
                 yield {"type": "text", "text": fake_xml}
 
             # Prepare assistant message with native tool calls
+            # PolyStrata Jinja template strictly requires arguments to be a Python dict/object
             assistant_msg = {"role": "assistant"}
             assistant_msg["content"] = full_content if full_content.strip() else ""
-            assistant_msg["tool_calls"] = [tc["raw_payload"] for tc in parsed_tools]
+            
+            cleaned_tool_calls = []
+            for tc in parsed_tools:
+                payload = copy.deepcopy(tc.get("raw_payload", {}))
+                func = payload.get("function", {})
+                if isinstance(func.get("arguments"), str):
+                    try:
+                        func["arguments"] = json.loads(func["arguments"])
+                    except Exception:
+                        func["arguments"] = {}
+                if "arguments" in payload and isinstance(payload["arguments"], str):
+                    try:
+                        payload["arguments"] = json.loads(payload["arguments"])
+                    except Exception:
+                        payload["arguments"] = {}
+                elif "arguments" not in payload and "arguments" in func:
+                    payload["arguments"] = func["arguments"]
+                cleaned_tool_calls.append(payload)
+
+            assistant_msg["tool_calls"] = cleaned_tool_calls
             current_messages.append(assistant_msg)
 
             # 3. Pipeline Stage 3: Execute tools

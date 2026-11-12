@@ -83,6 +83,9 @@ def test_agent_executor_with_tool_call():
         last_request_msgs = mock_llm.received_messages[-1]
         assert last_request_msgs[-2]["role"] == "assistant"
         assert last_request_msgs[-2].get("tool_calls")
+        # PolyStrata Jinja compatibility check: arguments must be dict
+        assert isinstance(last_request_msgs[-2]["tool_calls"][0]["function"]["arguments"], dict)
+        assert last_request_msgs[-2]["tool_calls"][0]["function"]["arguments"] == {"command": "echo hello"}
         assert last_request_msgs[-1]["role"] == "tool"
         assert "hello" in last_request_msgs[-1]["content"]
 

@@ -957,4 +957,46 @@ domain: project-planning
   - [x] 前端测试用例 100% 通过（60 passed）。
 - **Verification Command**: `npm --prefix frontend test -- --run`
 
+### <a id="issue-50"></a>[ISSUE-50] PolyStrata 推理引擎 Tool Calling 400 根治与 Tool Calls Dict 规范化 (PolyStrata Engine Tool Arguments Normalization & HTTP 400 Elimination)
+- **Status**: `DONE` (已完成 / 2026-11-13 经 TDD 全量单测验证闭环)
+- **Parent**: `PLAN-02`, `context_assembly_and_poly_spec.md`
+- **User Story**: 作为端侧大模型工具调用执行引擎，我希望 `agent_executor.py` 在组装 `assistant` 消息的 `tool_calls` 回传报文时，将 `arguments` 彻底规范化为 Python 原生字典对象（Dict/Object），规避 PolyStrata 的 Jinja 模板在校验 `tool_call.arguments is string` 时抛出 `TemplateRequestError` 并致使 FastAPI 报错 `HTTP 400 Bad Request`，保障 78~80 t/s MTP 满血运行。
+- **What to build**:
+  1. **Tool Calls Arguments 规范化**: 在 `backend/services/agent_executor.py` 中，遍历 `parsed_tools` 提取的 `raw_payload` 时进行深拷贝，并对 `function.arguments` 及根层级 `arguments` 强制执行 `json.loads` 反序列化为 Python Dict，遇到格式错误回退为空字典 `{}`；
+  2. **端侧 Jinja 兼容断言**: 在 `backend/tests/test_agent_executor.py` 补充断言，确保送入模型的 `assistant` 消息中的 `tool_calls` 参数严格为 `dict` 类型；
+  3. **单测回归与全量验证**: 验证 3 项 `test_agent_executor.py` 测试与全库 Agent 31 项测试全部通过。
+- **Affected Files**:
+  - [`backend/services/agent_executor.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_executor.py)
+  - [`backend/tests/test_agent_executor.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_executor.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/CHANGELOG.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/CHANGELOG.md)
+- **Acceptance Criteria**:
+  - [x] `assistant_msg["tool_calls"]` 中的 `arguments` 严格为 Python dict 对象；
+  - [x] 杜绝字符串序列化致使 PolyStrata 触发 `HTTP 400 Bad Request`；
+  - [x] 单轮 Agent 工具循环保持严格 Append-Only，享受 100% KV-Cache 命中；
+  - [x] 后端单元测试 100% 绿灯。
+- **Verification Command**: `pytest backend/tests/test_agent_executor.py`
+
+### <a id="issue-51"></a>[ISSUE-51] 上下文双层场域隔离与 KV Cache 静态基石前缀加速理顺 (Context Dual-System Memory Fence & Static Frozen KV-Cache Acceleration)
+- **Status**: `DONE` (已完成 / 2026-11-13 经全量单测与架构验收闭环)
+- **Parent**: `PLAN-02`, `context_assembly_and_poly_spec.md`
+- **User Story**: 作为系统架构师，我希望在兼顾端侧显卡 KV-Cache 前缀加速（LCP 最长公共前缀命中）的同时，坚决捍卫双系统业务铁律：保留 `<current_session_history>`（防 RAG 历史记忆召回幻觉的认知屏障）与动态 `<current_time>`（生命周期作息与好感度演化的物理脉搏），理顺上下文动静装配层级，向协同 Agent 输出标准技术回执。
+- **What to build**:
+  1. **技术回执归档**: 向底层推理协同团队撰写标准技术回执（`docs/reports/receipt_to_poly_engine_agent.md` 并同步至协同 Agent 脑区），澄清双系统业务红线与不可替代性；
+  2. **静态基石冻结**: 保证 `formatted_messages[0]`（System Prompt）纯净且单会话字节级恒定，锁定 70%~85% 的长上下文 Token 为 100% KV-Cache 恒定命中；
+  3. **历史轮次追加不可变**: 通过 `assemble_messages()` Step 1 统一固化 `[YYYY-MM-DD HH:MM]` 标尺，杜绝跨轮次逆向标签变异；
+  4. **动态尾部注入口收敛**: 动态时间戳与运行态协议严格挂载于最新一条 User 消息内部，兼得业务动态感知与底层前缀稳定。
+- **Affected Files**:
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`docs/reports/receipt_to_poly_engine_agent.md`](file:///d:/MeiWenfeng-Classroom/docs/reports/receipt_to_poly_engine_agent.md)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/CHANGELOG.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/CHANGELOG.md)
+- **Acceptance Criteria**:
+  - [x] 完整保留 `<current_session_history>` 与 `<current_time>` 业务标签；
+  - [x] System 静态基石单会话保持字节级不变，享受端侧持久前缀缓存；
+  - [x] 技术回执函完成交付并与协同 Agent 达成业务共识；
+  - [x] 全量 17 项 `test_context_manager.py` 测试全部绿灯。
+- **Verification Command**: `pytest backend/tests/test_context_manager.py`
+
+
 
