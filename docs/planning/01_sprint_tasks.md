@@ -1345,6 +1345,7 @@ domain: project-planning
 - **Description**:
   - 升级 `/plan`、`/lesson` 与新增 `/end_lesson` 指令形成完整教学闭环：
     - `/plan [course_id]`：强制切入目标课题隔离环境，读取该课题 `user_mission.md`，输出 `<new_course>` 写入专属 `course_progress` 并在 `courses/<course_id>/Lessons/syllabus.md` 镜像持久化，严禁在 `default` 下盲目工作；
+    - **支持随时重新修订大纲**：执行 `/plan` 修订时，系统严格保护已通关（`completed`）的历史课时，仅对未结课的 `active` 和 `pending` 课时进行重排与微课时细化插针；
     - `/lesson [course_id]`：装配该课题专属隔离档案库（`courses/<course_id>/`）、专属课时大纲与隔离沙盒展开授课；
     - 导师系统提示词注入该课题的 `user_mission`、当前课时要求与前序课时掌握度；
     - 课时测试通过后，通过 `<system_pass>` 推进该课题专属课时进度；
@@ -1356,6 +1357,7 @@ domain: project-planning
   - `backend/tests/test_lesson_course_flow.py`
 - **Acceptance Criteria**:
   - [ ] 执行 `/plan` 能够准确锁定课题，读取该课题专属 `user_mission.md` 并生成专属 `syllabus.md`；
+  - [ ] 支持中途再次使用 `/plan` 修订细化大纲，且严格保留既往 `completed` 课时记录不被覆写；
   - [ ] 执行 `/lesson` 能够准确选定并切换至目标课题，沙盒与档案库隔离生效；
   - [ ] 执行 `/end_lesson` 或课时完成后，档案库指针安全切回公共 `default` 空间，导师转入温存生活化陪伴语境；
   - [ ] 推进某一课程的课时进度，不影响其他课程的进度状态。
