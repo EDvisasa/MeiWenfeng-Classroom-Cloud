@@ -39,9 +39,21 @@
         <p class="text-base text-slate-600 mb-6 leading-normal">
             升格列装原 <code>memory-decay</code> 报告。解决长时间互动下 AI 记忆溢出与检索污染问题，引入四级渐进式长期记忆提炼引擎与目录级安全白名单隔离机制。
         </p>
+
+        <!-- 架构演进补丁说明 -->
+        <div class="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed">
+            <div class="font-bold flex items-center gap-1.5 mb-1.5 text-amber-950 text-sm">
+                <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                <span>[架构演进补丁] RAG 检索白名单已被 ADR-013 扩充课题级切片隔离 (Amended by ADR-013)</span>
+            </div>
+            <p>
+                <strong>演进说明 (2026-11-13)</strong>：本文档所制定的教材与记忆两级白名单（Classroom_Knowledge vs Memory_Knowledge）在 <strong><a href="ADR-013_多课题物理沙盒隔离与课时授课闭环决策.html" class="underline font-bold text-amber-900">ADR-013</a></strong> 中进一步扩展为<strong>多课题元数据隔离（Multi-Course Metadata Partition）</strong>。在原有一级白名单基础上，RAG 同步与检索强制注入 <code>where={"course_id": active_course_id}</code> 条件，彻底杜绝不同学术课题之间的向量切片交叉串扰。
+            </p>
+        </div>
         
         <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
-            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">🏷️ RAG-Vector-Indexed (知识库卡片向量化索引)</span>
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">RAG-Vector-Indexed (知识库卡片向量化索引)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by ADR-013 (多课题向量过滤)</span>
         </div>
     </header>
 

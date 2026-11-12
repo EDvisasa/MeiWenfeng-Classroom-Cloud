@@ -39,9 +39,21 @@
         <p class="text-base text-slate-600 mb-6 leading-normal">
             升格列装原 <code>mission</code> 报告。规范 <code>mission_manager.py</code> 目标切片与 Anti-Journaling 反套话心流机制，防止 AI 陷入流水账式的宏大叙事汇报。
         </p>
+
+        <!-- 架构演进补丁说明 -->
+        <div class="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed">
+            <div class="font-bold flex items-center gap-1.5 mb-1.5 text-amber-950 text-sm">
+                <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                <span>[架构演进补丁] 本决策中全局单例设定已被 ADR-013 扩展替代 (Amended by ADR-013)</span>
+            </div>
+            <p>
+                <strong>演进说明 (2026-11-13)</strong>：本文档早期所定义的全局单一目标模式（<code>user_mission id=1</code> 与全局 <code>data/materials/Settings/user_mission.md</code>）已在 <strong><a href="ADR-013_多课题物理沙盒隔离与课时授课闭环决策.html" class="underline font-bold text-amber-900">ADR-013</a></strong> 中升级为<strong>多课题多目标隔离体系</strong>。原单例模型保留作为 <code>course_id='default'</code>（全局基础课程）平滑兼容，而各具体研究课题的目标与约束统一持久化在 <code>courses/&lt;course_id&gt;/Settings/user_mission.md</code> 独立物理目录下。
+            </p>
+        </div>
         
         <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
-            <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">🏷️ ZPD-Adaptive (最近发展区难度自适应跟踪)</span>
+            <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">ZPD-Adaptive (最近发展区难度自适应跟踪)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by ADR-013 (多课题多目标隔离)</span>
         </div>
     </header>
 

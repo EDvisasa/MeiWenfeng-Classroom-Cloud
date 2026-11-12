@@ -39,11 +39,22 @@
         <p class="text-base text-slate-600 mb-6 leading-normal">
             将原来依赖于聊天流内联嵌入的 <code>markdown_doc</code> 卡片展示机制，重构为独立解耦的全局浮层弹窗（<code>PreviewEditModal</code>），并打通底层沙盒防穿透写入锁与 RAGFlow 异步知识库索引同步管线。
         </p>
+
+        <!-- 架构演进补丁说明 -->
+        <div class="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed">
+            <div class="font-bold flex items-center gap-1.5 mb-1.5 text-amber-950 text-sm">
+                <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                <span>[架构演进补丁] 课题物理拓扑已被 ADR-013 打通为授课闭环基底 (Amended by ADR-013)</span>
+            </div>
+            <p>
+                <strong>演进说明 (2026-11-13)</strong>：本文档所确立的 <code>data/materials/courses/&lt;course_id&gt;/</code> 5 大目录拓扑（Lessons, Sandbox, References, LDRs, Settings）在 <strong><a href="ADR-013_多课题物理沙盒隔离与课时授课闭环决策.html" class="underline font-bold text-amber-900">ADR-013</a></strong> 中正式升格为全系统的<strong>统一物理基底</strong>。原架构中“仅限弹窗手动新建课题”以及“RAG 向量同步无课题分区”的局限已被打破，打通了 <code>/set_mission</code> 自动物理建卷、<code>/lesson</code> 选课进入沙盒授课、以及 <code>where={"course_id": active_course_id}</code> 向量切片强隔离全链路。
+            </p>
+        </div>
         
         <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
-            <span class="badge bg-rose-50 text-rose-700 border border-rose-200">🛡️ Sandbox-Evolving (用户测验练习沙盒动态演进)</span>
-            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">📚 RAG-Vector-Indexed (知识库卡片向量化索引)</span>
-            <span class="badge bg-teal-50 text-teal-700 border border-teal-200">🗺️ State-Decoupled (前端状态与UI拓扑解耦)</span>
+            <span class="badge bg-rose-50 text-rose-700 border border-rose-200">Sandbox-Evolving (用户测验练习沙盒动态演进)</span>
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">RAG-Vector-Indexed (知识库卡片向量化索引)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by ADR-013 (全生命周期打通)</span>
         </div>
     </header>
 
