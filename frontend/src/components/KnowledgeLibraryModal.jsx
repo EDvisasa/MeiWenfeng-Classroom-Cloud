@@ -37,6 +37,11 @@ const Icons = {
       <path fillRule="evenodd" d="M1.646 4.646a.5.5 0 0 1 .708 0L8 10.293l5.646-5.647a.5.5 0 0 1 .708.708l-6 6a.5.5 0 0 1-.708 0l-6-6a.5.5 0 0 1 0-.708z" />
     </svg>
   ),
+  ChevronLeft: () => (
+    <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
+      <path fillRule="evenodd" d="M11.354 1.646a.5.5 0 0 1 0 .708L5.707 8l5.647 5.646a.5.5 0 0 1-.708.708l-6-6a.5.5 0 0 1 0-.708l6-6a.5.5 0 0 1 .708 0z" />
+    </svg>
+  ),
   ChevronRight: () => (
     <svg width="11" height="11" viewBox="0 0 16 16" fill="currentColor">
       <path fillRule="evenodd" d="M4.646 1.646a.5.5 0 0 1 .708 0l6 6a.5.5 0 0 1 0 .708l-6 6a.5.5 0 0 1-.708-.708L10.293 8 4.646 2.354a.5.5 0 0 1 0-.708z" />
@@ -99,6 +104,7 @@ const KnowledgeLibraryModal = ({
   const [mode, setMode] = useState('preview'); // 'preview' | 'edit'
   const [collapsedCategories, setCollapsedCategories] = useState({});
   const [searchQuery, setSearchQuery] = useState('');
+  const [mobileView, setMobileView] = useState('tree'); // 'tree' | 'workbench' (responsive drill-down)
 
   // Course creation state
   const [showCreateCourseModal, setShowCreateCourseModal] = useState(false);
@@ -174,6 +180,7 @@ const KnowledgeLibraryModal = ({
     setFileContent('');
     setEditedContent('');
     setSaveStatus(null);
+    setMobileView('tree');
     fetchTree(nextCourseId);
   };
 
@@ -204,6 +211,7 @@ const KnowledgeLibraryModal = ({
         setSelectedFilePath(null);
         setFileContent('');
         setEditedContent('');
+        setMobileView('tree');
         fetchTree(data.course.id);
       } else {
         const err = await res.json().catch(() => ({}));
@@ -360,7 +368,7 @@ const KnowledgeLibraryModal = ({
         </header>
 
         {/* Modal Body: Split Pane Studio */}
-        <div className="kl-modal-body">
+        <div className={`kl-modal-body mobile-view-${mobileView}`}>
           {/* Left Pane: Hierarchy Tree Sidebar */}
           <aside className="kl-sidebar">
             <div className="kl-search-bar">
@@ -421,7 +429,10 @@ const KnowledgeLibraryModal = ({
                                 <div
                                   key={file.path}
                                   className={`kl-file-item ${isSelected ? 'active' : ''}`}
-                                  onClick={() => loadFileContent(file.path, currentCourseId)}
+                                  onClick={() => {
+                                    loadFileContent(file.path, currentCourseId);
+                                    setMobileView('workbench');
+                                  }}
                                   title={file.path}
                                 >
                                   <span className="kl-file-icon"><Icons.FileText /></span>
@@ -445,14 +456,26 @@ const KnowledgeLibraryModal = ({
               <>
                 {/* Workbench Toolbar */}
                 <div className="kl-workbench-toolbar">
-                  <div className="kl-breadcrumb">
-                    <span className="kl-bc-course">
-                      {courses.find(c => c.id === currentCourseId)?.name || currentCourseId}
-                    </span>
-                    <span className="kl-bc-sep">/</span>
-                    <span className="kl-bc-cat">{activeCategory}</span>
-                    <span className="kl-bc-sep">/</span>
-                    <span className="kl-bc-file">{activeFileName}.md</span>
+                  <div className="kl-toolbar-left-group">
+                    <button
+                      type="button"
+                      className="kl-back-tree-btn"
+                      onClick={() => setMobileView('tree')}
+                      title="返回目录大纲"
+                      aria-label="返回目录大纲"
+                    >
+                      <Icons.ChevronLeft />
+                      <span>返回大纲</span>
+                    </button>
+                    <div className="kl-breadcrumb">
+                      <span className="kl-bc-course">
+                        {courses.find(c => c.id === currentCourseId)?.name || currentCourseId}
+                      </span>
+                      <span className="kl-bc-sep">/</span>
+                      <span className="kl-bc-cat">{activeCategory}</span>
+                      <span className="kl-bc-sep">/</span>
+                      <span className="kl-bc-file">{activeFileName}.md</span>
+                    </div>
                   </div>
 
                   <div className="kl-toolbar-actions">
@@ -576,6 +599,15 @@ const KnowledgeLibraryModal = ({
               </>
             ) : (
               <div className="kl-empty-workbench">
+                <button
+                  type="button"
+                  className="kl-back-tree-btn kl-empty-back-btn"
+                  onClick={() => setMobileView('tree')}
+                  title="返回目录大纲"
+                >
+                  <Icons.ChevronLeft />
+                  <span>返回目录大纲</span>
+                </button>
                 <div className="kl-empty-icon"><Icons.Library /></div>
                 <h3>知识与微课档案工作台</h3>
                 <p>请在左侧目录树中挑选微课课时、沙盒演练或引录文档。</p>

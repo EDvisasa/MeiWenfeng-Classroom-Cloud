@@ -1205,4 +1205,38 @@ domain: project-planning
 - **Blocked by**: `ISSUE-56` (Phase 1 记忆中枢就绪后接续)
 - **Verification Command**: `npm --prefix frontend test -- --run KnowledgeLibraryModal` & `pytest backend/tests/test_materials_courses.py`
 
+### <a id="issue-59"></a>[ISSUE-59] 知识档案库移动端自适应穿梭布局与顶部图标工程美学统一 (Knowledge Library Mobile Responsive Drill-Down & Header Icon Aesthetic Alignment)
+- **Status**: `DONE`
+- **Parent**: `ISSUE-58`, `PLAN-02`
+- **User Story**: 作为在手机或窄屏设备上学习的用户，我希望在顶部导航栏看到与数据库图标风格完全统一的知识档案库纯矢量图标；打开档案库时，移动端能够像数据库查看器一样自适应全宽展示，并在「目录大纲」与「文档工作台」之间提供优雅的单列穿梭导航，彻底消除双列并排导致的文本单字折行与挤压爆框。
+- **What to build**:
+  1. **顶部导航栏图标风格与数据库完全对齐**：
+     - 将 `App.jsx` 中长方形药丸按钮重构为与数据库查看器同款的 `cc-icon-btn`（统一 14x14 矢量 SVG 图标、同尺寸微交互悬停与定位锁定小黄点）；
+     - 去除突兀的裸露文字，还原简洁纯净的统一顶栏视觉节奏；
+  2. **知识档案库移动端单列自适应穿梭系统 (Master-Detail Drill-Down UX)**：
+     - 参考 `DatabaseViewer` 响应式规约（`@media (max-width: 768px)`），弹窗自适应扩大至 `width: 96%`、`height: 92vh`；
+     - 移动端（<=768px）下自动启用单列穿梭机制（`mobileView: 'tree' | 'workbench'`）：
+       - 默认展示全宽目录大纲树，课程选择器与新建按钮自适应折行排版；
+       - 点击文件后，平滑穿梭至 100% 全宽文档工作台；
+       - 工作台顶部增加 `[ < 返回大纲 ]` 纯矢量箭头按钮，点击即刻返回大纲树挑选其他文件；
+     - 桌面端（>768px）无缝恢复宽屏双列 Studio 模式，双端零摩擦体验；
+  3. **严格零 Emoji (Zero Emoji) 审查与全链路测试**：
+     - 严格杜绝任何 emoji 字符，更新 `KnowledgeLibraryModal.test.jsx` 与 `App.test.jsx` 覆盖移动端穿梭状态与图标统一性。
+- **Affected Files**:
+  - `frontend/src/App.jsx`
+  - `frontend/src/components/KnowledgeLibraryModal.jsx`
+  - `frontend/src/index.css`
+  - `frontend/src/components/KnowledgeLibraryModal.test.jsx`
+  - `frontend/src/App.test.jsx`
+  - `docs/planning/01_sprint_tasks.md`
+- **Acceptance Criteria**:
+  - [x] 顶部导航栏知识档案库入口采用标准 `cc-icon-btn`，与数据库图标保持一致的像素级质感与微交互；
+  - [x] 移动端（<=768px）下弹窗外框自适应全宽（96% 宽度 / 92vh 高度），不再出现屏幕留白挤压；
+  - [x] 移动端大纲树与工作台采用单列穿梭（Drill-Down），点击文件进入全宽工作台，提供返回大纲按钮；
+  - [x] 移动端头部各控件流式排版，文字无重叠无换行错位；
+  - [x] 彻底杜绝 Emoji，前后端自动化测试 100% 绿灯。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `npm --prefix frontend test -- --run KnowledgeLibraryModal` & `npm --prefix frontend test -- --run App`
+
+
 

@@ -244,4 +244,32 @@ describe('KnowledgeLibraryModal Component (TDD - Zero Emoji & Course Isolation)'
     // Verify Zero Emoji remains strictly enforced even with lock
     expect(/\p{Extended_Pictographic}/u.test(container.textContent)).toBe(false);
   });
+
+  it('8. Mobile responsive drill-down: switches between tree and workbench with back button', async () => {
+    const { container } = render(
+      <KnowledgeLibraryModal isOpen={true} onClose={vi.fn()} />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('0001-React基础')).toBeInTheDocument();
+    });
+
+    const modalBody = container.querySelector('.kl-modal-body');
+    expect(modalBody).toHaveClass('mobile-view-tree');
+
+    // Click file item -> transitions to workbench
+    fireEvent.click(screen.getByText('0001-React基础'));
+
+    await waitFor(() => {
+      expect(modalBody).toHaveClass('mobile-view-workbench');
+    });
+
+    // Check back button exists
+    const backBtn = screen.getByRole('button', { name: '返回目录大纲' });
+    expect(backBtn).toBeInTheDocument();
+
+    // Click back button -> transitions back to tree
+    fireEvent.click(backBtn);
+    expect(modalBody).toHaveClass('mobile-view-tree');
+  });
 });

@@ -114,3 +114,4 @@ describe('App Component Top-Level Integration (TDD)', () => {
     expect(/\p{Extended_Pictographic}/u.test(modalDialog.textContent)).toBe(false);
   });
 });
+

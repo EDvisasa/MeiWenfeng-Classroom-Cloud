@@ -4049,3 +4049,170 @@ body {
   border-radius: 4px;
   margin-left: 2px;
 }
+
+
+/* ==========================================================================
+   Knowledge Library Mobile Responsive Drill-Down & Header Layout (ISSUE-59)
+   ========================================================================== */
+.kl-toolbar-left-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow: hidden;
+  min-width: 0;
+  flex: 1;
+}
+
+.kl-back-tree-btn {
+  display: none;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: all 0.15s;
+}
+
+.kl-back-tree-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-primary);
+  border-color: var(--accent-pink);
+}
+
+.kl-empty-back-btn {
+  margin-bottom: 16px;
+}
+
+@media (max-width: 768px) {
+  .kl-modal-overlay {
+    padding: 8px;
+  }
+
+  .kl-modal-dialog {
+    width: 96% !important;
+    max-width: 100% !important;
+    height: 92vh !important;
+    border-radius: 12px;
+    margin: 0 auto;
+  }
+
+  .kl-modal-header {
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    row-gap: 8px;
+    column-gap: 8px;
+    padding: 10px 14px;
+  }
+
+  .kl-header-left {
+    display: contents !important;
+  }
+
+  .kl-header-title {
+    grid-column: 1 / 2;
+    font-size: 13.5px;
+  }
+
+  .kl-header-right {
+    grid-column: 2 / 3;
+    justify-self: end;
+    gap: 8px;
+  }
+
+  .kl-course-selector-wrapper {
+    grid-column: 1 / 3;
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .kl-selector-label {
+    display: none;
+  }
+
+  .kl-course-select {
+    flex: 1;
+    min-width: 0;
+    max-width: 100%;
+    font-size: 12px;
+    padding: 4px 6px;
+  }
+
+  .kl-btn-subtle {
+    padding: 4px 8px;
+    font-size: 11px;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  /* Single-column Master-Detail Drill-Down */
+  .kl-modal-body.mobile-view-tree .kl-sidebar {
+    display: flex !important;
+    width: 100% !important;
+    border-right: none !important;
+  }
+
+  .kl-modal-body.mobile-view-tree .kl-workbench {
+    display: none !important;
+  }
+
+  .kl-modal-body.mobile-view-workbench .kl-sidebar {
+    display: none !important;
+  }
+
+  .kl-modal-body.mobile-view-workbench .kl-workbench {
+    display: flex !important;
+    width: 100% !important;
+  }
+
+  .kl-back-tree-btn {
+    display: inline-flex !important;
+  }
+
+  .kl-workbench-toolbar {
+    padding: 8px 12px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+
+  .kl-toolbar-left-group {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .kl-toolbar-actions {
+    width: 100%;
+    justify-content: space-between;
+    gap: 8px;
+  }
+
+  .kl-breadcrumb {
+    font-size: 11.5px;
+    max-width: 100%;
+  }
+
+  .kl-content-container {
+    padding: 14px 12px;
+  }
+
+  .kl-markdown-preview {
+    font-size: 13.5px;
+    line-height: 1.65;
+  }
+
+  .kl-md-h1 {
+    font-size: 20px;
+  }
+
+  .kl-md-h2 {
+    font-size: 17px;
+  }
+}
