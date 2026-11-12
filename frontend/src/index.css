@@ -1201,14 +1201,14 @@ body {
 
 /* 内心独白卡片 */
 .thought-box {
-  padding: 16px;
-  background: rgba(255, 255, 255, 0.5);
-  border-radius: var(--border-radius-md);
-  font-style: italic;
-  color: var(--text-dialog);
-  line-height: 1.6;
+  padding: 10px 12px;
+  background: var(--bg-primary);
+  border: 1px solid var(--border-color);
   border-left: 3px solid var(--accent-pink);
+  border-radius: 8px;
   position: relative;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.02);
+  transition: all 0.2s ease;
 }
 
 .thought-header {
@@ -1216,10 +1216,18 @@ body {
   align-items: center;
   gap: 6px;
   font-size: 12px;
-  font-style: normal;
   color: var(--text-secondary);
-  margin-bottom: 8px;
+  margin-bottom: 6px;
   font-weight: 600;
+}
+
+.thought-content {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--text-primary);
+  font-style: normal;
+  word-break: break-word;
+  white-space: pre-wrap;
 }
 
 /* 裁剪弹窗 */
@@ -2536,7 +2544,8 @@ body {
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15), 0 0 0 1px var(--accent-pink, #f472b6) !important;
   z-index: 2 !important;
 }
-
+
+
 
 /* ==========================================================================
    DatabaseViewer Pagination Bar Styles (ISSUE-44)

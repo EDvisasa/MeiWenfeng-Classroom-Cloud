@@ -174,8 +174,8 @@ export default function StatusPanel({
 
       <div className="right-content" style={{ flex: 'none', padding: '12px 16px 12px 16px', flexShrink: 0, display: 'flex', flexDirection: 'column', gap: '8px' }}>
         <div className="character-widget" style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <div className="thought-box" style={{ padding: '12px 16px' }}>
-            <div className="thought-header" style={{ marginBottom: '4px' }}>
+          <div className="thought-box">
+            <div className="thought-header">
               <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M9 17h6a6 6 0 1 0-3-11.2A6.5 6.5 0 0 0 4 12.5 5 5 0 0 0 9 17Z" />
                 <circle cx="6" cy="20" r="1.5" stroke="none" fill="currentColor" />
@@ -183,7 +183,9 @@ export default function StatusPanel({
               </svg>
               此刻内心
             </div>
-            {currentThought}
+            <div className="thought-content">
+              {currentThought}
+            </div>
           </div>
           <div className="character-details" style={{ paddingLeft: '8px' }}>
             <div style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
