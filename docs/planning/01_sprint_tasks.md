@@ -1238,5 +1238,39 @@ domain: project-planning
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `npm --prefix frontend test -- --run KnowledgeLibraryModal` & `npm --prefix frontend test -- --run App`
 
+### <a id="issue-60"></a>[ISSUE-60] 本地与远程大模型通用流式推理中断中枢与显式主动停止机制 (Universal LLM Stream Abort & Active Stop Controller)
+- **Status**: `READY`
+- **Parent**: `PLAN-02`, 算力保护与推理生命周期管理
+- **User Story**: 作为在本地使用 llama.cpp、Ollama、vLLM、LM Studio 或远程云端大模型进行学习对话的用户，我希望在点击「停止生成」按钮时，系统不仅停止前端文本渲染，而且通过通用协议级机制立即切断与底层大模型服务器的推理长连接，使任何本地/远程模型服务在毫秒级内彻底停止 token 生成，释放 GPU/CPU 计算资源，避免显存空转与无效推理。
+- **What to build**:
+  1. **通用活动流注册中心与连接池生命周期托管 (Universal Active Stream Registry)**:
+     - 在后端建立全局线程安全的 `StreamRegistry`（按 `session_id` 维护活动中的底层 `OpenAI Stream` 句柄与取消事件）；
+     - 在 `agent_executor.py` 的 `OpenAILLMClient.stream_completion` 中增加严密的 `try...finally: response.close()` 资源守护，确保一旦迭代终止或收到取消信号，立即物理关闭上游 TCP 套接字，对所有兼容 OpenAI 规范的本地引擎（llama.cpp, Ollama, vLLM 等）实现通用秒级止血；
+  2. **显式中断控制协议端点 (`POST /api/chat/stop`)**:
+     - 新增专用的中断控制路由，接收 `{ "session_id": str }`；
+     - 收到信令后立即从注册表中检索活动流，触发 `stream.close()` 并广播取消事件，同时清理会话注册；
+  3. **前端主动停止双信令协同 (Frontend Stop Trigger & Abort Coordination)**:
+     - 在 `frontend/src/App.jsx` 的 `stopGeneration` 中，除了 `abortControllerRef.current.abort()` 立即冻结前端 UI 打字状态外，同时向 `${API_BASE}/api/chat/stop` 发送显式中断请求（附带当前 `activeSessionId`）；
+  4. **全链路回归测试与跨引擎验证**:
+     - 编写前后端单元测试，断言 `/api/chat/stop` 端点能正确调用 `stream.close()` 并注销会话；
+     - 在本地真实本地模型服务上验证停止后的 `is_processing` 状态即刻回落为 `False`；
+     - 严格遵守零 Emoji 规范与代码库规范。
+- **Affected Files**:
+  - `backend/services/stream_registry.py`
+  - `backend/services/agent_executor.py`
+  - `backend/services/model_router.py`
+  - `backend/routers/chat.py`
+  - `frontend/src/App.jsx`
+  - `backend/tests/test_stream_stop.py`
+  - `docs/planning/01_sprint_tasks.md`
+- **Acceptance Criteria**:
+  - [ ] 后端拥有全局 `StreamRegistry`，任何会话发起推理时登记底层流句柄，结束或异常时自动释放；
+  - [ ] `OpenAILLMClient` 无论正常结束、客户端断开、还是主动取消，均通过 `finally` 执行 `response.close()`；
+  - [ ] 后端提供 `POST /api/chat/stop`，能精准根据 `session_id` 毫秒级断开上游 LLM 的 HTTP 长连接；
+  - [ ] 前端点击「停止生成」按钮时，并发发送 `/api/chat/stop`，彻底阻断本地大模型（llama.cpp/vLLM/Ollama）继续空转；
+  - [ ] 前后端单测全绿，代码无 Emoji，全链路回归通过。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_stream_stop.py` & `npm --prefix frontend test -- --run App`
+
 
 
