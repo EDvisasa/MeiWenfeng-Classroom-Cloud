@@ -50,7 +50,7 @@ export default function App() {
   const [showDbViewer, setShowDbViewer] = useState(false);
   const [initialDbTable, setInitialDbTable] = useState(null);
   const [autoSummarize, setAutoSummarize] = useState(() => localStorage.getItem('classroom_auto_summarize') !== 'false');
-  const [memoryStatus, setMemoryStatus] = useState({ uncompacted_count: 0, threshold: 3, total_diaries: 0, recent_diaries: [] });
+  const [memoryStatus, setMemoryStatus] = useState({ uncompacted_count: 0, threshold: 10, total_diaries: 0, recent_diaries: [] });
   const [isSummarizingMemory, setIsSummarizingMemory] = useState(false);
   const [showMobileStatus, setShowMobileStatus] = useState(false);
   const [theme, setTheme] = useState(localStorage.getItem('mei_theme') || 'light');
@@ -649,7 +649,7 @@ export default function App() {
         const data = await res.json();
         setMemoryStatus({
           uncompacted_count: data.uncompacted_count ?? 0,
-          threshold: data.threshold ?? 3,
+          threshold: data.threshold ?? 10,
           total_diaries: data.total_diaries ?? 0,
           recent_diaries: data.recent_diaries ?? []
         });
@@ -689,11 +689,11 @@ export default function App() {
           const data = await res.json();
           setMemoryStatus({
             uncompacted_count: data.uncompacted_count ?? 0,
-            threshold: data.threshold ?? 3,
+            threshold: data.threshold ?? 10,
             total_diaries: data.total_diaries ?? 0,
             recent_diaries: data.recent_diaries ?? []
           });
-          if ((data.uncompacted_count ?? 0) >= (data.threshold ?? 3)) {
+          if ((data.uncompacted_count ?? 0) >= (data.threshold ?? 10)) {
             setIsSummarizingMemory(true);
             const sumRes = await fetch(`${API_BASE}/api/chat/memory/summarize`, { method: 'POST' });
             if (sumRes.ok) {

@@ -86,7 +86,7 @@ def test_get_memory_status_endpoint(test_db):
     res = get_memory_status()
     assert res["status"] == "success"
     assert res["uncompacted_count"] == 2
-    assert res["threshold"] == 3
+    assert res["threshold"] == 10
     assert res["total_diaries"] == 2
     assert len(res["recent_diaries"]) == 2
     # Verify descending sort order: '日记二' before '日记一'
@@ -100,9 +100,9 @@ def test_response_pipeline_auto_summarize_control(test_db):
     from unittest.mock import MagicMock
 
     cursor = test_db.cursor()
-    # Pre-populate 2 active level 0 items
-    cursor.execute("INSERT INTO memory_logs (content, level, status) VALUES ('pre1', 0, 'active')")
-    cursor.execute("INSERT INTO memory_logs (content, level, status) VALUES ('pre2', 0, 'active')")
+    # Pre-populate 9 active level 0 items (threshold is 10)
+    for i in range(9):
+        cursor.execute("INSERT INTO memory_logs (content, level, status) VALUES (?, 0, 'active')", (f"pre{i}",))
     test_db.commit()
 
     # Case A: auto_summarize = False
@@ -117,12 +117,12 @@ def test_response_pipeline_auto_summarize_control(test_db):
         # Consume the stream so finally executes
         list(pipeline_manual.process_stream(iter(["Assistant says hi"])))
 
-    # Since auto_summarize was False, decay handler must NOT be called
+    # Since auto_summarize was False, decay handler must NOT be called even though count is now 10
     mock_decay_handler.handle.assert_not_called()
     cursor.execute("SELECT COUNT(*) FROM memory_logs WHERE level = 0 AND status = 'active'")
-    assert cursor.fetchone()[0] == 3
+    assert cursor.fetchone()[0] == 10
 
-    # Case B: auto_summarize = True (with 3 already in DB + 1 new = 4 >= 3)
+    # Case B: auto_summarize = True (with 10 already in DB + 1 new = 11 >= 10)
     mock_decay_handler_auto = MagicMock()
     registry_auto = ActionRegistry()
     registry_auto.register("memory_decay", mock_decay_handler_auto)

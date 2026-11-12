@@ -1108,7 +1108,7 @@ domain: project-planning
   1. **右侧栏下半区全景式记忆管理面板**：
      - 剥离原下半区文件树，替换为全新的「记忆与学情沉淀」卡片；
      - 顶部配备【自动 / 手动】整理切换胶囊按钮，持久化至 `localStorage` 与 `ChatRequest` 透传；
-     - 提供未整理记录进度条（如 `2 / 3 篇`，满 3 篇触发浓缩），并带有手动模式状态提示；
+     - 提供未整理记录进度条（如 `2 / 10 轮`，满 10 轮触发浓缩），并带有手动模式状态提示；
      - 提供 `[ 立即归档 ]` 按钮（触发 `/api/chat/memory/summarize`，免手敲 `/summarize`）；
      - 渲染最新 3 篇已浓缩日记（Level 1）折叠卡片列表，支持快速查阅与一键打开数据库查看器；
   2. **右侧栏上半区课题卡片与拟定锁定**：
@@ -1116,7 +1116,7 @@ domain: project-planning
      - 拟定期（`is_drafting`）时保持安全锁定动效与确认提示；
   3. **后端自动整理触发门禁与追平逻辑 (Gatekeeper & Catch-up Engine)**：
      - 在 `backend/services/response_pipeline.py` 中判断 `auto_summarize`，若为手动模式则跳过后台异步 `process_memory_decay`，仅记录原始交互与未浓缩计数；
-     - 切回自动模式时，若 `uncompacted_count >= 3`，立即在后台异步发起追平整理，前端显示微型进度状态；
+     - 切回自动模式时，若 `uncompacted_count >= 10`，立即在后台异步发起追平整理，前端显示微型进度状态；
      - 新增 `GET /api/chat/memory/status` 接口，提供未整理计数、总篇数及最新 3 篇已浓缩日记摘要；
   4. **自动化测试覆盖**：
      - 前端编写 `StatusPanel.test.jsx`，覆盖模式切换、进度条、立即归档触发与日记流展示；

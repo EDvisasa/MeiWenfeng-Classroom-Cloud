@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 # Global lock to prevent concurrent decay processes
 _decay_lock = threading.Lock()
 
-# Level 0 即时归档触发阈值 (篇数)
-LEVEL0_COMPACTION_THRESHOLD = 3
+# Level 0 即时归档触发阈值 (对话轮数)
+LEVEL0_COMPACTION_THRESHOLD = 10
 
 # 定义延时降级配置
 DECAY_CONFIGS = [

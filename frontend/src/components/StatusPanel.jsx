@@ -82,7 +82,7 @@ export default function StatusPanel({
   onFileClick,
   autoSummarize = true,
   onToggleAutoSummarize,
-  memoryStatus = { uncompacted_count: 0, threshold: 3, total_diaries: 0, recent_diaries: [] },
+  memoryStatus = { uncompacted_count: 0, threshold: 10, total_diaries: 0, recent_diaries: [] },
   onSummarizeMemory,
   isSummarizingMemory = false,
   onOpenDatabaseViewer
@@ -109,11 +109,11 @@ export default function StatusPanel({
   const isDrafting = Boolean(mission?.is_drafting);
   const parsedMission = parseMissionObjective(mission);
   const uncompactedCount = memoryStatus?.uncompacted_count ?? 0;
-  const threshold = memoryStatus?.threshold ?? 3;
+  const threshold = memoryStatus?.threshold ?? 10;
   const totalDiaries = memoryStatus?.total_diaries ?? 0;
   const recentDiaries = memoryStatus?.recent_diaries ?? [];
 
-  const progressPercent = Math.min(100, Math.round((uncompactedCount / (threshold || 3)) * 100));
+  const progressPercent = Math.min(100, Math.round((uncompactedCount / (threshold || 10)) * 100));
 
   // 人设 / 氛围 / 整理切换胶囊按钮：统一视觉并强制单行不换行，避免面板变窄时被挤成两行
   const pillStyle = ({ active, muted = false } = {}) => ({

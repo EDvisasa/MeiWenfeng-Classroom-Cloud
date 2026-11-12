@@ -22,7 +22,7 @@ describe('StatusPanel Behavior Tests (ISSUE-56 Phase 1)', () => {
     onToggleAutoSummarize: vi.fn(),
     memoryStatus: {
       uncompacted_count: 2,
-      threshold: 3,
+      threshold: 10,
       total_diaries: 5,
       recent_diaries: [
         { id: 101, timestamp: '2026-11-12 18:00:00', summary: '这是第一篇关于TDD的浓缩日记。', level: 1 },
@@ -71,7 +71,7 @@ describe('StatusPanel Behavior Tests (ISSUE-56 Phase 1)', () => {
 
     const autoBtn = screen.getByText('自动整理');
     expect(autoBtn).toBeInTheDocument();
-    expect(screen.getByText(/自动模式：满 3 轮对话自动触发后台浓缩/)).toBeInTheDocument();
+    expect(screen.getByText(/自动模式：满 10 轮对话自动触发后台浓缩/)).toBeInTheDocument();
 
     fireEvent.click(autoBtn);
     expect(onToggleAutoSummarize).toHaveBeenCalledTimes(1);
@@ -91,7 +91,7 @@ describe('StatusPanel Behavior Tests (ISSUE-56 Phase 1)', () => {
     );
 
     // 进度计数
-    expect(screen.getByText('2 / 3 轮')).toBeInTheDocument();
+    expect(screen.getByText('2 / 10 轮')).toBeInTheDocument();
 
     // 立即归档按钮可点击
     const archiveBtn = screen.getByText('立即归档');
@@ -130,11 +130,12 @@ describe('StatusPanel Behavior Tests (ISSUE-56 Phase 1)', () => {
     render(
       <StatusPanel
         {...defaultProps}
-        memoryStatus={{ uncompacted_count: 0, threshold: 3, total_diaries: 0, recent_diaries: [] }}
+        memoryStatus={{ uncompacted_count: 0, threshold: 10, total_diaries: 0, recent_diaries: [] }}
       />
     );
 
     expect(screen.getByText(/暂无已归档日记/)).toBeInTheDocument();
+    expect(screen.getByText(/累计 10 轮对话后自动生成/)).toBeInTheDocument();
   });
 
   it('行为7：底部查看底层数据库快捷入口 (Database viewer link)', () => {
