@@ -434,3 +434,15 @@ domain: project-planning
   1. **状态信源修正**：在 [frontend/src/App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) 的 HeaderBar 入口按钮处（Line 1577、1584）与 `KnowledgeLibraryModal` 挂载处（Line 2380），将 `statusSummary?.mission?.is_drafting` 严格更正为组件实际状态 `mission?.is_drafting`。
   2. **顶级防回归单测**：新建 [frontend/src/App.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.test.jsx)，对 `App` 组件进行顶级集成挂载测试，验证应用初次加载、顶部档案库按钮展示与弹窗唤起均正常运行无白屏，断言全量零 Emoji。
   3. **全链路回归验证**：运行 `npm --prefix frontend test -- --run` 全量 10 个测试文件 83 项单测全部绿灯通过；生产环境打包 `npm run build` 成功。
+
+### 44. [已解决 / 移动端布局适配与样式排版] 档案库窄屏头部关闭按钮孤立折行与桌面半圆手柄浮空遮挡缺陷
+- **现象描述**：在移动端或窄屏环境（<= 768px）打开“知识与微课档案库”时：
+  1. **头部按钮孤立折行**：弹窗头部（`kl-modal-header`）被排成了三行，关闭按钮 `X` 孤零零地掉在课题选择器下方的第三行极右侧，大面积空白且视觉破碎；
+  2. **折叠手柄浮空遮挡**：用于桌面端折叠左右分栏的半圆手柄（`<button className="kl-sidebar-border-handle">`）以绝对定位（`left: 290px`）悬浮在移动端全宽目录树正中央，遮挡文档条目并造成误触。
+- **根因分析**：
+  1. **CSS Grid 自动排布算法与 display: contents 冲突**：窄屏媒体查询对 `.kl-header-left` 设置了 `display: contents`，使其子元素（标题和跨 2 列的选择器容器）与同级的关闭按钮一同作为 grid item 排布。由于选择器容器跨满两列（`grid-column: 1 / 3`）排在第二行，DOM 顺序在后的关闭按钮自动被推至第三行第二列；
+  2. **移动端未隐藏桌面专属手柄**：移动端采用目录大纲与工作区工作流单栏下钻机制（`mobile-view-tree` 与 `mobile-view-workbench`），无需双栏宽度调节手柄；但媒体查询中漏掉了 `.kl-sidebar-border-handle { display: none !important; }`，导致手柄按桌面坐标强行渲染。
+- **解决路线**：
+  1. **直属三子项网格区域排版 (Grid Template Areas)**：重构 [KnowledgeLibraryModal.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/KnowledgeLibraryModal.jsx) 头部结构，将 `.kl-header-title`、`.kl-course-selector-wrapper`、`.kl-header-right` 作为三项扁平直属子元素；在 [index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 中，桌面端采用 `flex` 单行流式排布，窄屏端采用 `grid-template-areas: "title actions" "course course"`。第一行左右并排标题与关闭按钮（及只读锁定徽章），第二行全宽通栏展示课程课题选择器与新建按钮，彻底根除跨行与错位；
+  2. **移动端绝对隐藏桌面手柄**：在 `@media (max-width: 768px)` 中明确加入 `.kl-sidebar-border-handle { display: none !important; }`，并在单栏视图下强化侧边栏样式防穿透；
+  3. **自动化测试与全链路回归**：在 `KnowledgeLibraryModal.test.jsx` 与全量前端 85 项单测中验证通过，构建成功，后端 197 项单测全绿，严格保持零 Emoji 规范。
