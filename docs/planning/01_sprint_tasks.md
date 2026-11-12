@@ -1272,5 +1272,115 @@ domain: project-planning
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_stream_stop.py` & `npm --prefix frontend test -- --run App`
 
+---
+
+### ISSUE-61: [Database & Schema] 多课题数据表结构扩展与活跃课题上下文跟踪
+- **Status**: [ ] Pending
+- **Triage**: ready-for-agent
+- **Description**:
+  - 为实现多课程物理与数据隔离，迁移扩展数据库表结构：
+    - 新增 `courses` 主表：记录课题代号 `id`、名称 `name`、状态 `status`、创建与访问时间戳；
+    - 存量表动态扩展：`user_mission`、`course_progress`、`glossary` 分别追加 `course_id TEXT DEFAULT 'default'` 字段；
+    - `course_progress` 表追加 `lesson_no INTEGER DEFAULT 1` 支持课时编排；
+    - 系统服务中维护全局当前激活课题指针（`active_course_id`），提供无缝降级到 `'default'`。
+- **Affected Files**:
+  - `backend/database.py`
+  - `backend/services/course_manager.py`
+  - `backend/tests/test_course_isolation_db.py`
+- **Acceptance Criteria**:
+  - [ ] 数据库初次运行及升级迁移时，自动创建 `courses` 表且存量表平滑新增 `course_id` 列；
+  - [ ] 查询 `user_mission`、`course_progress`、`glossary` 时支持按 `course_id` 进行精准隔离；
+  - [ ] 现有测试全量通过，不产生任何回归破坏。
+- **Blocked by**: None - can start immediately
+- **Verification Command**: `pytest backend/tests/test_course_isolation_db.py`
+
+---
+
+### ISSUE-62: [/set_mission] 目标确立自动创建课题物理文件夹与配置绑定
+- **Status**: [ ] Pending
+- **Triage**: ready-for-agent
+- **Description**:
+  - 在 `/set_mission` 强力审问完成并签署契约时：
+    - 大模型根据最终目标语义提炼或推荐合法的短 ASCII 课题标识符（`course_id`，如 `pde_navier_stokes`）；
+    - `<finalize_mission>` 动作拦截器自动调用 `MaterialsManager.create_course(course_id, name)` 生成完整物理目录；
+    - 目标契约文件直接持久化至 `data/materials/courses/<course_id>/Settings/user_mission.md`；
+    - 在 SQLite 中完成课题注册并切换为当前活跃课题。
+- **Affected Files**:
+  - `backend/services/slash_handler.py`
+  - `backend/services/mission_manager.py`
+  - `backend/services/materials_manager.py`
+  - `backend/tests/test_set_mission_course_creation.py`
+- **Acceptance Criteria**:
+  - [ ] 触发 `<finalize_mission>` 后，物理磁盘自动生成 `data/materials/courses/<course_id>/` 及其 5 大标准目录；
+  - [ ] `user_mission.md` 写入到对应课程的 `Settings/` 目录下，不再污染全局根目录；
+  - [ ] 数据库记录更新且该课程设为 active。
+- **Blocked by**: ISSUE-61
+- **Verification Command**: `pytest backend/tests/test_set_mission_course_creation.py`
+
+---
+
+### ISSUE-63: [Side Effects & Filesystem] 讲义、术语及沙盒代码按课题目录强隔离
+- **Status**: [ ] Pending
+- **Triage**: ready-for-agent
+- **Description**:
+  - 彻底阻断不同课题间的文件与术语交叉污染：
+    - `GlossaryHandler`：抽取术语时，写入带当前 `active_course_id` 的 `glossary` 表，并写入该课题的 `Settings/glossary.json`；
+    - `ExplainerHandler`：生成长文参考卡片时，动态存入 `courses/<course_id>/References/`；
+    - `create_file` 与 `replace_file_content` 工具沙盒：操作范围限制在当前课题的 `courses/<course_id>/Sandbox/`，严防跨课题目录逃逸。
+- **Affected Files**:
+  - `backend/services/side_effects.py`
+  - `backend/services/agent_tools.py`
+  - `backend/tests/test_isolated_side_effects.py`
+- **Acceptance Criteria**:
+  - [ ] 课程 A 生成的 `<glossary>` 和 `<explainer>` 只能在课程 A 的目录及数据库记录中查到；
+  - [ ] 课程 B 操作沙盒代码时无法越权读取或覆盖课程 A 的沙盒代码。
+- **Blocked by**: ISSUE-61, ISSUE-62
+- **Verification Command**: `pytest backend/tests/test_isolated_side_effects.py`
+
+---
+
+### ISSUE-64: [/lesson] 课题选定与按课时（Lesson Periods）大纲授课闭环
+- **Status**: [ ] Pending
+- **Triage**: ready-for-agent
+- **Description**:
+  - 升级 `/lesson` 指令与授课大纲系统：
+    - 支持 `/lesson [course_id]` 切换选定课题，或直接输入 `/lesson` 继续当前活跃课题；
+    - 授课时自动装载该课题的专属课时大纲（`lesson_no`、阶段 `phase`、课题 `topic`、当前课时状态）；
+    - 导师系统提示词注入该课题的 `user_mission`、当前课时要求与前序课时掌握度；
+    - 课时测试通过后，通过 `<system_pass>` 推进该课题专属课时进度。
+- **Affected Files**:
+  - `backend/services/slash_handler.py`
+  - `backend/services/course_manager.py`
+  - `frontend/src/components/RightSidebar.jsx`
+  - `backend/tests/test_lesson_course_flow.py`
+- **Acceptance Criteria**:
+  - [ ] 执行 `/lesson` 能够准确选定并切换至目标课题；
+  - [ ] 导师授课严格围绕该课题的专属课时大纲展开，上下文与沙盒自动切入该课题；
+  - [ ] 推进某一课程的课时进度，不影响其他课程的进度状态。
+- **Blocked by**: ISSUE-61, ISSUE-63
+- **Verification Command**: `pytest backend/tests/test_lesson_course_flow.py`
+
+---
+
+### ISSUE-65: [RAG & Vector Retrieval] 跨课程知识库向量切片检索隔离防污染
+- **Status**: [ ] Pending
+- **Triage**: ready-for-agent
+- **Description**:
+  - 阻断 RAG 向量知识库层面的跨学科知识串扰：
+    - 向量化入库（`sync_knowledge`）时为每个 Chunk 绑定 `course_id` 元数据；
+    - 动态上下文组装（`context_manager.py`）进行 RAG 检索时，添加 `course_id` 过滤条件（仅检索当前活跃课程与全局通用基础课程切片）；
+    - 杜绝非本学科（如物理数学与前后端工程）在语义检索时相互污染。
+- **Affected Files**:
+  - `backend/services/rag_factory.py`
+  - `backend/services/chroma_client.py`
+  - `backend/services/context_manager.py`
+  - `backend/tests/test_rag_course_isolation.py`
+- **Acceptance Criteria**:
+  - [ ] 在课程 A 的授课会话中，RAG 检索绝不会召回课程 B 的讲义或记忆切片；
+  - [ ] 全局通用基础知识（`default`）在有必要时仍可被安全召回。
+- **Blocked by**: ISSUE-61
+- **Verification Command**: `pytest backend/tests/test_rag_course_isolation.py`
+
+
 
 

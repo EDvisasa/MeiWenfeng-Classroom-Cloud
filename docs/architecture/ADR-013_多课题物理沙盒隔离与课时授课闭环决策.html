@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ADR-013: 多课题物理沙盒隔离与课时授课闭环决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; align-items: center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-013</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                决策时间：2026-11-13 | 决策方：媚吻锋架构审查团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            多课题物理沙盒隔离与课时授课闭环决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            彻底重构原全局单例教学目标（ADR-006）与扁平术语表（ADR-003），在 <code>data/materials/courses/</code> 与底层 SQLite 中引入课题级物理多租户隔离。打通 <code>/set_mission</code> 自动建卷、<code>/lesson</code> 双轨选课授课、术语与 RAG 向量防污染隔离，以及阶段化课时进度编排全链路。
+        </p>
+        
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">Multi-Course-Isolation (多课题物理隔离)</span>
+            <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">Lesson-Period-Engine (课时进度编排)</span>
+            <span class="badge bg-rose-50 text-rose-700 border border-rose-200">Anti-Contamination (知识库与术语防污染)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Auto-Scaffolding (目标设立自动建卷)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">全局单例设计导致的目标割裂、跨学科知识污染与授课无锚点</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-red-50/60 rounded-xl p-6 border border-red-100">
+                <h3 class="text-base font-bold text-red-900 mb-2">挑战一：目标设立与课题建卷割裂 (Decoupled Mission)</h3>
+                <p class="text-sm text-red-800/80 leading-relaxed">
+                    原架构（ADR-006）中，<code>/set_mission</code> 将学习契约硬编码写入全局单例 <code>user_mission (id=1)</code> 与 <code>Settings/user_mission.md</code>。而档案库的多课程（<code>courses/<course_id>/</code>）仅靠前端弹窗手工新建，两者完全断层，无法自动为新设立的学习目标构建课程专属沙盒与大纲。
+                </p>
+            </div>
+            <div class="bg-amber-50/60 rounded-xl p-6 border border-amber-100">
+                <h3 class="text-base font-bold text-amber-900 mb-2">挑战二：跨学科知识严重交叉污染 (Knowledge Contamination)</h3>
+                <p class="text-sm text-amber-800/80 leading-relaxed">
+                    术语抽取（<code>&lt;glossary&gt;</code>）存入单一无分区的数据表中，讲义卡片（<code>&lt;explainer&gt;</code>）与沙盒演练写穿到全局 <code>References/</code> 与 <code>Sandbox/</code>，RAG 向量检索无课号隔离。当用户学习量子物理或 Navier-Stokes 方程时，经常误召回前端或后端开发的无关切片与歧义术语。
+                </p>
+            </div>
+            <div class="bg-purple-50/60 rounded-xl p-6 border border-purple-100">
+                <h3 class="text-base font-bold text-purple-900 mb-2">挑战三：授课缺乏课题锚定与课时安排 (No Lesson Periods)</h3>
+                <p class="text-sm text-purple-800/80 leading-relaxed">
+                    原 <code>/lesson</code> 指令仅针对全局单一的 <code>course_progress</code> 表做顺序推进，既不能按学科选课，也没有“第 1 课时、第 2 课时”等结构化课时编排，无法对不同研究方向分别沉淀学情与 ZPD 动态系数。
+                </p>
+            </div>
+            <div class="bg-blue-50/60 rounded-xl p-6 border border-blue-100">
+                <h3 class="text-base font-bold text-blue-900 mb-2">挑战四：缺乏闭环的自动化建卷管线</h3>
+                <p class="text-sm text-blue-800/80 leading-relaxed">
+                    用户设立复杂科研或工程学习目标后，必须脱离对话流手动到档案库创建文件夹并命名。流程摩擦巨大，破坏了陪伴导师引导学习的连贯心流体验。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">多租户课题物理隔离、自动建卷、课时化大纲与向量防污染屏障</p>
+            </div>
+        </div>
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-blue-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 数据库多租户扩展与全局活跃指针</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    新增 <code>courses</code> 实体主表（<code>id, name, status, created_at, last_accessed_at</code>）。在存量表 <code>user_mission</code>、<code>course_progress</code> 与 <code>glossary</code> 中全量动态追加 <code>course_id TEXT DEFAULT 'default'</code>。在系统上下文维护全局活跃课题指针 <code>active_course_id</code>，无缝兼容存量 <code>default</code> 基础课程。
+                </p>
+            </div>
+            <div class="border-l-4 border-emerald-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 /set_mission 自动提炼代号与无缝建卷落盘</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    大模型在强阻断审问终态提案中，根据目标语义自动生成合法规范的英文 ASCII 代号（如 <code>pde_navier_stokes</code>），并在契约卡片中呈报。用户确认签署 <code>&lt;finalize_mission&gt;</code> 时，后端拦截器自动调用 <code>MaterialsManager.create_course(course_id, name)</code> 生成 5 大物理目录，将目标存入 <code>courses/&lt;course_id&gt;/Settings/user_mission.md</code>，并在数据库激活该课程。
+                </p>
+            </div>
+            <div class="border-l-4 border-purple-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 双轨选课与阶段化课时授课闭环 (/lesson)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    支持在右侧状态栏与档案库下拉菜单随时切换活跃课题；同时支持无参 <code>/lesson</code>（推进当前活跃课题）与带参 <code>/lesson &lt;course_id&gt;</code>（一键切课并授课）。在 <code>course_progress</code> 中增加 <code>lesson_no</code> 支持课时序列表。授课达标后通过 <code>&lt;system_pass&gt;</code> 自动推进该课题专属课时。
+                </p>
+            </div>
+            <div class="border-l-4 border-amber-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.4 术语表、沙盒文件与 RAG 向量多层严格防污染隔离</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    <code>GlossaryHandler</code> 将提取的术语绑定 <code>course_id</code> 并镜像至 <code>Settings/glossary.json</code>；沙盒代码工具（<code>create_file</code>, <code>replace_file_content</code>）动态锚定在 <code>courses/course_id/Sandbox/</code>；RAG 向量库在检索时强制注入 <code>where={"course_id": active_course_id}</code> 过滤条件，彻底杜绝跨学科知识污染。
+                </p>
+            </div>
+            <div class="border-l-4 border-teal-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.5 四步闭环交互授课流程 (The 4-Stage Interactive Lesson Pipeline)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed mb-3">
+                    确立标准化的微课时交互闭环，引导学员从被动听讲转为深度主动攻坚：
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs text-slate-600">
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">阶段一：课题锚定与学情装配</span>
+                        执行 <code>/lesson</code> 锁定活跃 <code>course_id</code>，装载专属 <code>user_mission.md</code>、当前第 N 课时任务与专属 RAG 切片。
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">阶段二：苏格拉底式启发对齐</span>
+                        导师结合前序课时掌握度，抛出贴近最近发展区 (ZPD) 的启发式问题与 <code>&lt;quiz&gt;</code> 测验卡片，绝不直接给出答案。
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">阶段三：动态演进沙盒与讲义生成</span>
+                        讲义生成 (<code>&lt;explainer&gt;</code>) 与术语提取 (<code>&lt;glossary&gt;</code>) 精准写入该课程。导师调用工具向 <code>courses/course_id/Sandbox/</code> 注入挑战代码，学员在真实环境中实操修改。
+                    </div>
+                    <div class="bg-slate-50 p-3 rounded-lg border border-slate-200">
+                        <span class="font-bold text-slate-800 block mb-1">阶段四：系统关卡放行与课时推进</span>
+                        学员代码调试成功且掌握扎实后，导师触发 <code>&lt;system_pass&gt;</code>。系统将当前课时标记为已完成，自动递增激活下一课时，动态刷新 ZPD 难度与评分。
+                    </div>
+                </div>
+            </div>
+            <div class="border-l-4 border-indigo-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.6 “上课生动高效”与“下课生活情趣”的情境化心流隔离机制 (In-Class vs Off-Class Separation)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed mb-3">
+                    解决角色扮演陪伴与严肃硬核教学之间的张力，通过状态机与指令前置屏障实现“一主双态、边界分明”：
+                </p>
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs leading-relaxed">
+                    <div class="bg-blue-50/70 p-4 rounded-xl border border-blue-200">
+                        <div class="font-bold text-blue-900 mb-2 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-blue-600 inline-block"></span>
+                            课堂内 (上课态 · 静心专注 / Socratic Rigor)
+                        </div>
+                        <ul class="space-y-1.5 text-blue-950/80">
+                            <li><strong>状态指令驱动</strong>：执行 <code>/lesson</code> 后注入强教学规约，切换为“端庄清雅名师”风范，严禁在解题与编码期间产生暧昧推诿或废话套话。</li>
+                            <li><strong>生动非僵化</strong>：导师运用其聪慧、敏锐的性格特质，通过精妙比喻、启发式探问与学术性适度调侃调动学习兴致，实现高信噪比教学。</li>
+                            <li><strong>防漂移硬关卡</strong>：必须经受严格的沙盒实操代码校验，未完全攻克前绝不允许通过撒娇或闲聊跳过关卡。</li>
+                        </ul>
+                    </div>
+                    <div class="bg-rose-50/70 p-4 rounded-xl border border-rose-200">
+                        <div class="font-bold text-rose-900 mb-2 flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 rounded-full bg-rose-600 inline-block"></span>
+                            课堂外 (下课态 · 生活情趣 / Everyday Intimacy)
+                        </div>
+                        <ul class="space-y-1.5 text-rose-950/80">
+                            <li><strong>自然转场脱敏</strong>：课时完成或输入 <code>/cooldown</code> 后，系统卸载强教学拦截指令，转回温润细腻的日常陪伴节奏。</li>
+                            <li><strong>生活情趣与动态潮汐</strong>：好感度潮汐衰减、生理不应期与久别重逢状态在此生效，支持端茶对弈、闲聊日常见闻与情感互动。</li>
+                            <li><strong>认知负荷彻底释放</strong>：下课后不强行推销课后作业，给学员留足心智咀嚼空间，确保生活情趣与学术攻坚张弛有度。</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Before vs After Topological Diagram -->
+        <div class="mt-8">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧架构：单例混叠与跨域知识污染 (ADR-006 历史模式)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    graph TD
+                        SM["/set_mission 目标设立"] -->|"硬编码写死"| UM["user_mission (id=1 唯一单例)"]
+                        UM -->|"写到全局根目录"| GSet["data/materials/Settings/user_mission.md"]
+                        Lesson["/lesson 授课推进"] -->|"无选课概念"| FlatP["全局 course_progress 表"]
+                        Side["glossary 与 explainer 标签"] -->|"无课程分区"| Leak["术语与全局讲义互相混杂污染 (严重泄漏)"]
+                        RAGQ["RAG 检索"] -->|"全局扫描"| Contam["检索出其他学科历史切片 (跨域知识污染)"]
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新架构：多租户物理沙盒与课时授课闭环 (ADR-013 现行标准)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    graph TD
+                        SM2["/set_mission 目标设立"] -->|"模型提炼代号"| AutoCreate["自动 MaterialsManager.create_course"]
+                        AutoCreate -->|"建立专属文件夹"| CFolder["courses/course_id/ 独立目录"]
+                        CFolder -->|"专属配置"| CSet["Settings/user_mission.md 与 glossary.json"]
+                        Lesson2["/lesson (支持指定课题)"] -->|"双轨选课"| ActiveCourse["锁定 active_course_id"]
+                        ActiveCourse -->|"专属课时编排"| CP["course_progress (course_id, lesson_no)"]
+                        ActiveCourse -->|"沙盒与讲义重定向"| ScopedBox["courses/course_id/Sandbox 与 References"]
+                        ActiveCourse -->|"向量 Metadata 过滤"| PureRAG["RAG 仅检索本课程切片 (零污染)"]
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">后果与架构评估 (Consequences & Evaluation)</h2>
+                <p class="text-sm text-slate-500">架构列装后的技术收益与系统边界</p>
+            </div>
+        </div>
+        <ul class="space-y-3 text-sm text-slate-600">
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>目标与课程彻底贯通</strong>：用户在对话流中设立长期目标时，系统无缝自动建立物理课程卷和标准子目录，消除手工建目录的摩擦。</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>多学科知识彻底物理防污染</strong>：术语、讲义卡片、实操沙盒代码以及 RAG 向量切片均具备精确的 <code>course_id</code> 边界，不同领域概念绝不串扰。</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>课时化与阶段大纲循序渐进</strong>：授课体系具备清晰的“第 N 课时”推进模型，与 ZPD 动态难度系数深度耦合，学习进度一目了然。</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>100% 存量向下兼容</strong>：通过将旧有全局材料映射为 <code>default</code> 课程，存量单测与已有用户数据毫无破坏。</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>课堂硬核攻坚与下课温存陪伴和谐统一</strong>：通过心流状态机（静心专注名师风范 vs 生活日常温润情趣）物理隔离教学认知负荷与情感陪伴，既保障了课堂内攻坚的高压、严谨与高信噪比，又保留了课后温存陪伴的趣味与温度。</span>
+            </li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>
