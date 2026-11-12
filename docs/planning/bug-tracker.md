@@ -424,3 +424,13 @@ domain: project-planning
   4. **零 Emoji (Zero Emoji) 极简工程化**：彻底移除界面中所有 emoji 字符（灯泡、刷新旋转等），替换为纯净的矢量 SVG 图标与清爽文案；
   5. **分页栏防折行紧凑化**：在 <=640px 窄屏下自适应隐藏说明区间并以矢量箭头紧凑展示翻页按钮，杜绝文字垂直错位；
   6. **TDD 自动化测试闭环**：在 [`DatabaseViewer.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/DatabaseViewer.test.jsx) 新增移动端下拉切表、侧栏折叠状态切换及全文本 Unicode 零 Emoji 审查单测，前端全量 71 项测试与生产构建双双绿灯。
+
+### 43. [已解决 / 前端状态引用与白屏防御] App.jsx 顶部档案库按钮误用未定义状态变量引发 ReferenceError: statusSummary is not defined
+- **现象描述**：用户进入应用时界面完全白屏无法打开，开发者控制台输出报错：
+  `Uncaught ReferenceError: statusSummary is not defined at App (App.jsx:1577:22)`
+- **根因分析**：
+  在 `App.jsx` 顶部工具栏挂载 `[ 知识与微课档案库 ]` 入口按钮与目标拟定期联动时，误将组件内部受控状态名 `mission` 错写为后端 API 接口返回的字典变量名 `statusSummary`（`statusSummary?.mission?.is_drafting`），导致在渲染 HeaderBar 与 Modal 时抛出未捕获的引用异常（ReferenceError），破坏了整个 React 挂载树。
+- **解决路线**：
+  1. **状态信源修正**：在 [frontend/src/App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) 的 HeaderBar 入口按钮处（Line 1577、1584）与 `KnowledgeLibraryModal` 挂载处（Line 2380），将 `statusSummary?.mission?.is_drafting` 严格更正为组件实际状态 `mission?.is_drafting`。
+  2. **顶级防回归单测**：新建 [frontend/src/App.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.test.jsx)，对 `App` 组件进行顶级集成挂载测试，验证应用初次加载、顶部档案库按钮展示与弹窗唤起均正常运行无白屏，断言全量零 Emoji。
+  3. **全链路回归验证**：运行 `npm --prefix frontend test -- --run` 全量 10 个测试文件 83 项单测全部绿灯通过；生产环境打包 `npm run build` 成功。

@@ -1574,14 +1574,14 @@ export default function App() {
             <button
               className="header-archive-btn"
               onClick={() => setShowKnowledgeLibrary(true)}
-              title={statusSummary?.mission?.is_drafting ? "知识与微课档案库 (当前处于目标拟定期·只读锁定)" : "知识与微课档案库"}
+              title={mission?.is_drafting ? "知识与微课档案库 (当前处于目标拟定期·只读锁定)" : "知识与微课档案库"}
               aria-label="知识与微课档案库"
             >
               <svg width="13" height="13" viewBox="0 0 16 16" fill="currentColor">
                 <path d="M1 2.5A1.5 1.5 0 0 1 2.5 1h3A1.5 1.5 0 0 1 7 2.5v11A1.5 1.5 0 0 1 5.5 15h-3A1.5 1.5 0 0 1 1 13.5v-11zm1.5-.5a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5h-3zM9 2.5A1.5 1.5 0 0 1 10.5 1h3A1.5 1.5 0 0 1 15 2.5v11a1.5 1.5 0 0 1-1.5 1.5h-3A1.5 1.5 0 0 1 9 13.5v-11zm1.5-.5a.5.5 0 0 0-.5.5v11a.5.5 0 0 0 .5.5h3a.5.5 0 0 0 .5-.5v-11a.5.5 0 0 0-.5-.5h-3z" />
               </svg>
               <span>知识档案库</span>
-              {statusSummary?.mission?.is_drafting && (
+              {mission?.is_drafting && (
                 <span className="header-archive-lock-dot" title="目标拟定期锁定">
                   <svg width="9" height="9" viewBox="0 0 16 16" fill="currentColor">
                     <path d="M8 1a2 2 0 0 0-2 2v4H5a2 2 0 0 0-2 2v5a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-1V3a2 2 0 0 0-2-2zm1 6V3a1 1 0 0 0-2 0v4h2z" />
@@ -2377,7 +2377,7 @@ export default function App() {
       <KnowledgeLibraryModal
         isOpen={showKnowledgeLibrary}
         onClose={() => setShowKnowledgeLibrary(false)}
-        isDrafting={Boolean(statusSummary?.mission?.is_drafting)}
+        isDrafting={Boolean(mission?.is_drafting)}
         onFileSaved={() => {
           fetchStatus();
         }}
