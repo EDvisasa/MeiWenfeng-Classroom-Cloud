@@ -1275,14 +1275,14 @@ domain: project-planning
 ---
 
 ### ISSUE-61: [Database & Schema] 多课题数据表结构扩展与活跃课题上下文跟踪
-- **Status**: [ ] Pending
+- **Status**: [~] In Progress
 - **Triage**: ready-for-agent
 - **Description**:
   - 为实现多课程物理与数据隔离，迁移扩展数据库表结构：
     - 新增 `courses` 主表：记录课题代号 `id`、名称 `name`、状态 `status`、创建与访问时间戳；
-    - 存量表动态扩展：`user_mission`、`course_progress`、`glossary` 分别追加 `course_id TEXT DEFAULT 'default'` 字段；
+    - 存量表动态扩展：`user_mission`、`course_progress`、`glossary`、`chat_sessions` 分别追加 `course_id TEXT DEFAULT 'default'` 字段；
     - `course_progress` 表追加 `lesson_no INTEGER DEFAULT 1` 支持课时编排；
-    - 系统服务中维护全局当前激活课题指针（`active_course_id`），提供无缝降级到 `'default'`。
+    - 系统服务中维护当前激活课题指针（`active_course_id`），支持会话切换自动联动与无缝降级到 `'default'`。
 - **Affected Files**:
   - `backend/database.py`
   - `backend/services/course_manager.py`
@@ -1290,6 +1290,7 @@ domain: project-planning
 - **Acceptance Criteria**:
   - [ ] 数据库初次运行及升级迁移时，自动创建 `courses` 表且存量表平滑新增 `course_id` 列；
   - [ ] 查询 `user_mission`、`course_progress`、`glossary` 时支持按 `course_id` 进行精准隔离；
+  - [ ] `chat_sessions` 记录绑定 `course_id`，支持会话切换时联动切换活跃课题上下文；
   - [ ] 现有测试全量通过，不产生任何回归破坏。
 - **Blocked by**: None - can start immediately
 - **Verification Command**: `pytest backend/tests/test_course_isolation_db.py`
@@ -1304,7 +1305,8 @@ domain: project-planning
     - 大模型根据最终目标语义提炼或推荐合法的短 ASCII 课题标识符（`course_id`，如 `pde_navier_stokes`）；
     - `<finalize_mission>` 动作拦截器自动调用 `MaterialsManager.create_course(course_id, name)` 生成完整物理目录；
     - 目标契约文件直接持久化至 `data/materials/courses/<course_id>/Settings/user_mission.md`；
-    - 在 SQLite 中完成课题注册并切换为当前活跃课题。
+    - 在 SQLite 中完成课题注册并切换为当前活跃课题；
+    - 导师祝贺结语中主动输出首阶段建议大纲（`<new_course>`），并提示输入 `/lesson` 即可开学第一课，实现立项与开课无缝衔接。
 - **Affected Files**:
   - `backend/services/slash_handler.py`
   - `backend/services/mission_manager.py`
@@ -1313,7 +1315,8 @@ domain: project-planning
 - **Acceptance Criteria**:
   - [ ] 触发 `<finalize_mission>` 后，物理磁盘自动生成 `data/materials/courses/<course_id>/` 及其 5 大标准目录；
   - [ ] `user_mission.md` 写入到对应课程的 `Settings/` 目录下，不再污染全局根目录；
-  - [ ] 数据库记录更新且该课程设为 active。
+  - [ ] 数据库记录更新且该课程设为 active；
+  - [ ] 导师结语输出首阶段大纲，引导一键进入 `/lesson`。
 - **Blocked by**: ISSUE-61
 - **Verification Command**: `pytest backend/tests/test_set_mission_course_creation.py`
 
@@ -1326,14 +1329,15 @@ domain: project-planning
   - 彻底阻断不同课题间的文件与术语交叉污染：
     - `GlossaryHandler`：抽取术语时，写入带当前 `active_course_id` 的 `glossary` 表，并写入该课题的 `Settings/glossary.json`；
     - `ExplainerHandler`：生成长文参考卡片时，动态存入 `courses/<course_id>/References/`；
-    - `create_file` 与 `replace_file_content` 工具沙盒：操作范围限制在当前课题的 `courses/<course_id>/Sandbox/`，严防跨课题目录逃逸。
+    - `create_file` 与 `replace_file_content` 沙盒代码工具：相对路径自动锚定至当前课题 `courses/<course_id>/Sandbox/`，绝对路径严格校验沙盒边界，越界访问其他课题沙盒或系统目录直接安全拦截。
 - **Affected Files**:
   - `backend/services/side_effects.py`
   - `backend/services/agent_tools.py`
   - `backend/tests/test_isolated_side_effects.py`
 - **Acceptance Criteria**:
   - [ ] 课程 A 生成的 `<glossary>` 和 `<explainer>` 只能在课程 A 的目录及数据库记录中查到；
-  - [ ] 课程 B 操作沙盒代码时无法越权读取或覆盖课程 A 的沙盒代码。
+  - [ ] 课程 B 操作沙盒代码时无法越权读取或覆盖课程 A 的沙盒代码；
+  - [ ] 沙盒工具支持相对路径自动补全至当前激活课题沙盒根目录。
 - **Blocked by**: ISSUE-61, ISSUE-62
 - **Verification Command**: `pytest backend/tests/test_isolated_side_effects.py`
 
@@ -1349,7 +1353,8 @@ domain: project-planning
     - `/lesson [course_id]`：装配该课题专属隔离档案库（`courses/<course_id>/`）、专属课时大纲与隔离沙盒展开授课；
     - 导师系统提示词注入该课题的 `user_mission`、当前课时要求与前序课时掌握度；
     - 课时测试通过后，通过 `<system_pass>` 推进该课题专属课时进度；
-    - `/end_lesson`（别名 `/recess`, `/dismiss`, `/下课`）：课时达成或主动下课时，系统结算学情并将活跃档案库切回公共基础档案（`default`），卸载教学拦截规约，自然回归日常生活情趣。
+    - `/end_lesson`（别名 `/recess`, `/dismiss`, `/下课`）：课时达成或主动下课时，系统结算学情并将活跃档案库切回公共基础档案（`default`），卸载教学拦截规约，自然回归日常生活情趣；
+    - 前端状态栏与档案库弹窗：支持当前课题目录树聚焦展示与面包屑/下拉快速切换。
 - **Affected Files**:
   - `backend/services/slash_handler.py`
   - `backend/services/course_manager.py`
@@ -1360,6 +1365,7 @@ domain: project-planning
   - [ ] 支持中途再次使用 `/plan` 修订细化大纲，且严格保留既往 `completed` 课时记录不被覆写；
   - [ ] 执行 `/lesson` 能够准确选定并切换至目标课题，沙盒与档案库隔离生效；
   - [ ] 执行 `/end_lesson` 或课时完成后，档案库指针安全切回公共 `default` 空间，导师转入温存生活化陪伴语境；
+  - [ ] 前端状态栏材料树聚焦展示当前课题子目录，并提供课题切换入口；
   - [ ] 推进某一课程的课时进度，不影响其他课程的进度状态。
 - **Blocked by**: ISSUE-61, ISSUE-63
 - **Verification Command**: `pytest backend/tests/test_lesson_course_flow.py`
