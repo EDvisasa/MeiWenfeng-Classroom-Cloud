@@ -71,7 +71,7 @@ describe('StatusPanel Behavior Tests (ISSUE-56 Phase 1)', () => {
 
     const autoBtn = screen.getByText('自动整理');
     expect(autoBtn).toBeInTheDocument();
-    expect(screen.getByText(/自动模式：满 3 篇自动触发后台浓缩/)).toBeInTheDocument();
+    expect(screen.getByText(/自动模式：满 3 轮对话自动触发后台浓缩/)).toBeInTheDocument();
 
     fireEvent.click(autoBtn);
     expect(onToggleAutoSummarize).toHaveBeenCalledTimes(1);
@@ -81,7 +81,7 @@ describe('StatusPanel Behavior Tests (ISSUE-56 Phase 1)', () => {
       <StatusPanel {...defaultProps} autoSummarize={false} onToggleAutoSummarize={onToggleAutoSummarize} />
     );
     expect(screen.getByText('手动整理')).toBeInTheDocument();
-    expect(screen.getByText(/手动模式：已暂停自动触发，原始记录静默累加中/)).toBeInTheDocument();
+    expect(screen.getByText(/手动模式：已暂停自动触发，对话静默累加中/)).toBeInTheDocument();
   });
 
   it('行为4：未归档进度条与一键立即归档按钮状态 (Progress bar & manual archive action)', () => {
@@ -91,7 +91,7 @@ describe('StatusPanel Behavior Tests (ISSUE-56 Phase 1)', () => {
     );
 
     // 进度计数
-    expect(screen.getByText('2 / 3 篇')).toBeInTheDocument();
+    expect(screen.getByText('2 / 3 轮')).toBeInTheDocument();
 
     // 立即归档按钮可点击
     const archiveBtn = screen.getByText('立即归档');

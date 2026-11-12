@@ -297,7 +297,7 @@ export default function StatusPanel({
           <button
             onClick={() => onToggleAutoSummarize && onToggleAutoSummarize()}
             style={pillStyle({ active: autoSummarize })}
-            title={autoSummarize ? '当前为自动整理模式（每满 3 篇自动浓缩），点击切换为手动' : '当前为手动整理模式（静默累加），点击切回自动并立即追平'}
+            title={autoSummarize ? `当前为自动整理模式（每满 ${threshold} 轮自动浓缩），点击切换为手动` : '当前为手动整理模式（静默累加），点击切回自动并立即追平'}
           >
             {autoSummarize ? '自动整理' : '手动整理'}
           </button>
@@ -307,11 +307,11 @@ export default function StatusPanel({
       <div className="right-content" style={{ flex: '1 0 auto', display: 'flex', flexDirection: 'column', padding: '0 16px 16px 16px', gap: '10px' }}>
         <div className="memory-panel">
           
-          {/* 未归档记录进度卡片 */}
+          {/* 未归档对话进度卡片 */}
           <div className="memory-progress-card">
             <div className="memory-progress-header">
-              <span className="memory-progress-title">未归档记录</span>
-              <span className="memory-progress-count">{uncompactedCount} / {threshold} 篇</span>
+              <span className="memory-progress-title">未归档对话</span>
+              <span className="memory-progress-count">{uncompactedCount} / {threshold} 轮</span>
             </div>
             <div className="memory-progress-track">
               <div 
@@ -321,8 +321,8 @@ export default function StatusPanel({
             </div>
             <div className="memory-progress-hint">
               {autoSummarize
-                ? '自动模式：满 3 篇自动触发后台浓缩归档'
-                : '手动模式：已暂停自动触发，原始记录静默累加中'}
+                ? `自动模式：满 ${threshold} 轮对话自动触发后台浓缩`
+                : '手动模式：已暂停自动触发，对话静默累加中'}
             </div>
             <button
               className="memory-archive-btn"
@@ -392,7 +392,7 @@ export default function StatusPanel({
               </div>
             ) : (
               <div className="memory-empty-tip">
-                暂无已归档日记<br/>(累计 3 篇对话后自动生成)
+                暂无已归档日记<br/>(累计 {threshold} 轮对话后自动生成)
               </div>
             )}
           </div>
