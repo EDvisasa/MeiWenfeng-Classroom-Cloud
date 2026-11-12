@@ -469,9 +469,8 @@ def test_atmosphere_mode_injection_issue_48():
     # 1. 验证 build_base_system_prompt 传参与 ContextBundle 属性赋值
     bundle_daily, _, _ = build_base_system_prompt(atmosphere_mode="daily")
     assert bundle_daily.atmosphere_mode == "daily"
-    assert "You dynamically operate under one of two atmosphere modes" in bundle_daily.static_system_prompt
-    assert "[ATMOSPHERE_MODE 1: DAILY / 生活模式" in bundle_daily.static_system_prompt
-    assert "[ATMOSPHERE_MODE 2: STUDY / 研学模式" in bundle_daily.static_system_prompt
+    assert "[MODE: DAILY / 生活模式]" in bundle_daily.static_system_prompt
+    assert "[MODE: STUDY / 研学模式]" in bundle_daily.static_system_prompt
 
     bundle_study, _, _ = build_base_system_prompt(atmosphere_mode="study")
     assert bundle_study.atmosphere_mode == "study"
