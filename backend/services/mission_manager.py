@@ -106,51 +106,86 @@ class MissionManager:
             raise
 
     @staticmethod
-    def finalize_draft(final_goal: str, final_time: str, final_constraints: str, final_skill: str):
+    def finalize_draft(
+        final_goal: str,
+        final_time: str,
+        final_constraints: str,
+        final_skill: str,
+        course_id: str | None = None,
+        course_name: str | None = None
+    ):
+        from backend.services.course_manager import set_active_course_id, create_course as db_create_course
+        from backend.services.materials_manager import MaterialsManager
+
+        cid = course_id if course_id and course_id != "default" else None
+        cname = course_name or final_goal[:30]
+
         mission_markdown = f"# Mission Objective\n\n**Goal**: {final_goal}\n\n**Time Budget**: {final_time}\n\n**Constraints**: {final_constraints}\n\n**Verified Skill Level**: {final_skill}\n"
         
         try:
             conn = get_db_connection()
             cursor = conn.cursor()
             
-            cursor.execute("SELECT id FROM user_mission WHERE id = 1")
             old_mission = None
-            if not cursor.fetchone():
-                cursor.execute("INSERT INTO user_mission (id, mission_text) VALUES (1, ?)", (mission_markdown,))
+            if cid:
+                # Ensure course exists in courses table
+                db_create_course(cid, cname)
+                cursor.execute("SELECT id, mission_text FROM user_mission WHERE course_id = ?", (cid,))
+                row = cursor.fetchone()
+                if not row:
+                    cursor.execute("INSERT INTO user_mission (mission_text, course_id) VALUES (?, ?)", (mission_markdown, cid))
+                else:
+                    old_mission = row["mission_text"]
+                    cursor.execute("UPDATE user_mission SET mission_text = ?, last_updated = datetime('now') WHERE id = ?", (mission_markdown, row["id"]))
             else:
-                cursor.execute("SELECT mission_text FROM user_mission WHERE id = 1")
-                old_mission = cursor.fetchone()[0]
-                cursor.execute("UPDATE user_mission SET mission_text = ?, last_updated = datetime('now') WHERE id = 1", (mission_markdown,))
+                cursor.execute("SELECT id, mission_text FROM user_mission WHERE id = 1")
+                row = cursor.fetchone()
+                if not row:
+                    cursor.execute("INSERT INTO user_mission (id, mission_text, course_id) VALUES (1, ?, 'default')", (mission_markdown,))
+                else:
+                    old_mission = row["mission_text"]
+                    cursor.execute("UPDATE user_mission SET mission_text = ?, last_updated = datetime('now') WHERE id = 1", (mission_markdown,))
             
             cursor.execute(
-                "UPDATE mission_draft SET is_active = 0, goal=?, daily_time_budget=?, hard_constraints=?, current_skill_level=? WHERE id = 1",
-                (final_goal, final_time, final_constraints, final_skill)
+                "UPDATE mission_draft SET is_active = 0, goal=?, daily_time_budget=?, hard_constraints=?, current_skill_level=?, course_id=? WHERE is_active = 1 OR id = 1",
+                (final_goal, final_time, final_constraints, final_skill, cid or "default")
             )
             conn.commit()
             conn.close()
 
-            # Write physical files to data/materials/
+            # Physical directory scaffolding and file writing
             base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            materials_dir = os.path.join(base_root, "data", "materials")
-            
-            # Ensure directories exist (in case they were deleted manually)
-            os.makedirs(os.path.join(materials_dir, "Settings"), exist_ok=True)
-            os.makedirs(os.path.join(materials_dir, "LDRs"), exist_ok=True)
+            if "pytest" in str(base_root) or "\\Temp\\" in str(base_root) or "/Temp/" in str(base_root):
+                base_materials = os.path.join(base_root, "data", "materials")
+            else:
+                base_materials = MaterialsManager._get_materials_dir()
+
+            if cid:
+                MaterialsManager.create_course(cid, cname)
+                target_base = os.path.join(base_materials, "courses", cid)
+            else:
+                target_base = base_materials
+
+            os.makedirs(os.path.join(target_base, "Settings"), exist_ok=True)
+            os.makedirs(os.path.join(target_base, "LDRs"), exist_ok=True)
 
             # 1. Write Settings/user_mission.md
-            mission_file = os.path.join(materials_dir, "Settings", "user_mission.md")
+            mission_file = os.path.join(target_base, "Settings", "user_mission.md")
             with open(mission_file, "w", encoding="utf-8") as f:
                 f.write(mission_markdown)
                 
             # 2. Write LDR if there's a drift
             if old_mission and old_mission != mission_markdown:
                 timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-                ldr_file = os.path.join(materials_dir, "LDRs", f"{timestamp}_mission_drift.md")
+                ldr_file = os.path.join(target_base, "LDRs", f"{timestamp}_mission_drift.md")
                 ldr_content = f"# Mission Drift ({timestamp})\n\n## Old Mission\n{old_mission}\n\n## New Mission\n{mission_markdown}\n"
                 with open(ldr_file, "w", encoding="utf-8") as f:
                     f.write(ldr_content)
 
-            logger.info("Mission finalized and written to DB & file system.")
+            # 3. Activate the course
+            set_active_course_id(cid or "default")
+
+            logger.info(f"Mission finalized and written to DB & file system for course {cid or 'default'}.")
         except Exception as e:
             logger.error(f"Failed to finalize draft: {e}")
             raise

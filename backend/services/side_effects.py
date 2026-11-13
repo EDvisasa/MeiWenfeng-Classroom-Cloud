@@ -126,9 +126,33 @@ class PropertyUpdateHandler(SideEffectHandler):
         )
         logger.info(f"动态属性已自动更新: {attrs}")
 
+class FinalizeMissionHandler:
+    def handle(self, attrs: dict, content: str):
+        final_goal = attrs.get('goal', '默认研学目标')
+        final_time = attrs.get('time', '每天1小时')
+        final_constraints = attrs.get('constraints', '无')
+        final_skill = attrs.get('skill', '零基础')
+        course_id = attrs.get('course_id')
+        if not course_id:
+            import re
+            slug = re.sub(r'[^a-zA-Z0-9_\-]', '_', final_goal.lower()).strip('_')
+            slug = re.sub(r'_+', '_', slug)
+            course_id = slug[:30] if slug else "default"
+
+        from backend.services.mission_manager import MissionManager
+        MissionManager.finalize_draft(
+            final_goal=final_goal,
+            final_time=final_time,
+            final_constraints=final_constraints,
+            final_skill=final_skill,
+            course_id=course_id,
+            course_name=final_goal[:30]
+        )
+
 # Register handlers
 action_registry.register("system_pass", SystemPassHandler())
 action_registry.register("glossary", GlossaryHandler())
 action_registry.register("new_course", NewCourseHandler())
 action_registry.register("explainer", ExplainerHandler())
 action_registry.register("property_update", PropertyUpdateHandler())
+action_registry.register("finalize_mission", FinalizeMissionHandler())

@@ -1298,7 +1298,7 @@ domain: project-planning
 ---
 
 ### ISSUE-62: [/set_mission] 目标确立自动创建课题物理文件夹与配置绑定
-- **Status**: [~] In Progress
+- **Status**: [x] Completed
 - **Triage**: ready-for-agent
 - **Description**:
   - 在 `/set_mission` 强力审问完成并签署契约时：
@@ -1313,17 +1313,17 @@ domain: project-planning
   - `backend/services/materials_manager.py`
   - `backend/tests/test_set_mission_course_creation.py`
 - **Acceptance Criteria**:
-  - [ ] 触发 `<finalize_mission>` 后，物理磁盘自动生成 `data/materials/courses/<course_id>/` 及其 5 大标准目录；
-  - [ ] `user_mission.md` 写入到对应课程的 `Settings/` 目录下，不再污染全局根目录；
-  - [ ] 数据库记录更新且该课程设为 active；
-  - [ ] 导师结语输出首阶段大纲，引导一键进入 `/lesson`。
+  - [x] 触发 `<finalize_mission>` 后，物理磁盘自动生成 `data/materials/courses/<course_id>/` 及其 5 大标准目录；
+  - [x] `user_mission.md` 写入到对应课程的 `Settings/` 目录下，不再污染全局根目录；
+  - [x] 数据库记录更新且该课程设为 active；
+  - [x] 导师结语输出首阶段大纲，引导一键进入 `/lesson`。
 - **Blocked by**: ISSUE-61
 - **Verification Command**: `pytest backend/tests/test_set_mission_course_creation.py`
 
 ---
 
 ### ISSUE-63: [Side Effects & Filesystem] 讲义、术语及沙盒代码按课题目录强隔离
-- **Status**: [ ] Pending
+- **Status**: [~] In Progress
 - **Triage**: ready-for-agent
 - **Description**:
   - 彻底阻断不同课题间的文件与术语交叉污染：

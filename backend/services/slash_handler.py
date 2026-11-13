@@ -406,28 +406,54 @@ Current Draft Status:
 1. YOUR SOLE PURPOSE is to fill the missing slots above. Reject any unrelated small talk or questions.
 2. Ask questions naturally in your persona. Do not just output a form. Ask 1 or 2 missing things at a time.
 3. If the user claims a certain "Current Skill Level", you MUST instantly throw a Micro-Quiz to verify it. Do NOT trust self-assessments.
-4. If ALL slots are sufficiently filled and verified by you, you MUST output this exact XML tag to propose the mission contract to the user. This will render an interactive UI for them:
-   <mission_proposal goal="their refined goal" time="time budget" constraints="constraints" skill="verified skill level" />
-5. If the user replies with `<finalize_mission ... />` (meaning they signed the contract UI), you MUST echo exactly the SAME `<finalize_mission goal="..." time="..." constraints="..." skill="..." />` tag in your response to trigger the backend system hook, along with a congratulatory wrap-up.
+4. If ALL slots are sufficiently filled and verified by you, you MUST output this exact XML tag to propose the mission contract to the user, including an extracted concise ASCII slug for course_id (alphanumeric, dashes, underscores only, e.g. pde_navier_stokes):
+   <mission_proposal goal="their refined goal" time="time budget" constraints="constraints" skill="verified skill level" course_id="short_ascii_slug" />
+5. If the user replies with `<finalize_mission ... />` (meaning they signed the contract UI), you MUST echo exactly the SAME `<finalize_mission goal="..." time="..." constraints="..." skill="..." course_id="..." />` tag in your response to trigger the backend system hook. In your closing congratulatory response, proactively outline the suggested syllabus for the initial phase using `<new_course phase="第一阶段" topic="..." />`, and inform the user that their course materials and sandbox are prepared: "输入 /lesson 即可开学第一课" to seamlessly transition from planning to lesson 1.
 </critical_rules>
 </system_directive>"""
 
     # 当 LLM 输出 <finalize_mission ...> 时，拦截器会抓取并在后端执行实际保存
     class FinalizeMissionHandler:
+        def __init__(self, sess_id: Optional[str] = None):
+            self.session_id = sess_id
+
         def handle(self, attrs: dict, content: str):
             final_goal = attrs.get('goal', goal)
             final_time = attrs.get('time', time_budget)
             final_constraints = attrs.get('constraints', constraints)
             final_skill = attrs.get('skill', skill)
-            
+            course_id = attrs.get('course_id')
+
+            if not course_id:
+                import re
+                slug = re.sub(r'[^a-zA-Z0-9_\-]', '_', final_goal.lower()).strip('_')
+                slug = re.sub(r'_+', '_', slug)
+                course_id = slug[:30] if slug else "default"
+
             try:
                 from backend.services.mission_manager import MissionManager
-                MissionManager.finalize_draft(final_goal, final_time, final_constraints, final_skill)
-                logger.info(f"任务设立完成并已写入文件树。强力阻塞已解除。")
+                MissionManager.finalize_draft(
+                    final_goal=final_goal,
+                    final_time=final_time,
+                    final_constraints=final_constraints,
+                    final_skill=final_skill,
+                    course_id=course_id,
+                    course_name=final_goal[:30]
+                )
+                if self.session_id:
+                    try:
+                        from backend.database import get_db_connection
+                        conn = get_db_connection()
+                        conn.execute("UPDATE chat_sessions SET course_id = ? WHERE id = ?", (course_id, self.session_id))
+                        conn.commit()
+                        conn.close()
+                    except Exception:
+                        pass
+                logger.info(f"任务设立完成并已写入文件树。强力阻塞已解除。course_id={course_id}")
             except Exception as e:
                 logger.error(f"写入 Mission 失败: {e}")
 
     # 注册拦截动作
-    action_registry.register("finalize_mission", FinalizeMissionHandler())
+    action_registry.register("finalize_mission", FinalizeMissionHandler(sess_id=session_id))
 
     return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, session_id=session_id)
