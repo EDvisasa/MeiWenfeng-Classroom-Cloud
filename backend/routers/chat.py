@@ -38,6 +38,7 @@ class ChatRequest(BaseModel):
     selected_text: Optional[str] = ""
     custom_max_tokens: Optional[int] = 8192
     auto_summarize: Optional[bool] = True
+    dry_run: Optional[bool] = False
 
 def _build_full_system_prompt(payload: ChatRequest, original_last_user_msg: str):
     from backend.services.context_manager import build_base_system_prompt
@@ -304,7 +305,8 @@ def send_message(payload: ChatRequest):
     pipeline = ResponsePipeline(
         registry=action_registry,
         session_id=payload.session_id,
-        auto_summarize=payload.auto_summarize
+        auto_summarize=payload.auto_summarize,
+        dry_run=bool(getattr(payload, "dry_run", False))
     )
     pipeline.original_user_msg = original_last_user_msg
 

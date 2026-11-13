@@ -200,12 +200,13 @@ class ResponsePipeline:
     聊天响应管道：负责流缓冲、SSE 格式化和副作用派发。
     这是一个纯粹的流处理组件，不包含具体的数据库写入逻辑。
     """
-    def __init__(self, on_stream_end: Callable[[str], None] = None, registry: ActionRegistry = None, session_id: Optional[str] = None, auto_summarize: Optional[bool] = True):
+    def __init__(self, on_stream_end: Callable[[str], None] = None, registry: ActionRegistry = None, session_id: Optional[str] = None, auto_summarize: Optional[bool] = True, dry_run: bool = False):
         self.on_stream_end = on_stream_end
         self.original_user_msg = ""
         self.session_id = session_id
         self.registry = registry
         self.auto_summarize = True if auto_summarize is None else auto_summarize
+        self.dry_run = dry_run
         # 兼容旧代码，直到完全迁移
         self.handlers: Dict[str, Callable] = {}
 
@@ -353,6 +354,19 @@ class ResponsePipeline:
         try:
             from datetime import datetime
             import re
+            import os
+
+            # 安全防护防线：防止测试脚本未做隔离直接冲击生产数据库与真实 ChromaDB 造成长程记忆污染
+            from backend.database import DB_PATH
+            is_prod_db = os.path.basename(DB_PATH) == "classroom.db" and "temp" not in DB_PATH.lower() and "pytest" not in DB_PATH.lower()
+            is_test_session = self.session_id and (
+                self.session_id.startswith("test-") or 
+                self.session_id.startswith("test_") or
+                self.session_id == "test"
+            )
+            if self.dry_run or (is_prod_db and is_test_session):
+                logger.warning(f"Production DB protection active: skipping memory persistence for test session '{self.session_id}' (dry_run={self.dry_run})")
+                return
             
             # 清理长程记忆：剔除所有心理活动和思考标签，节约向量数据库和摘要时的上下文Token
             memory_clean_text = clean_memory_text(clean_text)

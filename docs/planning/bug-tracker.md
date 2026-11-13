@@ -459,3 +459,16 @@ domain: project-planning
   3. **显式中断控制端点 (`POST /api/chat/stop`)**：在 [chat.py](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py) 增设中止端点，接收 `{ session_id }` 并毫秒级触发 `stream.close()` 与事件广播；
   4. **前端主动双信令协同**：在 [App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) 的 `stopGeneration` 中，在执行本地 `abortController.abort()` 冻结界面的同时，并发下发 `POST /api/chat/stop`；
   5. **实测与全链路自动化测试验证**：在 [test_stream_stop.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_stream_stop.py) 覆盖流注册、显式停止与异常退出 7 项单测；联合本地真实 `http://127.0.0.1:18200` llama.cpp 服务器进行端到端实测验证，断言在收到 stop 请求后模型在 1.3 秒内瞬间将 `is_processing` 置为 `False` 彻底释放显卡；后端 206 项单测与前端 86 项单测全部绿灯通过。
+
+### 46. [已解决 / 生产数据库与长程记忆防护] 端到端实测污染生产记忆库与向量库缺失自动回滚机制
+- **现象描述**：在验证 Bug 45（本地模型生成停止）与端到端实测过程中，测试脚本直接通过 `TestClient(app)` 发送请求测试真实推理中止，导致测试用的极端学术长文指令（如“请详细讲解广义相对论引力场方程”、“薛定谔方程”、“引力波”）未经隔离被写入生产数据库 `memory_logs` 表，并作为切片存入 ChromaDB `conversation_memory` 向量库。随后系统自动浓缩日记更将该测试事件误总结为学习历史（ID 2124），导致用户在正常聊天时，本地 AI 误以为这些指令是用户在真实会话中向其下达的，严重污染了真实人设与历史记忆。
+- **根因分析**：
+  1. **端到端实测缺少生产环境物理隔离**：单行测试脚本直接导入 `backend.main.app`，未通过 pytest fixture 或环境变量将 `DB_PATH` 重定向至独立临时数据库，默认沿用了生产 `classroom.db`；
+  2. **验证后未执行 Rollback 回滚与清理**：测试脚本在断言本地模型 `is_processing: False` 成功后直接退出，未调用 `/api/chat/rollback` 撤销测试对话，也未在 `try...finally` 中清理测试残留；
+  3. **后端缺乏测试流量的防御性拦截防线**：`ResponsePipeline` 未对 `test-` 会话前缀或预演模式进行识别，无论何种调试流量均无条件向长程记忆表和向量库进行双写持久化。
+- **解决路线**：
+  1. **生产数据深度清洗与自愈**：从 SQLite `classroom.db` 的 `memory_logs` 中物理剔除测试会话 ID（2120~2123），从 ChromaDB `conversation_memory` 物理硬删除对应的 4 份向量切片；修正受误导的 Level 1 浓缩日记（ID 2124），并通过 `heal_memory_knowledge_from_db()` 重新全量同步向量库，彻底根除幽灵记忆；
+  2. **响应管线防污染安全门禁 (`ResponsePipeline`)**：在 [response_pipeline.py](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py) 中增设双重防护守卫——当检测到环境指向生产数据库且 `session_id` 带有 `test-` / `test_` 等测试特征，或载荷携带 `dry_run=True` 时，强制跳过向 `memory_logs` 与 ChromaDB 写入持久化长程记忆；
+  3. **请求协议层支持预演模式 (`dry_run`)**：在 [chat.py](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py) 的 `ChatRequest` 增设 `dry_run: Optional[bool] = False`，允许任何调试探针在不污染长程档案的前提下跑通端到端流式推理；
+  4. **宪法级制度约束列装**：在 [AGENTS.md](file:///d:/MeiWenfeng-Classroom/AGENTS.md) 与开发测试指南中追加铁律：严禁在未做环境隔离（重定向数据库与向量库）的前提下向生产应用端点灌入测试流量，若临时借用必须在 `try...finally` 块中通过 `/rollback` 强制复原；
+  5. **自动化测试守卫验证**：在 [test_response_pipeline_guard.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_response_pipeline_guard.py) 中新增生产库长程记忆防污染回归单测，全量通过。
