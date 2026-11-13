@@ -166,3 +166,4 @@ def test_plan_command_scoped_and_preserves_completed(clean_and_reset_env):
         assert "[已完成]" in system_injection
         assert "刚体运动学" in system_injection
         assert "COMPLETED LESSONS PROTECTION" in system_injection
+

@@ -26,7 +26,7 @@ class MaterialsManager:
         if safe_course_id:
             courses_base = os.path.abspath(os.path.join(base_materials, "courses"))
             target_dir = os.path.abspath(os.path.join(courses_base, safe_course_id))
-            if not target_dir.startswith(courses_base):
+            if not os.path.normcase(target_dir).startswith(os.path.normcase(courses_base)):
                 raise ValueError("Forbidden: Directory traversal attempt")
             return target_dir
             
@@ -36,7 +36,7 @@ class MaterialsManager:
     def _get_safe_path(cls, rel_path: str, course_id: Optional[str] = None, require_md: bool = False) -> str:
         materials_dir = cls._get_materials_dir(course_id)
         safe_path = os.path.abspath(os.path.join(materials_dir, rel_path))
-        if not safe_path.startswith(materials_dir):
+        if not os.path.normcase(safe_path).startswith(os.path.normcase(materials_dir)):
             raise ValueError("Forbidden: Directory traversal attempt")
         if require_md and not safe_path.endswith(".md"):
             raise ValueError("Forbidden: Only .md files can be modified")
@@ -82,9 +82,9 @@ class MaterialsManager:
             raise ValueError("Forbidden: Course ID cannot be empty or default")
 
         base_materials = cls._get_materials_dir()
-        courses_base = os.path.join(base_materials, "courses")
+        courses_base = os.path.abspath(os.path.join(base_materials, "courses"))
         target_dir = os.path.abspath(os.path.join(courses_base, safe_id))
-        if not target_dir.startswith(courses_base):
+        if not os.path.normcase(target_dir).startswith(os.path.normcase(courses_base)):
             raise ValueError("Forbidden: Directory traversal attempt")
 
         os.makedirs(target_dir, exist_ok=True)

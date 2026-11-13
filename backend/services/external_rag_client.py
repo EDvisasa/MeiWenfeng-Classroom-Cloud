@@ -26,7 +26,7 @@ class ExternalRAGClient(RAGClient):
             h["Authorization"] = f"Bearer {self.api_key}"
         return h
 
-    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4) -> List[str]:
+    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4, course_id: Optional[str] = None, where: Optional[Dict[str, Any]] = None) -> List[str]:
         """向外部 RAG 服务发送检索请求"""
         if not self.base_url:
             return []
@@ -48,7 +48,7 @@ class ExternalRAGClient(RAGClient):
             print(f"ExternalRAG retrieve error: {e}")
         return []
 
-    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
+    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge", course_id: Optional[str] = None) -> Dict[str, Any]:
         """向外部 RAG 服务上传文件（如果支持的话）"""
         if not self.base_url:
             return {"status": "error", "message": "未配置外部 RAG 接口地址"}

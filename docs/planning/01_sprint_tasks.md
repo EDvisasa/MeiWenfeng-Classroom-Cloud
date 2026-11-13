@@ -1373,7 +1373,7 @@ domain: project-planning
 ---
 
 ### ISSUE-65: [RAG & Vector Retrieval] 跨课程知识库向量切片检索隔离防污染
-- **Status**: [~] In Progress
+- **Status**: [x] Completed
 - **Triage**: ready-for-agent
 - **Description**:
   - 阻断 RAG 向量知识库层面的跨学科知识串扰：
@@ -1386,8 +1386,8 @@ domain: project-planning
   - `backend/services/context_manager.py`
   - `backend/tests/test_rag_course_isolation.py`
 - **Acceptance Criteria**:
-  - [ ] 在课程 A 的授课会话中，RAG 检索绝不会召回课程 B 的讲义或记忆切片；
-  - [ ] 全局通用基础知识（`default`）在有必要时仍可被安全召回。
+  - [x] 在课程 A 的授课会话中，RAG 检索绝不会召回课程 B 的讲义或记忆切片；
+  - [x] 全局通用基础知识（`default`）在有必要时仍可被安全召回。
 - **Blocked by**: ISSUE-61
 - **Verification Command**: `pytest backend/tests/test_rag_course_isolation.py`
 

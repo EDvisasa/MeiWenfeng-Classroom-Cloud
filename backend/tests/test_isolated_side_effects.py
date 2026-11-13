@@ -137,3 +137,4 @@ def test_sandbox_tools_isolation_and_relative_path(clean_and_reset_env):
         "new_content": "Hacked"
     })
     assert "GUARDRAIL BLOCKED" in res_cross or "boundary violation" in res_cross
+

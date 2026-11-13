@@ -142,7 +142,7 @@ Action Required:
         prelude_hint = {
             "type": "system_hint",
             "icon": "zpd",
-            "text": f"课题：{target_course_id} | 课时 {lesson_no}：{topic_name} | ZPD 难度系数：{zpd_coefficient}",
+            "text": f"课题：{target_course_id} | 课时 {lesson_no}：{topic_name} | 当前 ZPD 难度系数：{zpd_coefficient}",
             "atmosphere": "study"
         }
         sandbox_path = f"courses/{target_course_id}/Sandbox/" if target_course_id != "default" else "data/materials/Sandbox/"

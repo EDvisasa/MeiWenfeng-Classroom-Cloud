@@ -96,28 +96,32 @@ def test_unclosed_explainer_does_not_swallow_monologue_or_property_update():
     trailing dialogue, <monologue>, or <property_update>.
     """
     registry = ActionRegistry()
+    saved_handlers = dict(registry.handlers)
     captured = []
     
     class DummyHandler(SideEffectHandler):
         def handle(self, attrs, content):
             captured.append({"attrs": attrs, "content": content})
             
-    registry.register("explainer", DummyHandler())
-    
-    pipeline = ResponsePipeline(registry=registry)
-    clean_text = (
-        '<explainer title="FFT Tutorial">\n'
-        'Lecture content here.\n'
-        '<monologue>Secret inner thought</monologue>\n'
-        '<property_update affection_delta="1" />'
-    )
-    
-    pipeline._execute_side_effects(clean_text)
-    
-    assert len(captured) == 1
-    assert captured[0]["attrs"] == {"title": "FFT Tutorial"}
-    assert "Secret inner thought" not in captured[0]["content"]
-    assert "<monologue>" not in captured[0]["content"]
-    assert "<property_update" not in captured[0]["content"]
-    assert captured[0]["content"] == "Lecture content here."
+    try:
+        registry.register("explainer", DummyHandler())
+        
+        pipeline = ResponsePipeline(registry=registry)
+        clean_text = (
+            '<explainer title="FFT Tutorial">\n'
+            'Lecture content here.\n'
+            '<monologue>Secret inner thought</monologue>\n'
+            '<property_update affection_delta="1" />'
+        )
+        
+        pipeline._execute_side_effects(clean_text)
+        
+        assert len(captured) == 1
+        assert captured[0]["attrs"] == {"title": "FFT Tutorial"}
+        assert "Secret inner thought" not in captured[0]["content"]
+        assert "<monologue>" not in captured[0]["content"]
+        assert "<property_update" not in captured[0]["content"]
+        assert captured[0]["content"] == "Lecture content here."
+    finally:
+        registry.handlers = saved_handlers
 

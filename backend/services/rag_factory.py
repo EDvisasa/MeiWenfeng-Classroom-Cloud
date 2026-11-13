@@ -17,7 +17,7 @@ class RAGClient(ABC):
     所有特定的 RAG 后端适配器（如 ChromaDB, RAGFlow）都必须实现此接口。
     """
     @abstractmethod
-    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
+    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge", course_id: Optional[str] = None) -> Dict[str, Any]:
         pass
 
     @abstractmethod
@@ -25,7 +25,7 @@ class RAGClient(ABC):
         pass
 
     @abstractmethod
-    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4) -> List[str]:
+    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4, course_id: Optional[str] = None, where: Optional[Dict[str, Any]] = None) -> List[str]:
         pass
 
     @abstractmethod

@@ -46,7 +46,7 @@ class RAGFlowClient(RAGClient):
             resp.raise_for_status()
             return resp.json()["data"]["id"]
 
-    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
+    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge", course_id: Optional[str] = None) -> Dict[str, Any]:
         """Uploads a dictionary of filename -> markdown content to RAGFlow."""
         if not self.api_key or self.api_key == "your_ragflow_api_key_here":
             return {"status": "error", "message": "RAGFLOW_API_KEY 未配置，请前往 RAGFlow 的 API 页面生成并在 .env 中配置。"}
@@ -145,7 +145,7 @@ class RAGFlowClient(RAGClient):
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def retrieve(self, query: str, dataset_names: list = None, n_results: int = 4) -> list[str]:
+    def retrieve(self, query: str, dataset_names: list = None, n_results: int = 4, course_id: Optional[str] = None, where: Optional[dict] = None) -> list[str]:
         """Retrieve relevant context for a query."""
         if dataset_names is None:
             dataset_names = ["Classroom_Knowledge"]

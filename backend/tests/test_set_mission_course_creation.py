@@ -29,6 +29,7 @@ def clean_and_reset_env(tmp_path):
          patch.object(MaterialsManager, "_get_materials_dir", return_value=test_materials):
         reset_active_course_id()
         init_db()
+        action_registry.register("finalize_mission", backend.services.side_effects.FinalizeMissionHandler())
         yield test_db, test_materials
         reset_active_course_id()
 

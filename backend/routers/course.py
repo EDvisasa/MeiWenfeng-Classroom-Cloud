@@ -135,7 +135,12 @@ def save_material(payload: Dict[str, Any] = Body(...), background_tasks: Backgro
             try:
                 rag_client = get_rag_client()
                 rag_key = f"{course_id}/{path}" if course_id and course_id != "default" else path
-                background_tasks.add_task(rag_client.sync_knowledge, {rag_key: content}, "Classroom_Knowledge")
+                import inspect
+                sig = inspect.signature(rag_client.sync_knowledge)
+                if "course_id" in sig.parameters:
+                    background_tasks.add_task(rag_client.sync_knowledge, {rag_key: content}, "Classroom_Knowledge", course_id=course_id or "default")
+                else:
+                    background_tasks.add_task(rag_client.sync_knowledge, {rag_key: content}, "Classroom_Knowledge")
             except Exception:
                 pass
         return {"status": "success", "message": "Material saved and RAG sync initiated", "course_id": course_id or "default"}

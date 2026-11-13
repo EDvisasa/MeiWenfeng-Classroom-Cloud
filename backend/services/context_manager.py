@@ -170,9 +170,11 @@ def build_base_system_prompt(
     if last_user_msg:
         try:
             from backend.services.rag_factory import get_rag_client
+            from backend.services.course_manager import get_active_course_id
+            active_cid = get_active_course_id()
             rag_client = get_rag_client()
-            kb_chunks = rag_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge"])
-            mem_chunks_from_kb = rag_client.retrieve(last_user_msg, dataset_names=["Memory_Knowledge"])
+            kb_chunks = rag_client.retrieve(last_user_msg, dataset_names=["Classroom_Knowledge"], course_id=active_cid)
+            mem_chunks_from_kb = rag_client.retrieve(last_user_msg, dataset_names=["Memory_Knowledge"], course_id=active_cid)
             mem_chunks_raw = rag_client.retrieve_memory(last_user_msg, n_results=3)
 
             if isinstance(kb_chunks, str): kb_chunks = [kb_chunks] if kb_chunks else []

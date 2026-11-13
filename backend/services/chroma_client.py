@@ -212,12 +212,13 @@ class ChromaRAGClient(RAGClient):
         return self._client.get_or_create_collection(**kwargs)
 
     # ── 知识库文件同步 ────────────────────────────────────────────
-    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge") -> Dict[str, Any]:
+    def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge", course_id: Optional[str] = None) -> Dict[str, Any]:
         """把 Markdown 文件分块后存入 ChromaDB，支持幂等更新（按文件名删旧存新）"""
         try:
             self._ensure_client()
             collection_name = dataset_name.lower().replace(" ", "_").replace("-", "_")
             collection = self._get_collection(collection_name)
+            cid = course_id or "default"
             
             total_chunks = 0
             for filename, content in files_content.items():
@@ -225,11 +226,16 @@ class ChromaRAGClient(RAGClient):
                 
                 # 1. 删除该文件的所有旧块
                 try:
-                    existing = collection.get(where={"source_file": short_name})
+                    existing = collection.get(where={"$and": [{"source_file": short_name}, {"course_id": cid}]})
                     if existing and existing.get("ids"):
                         collection.delete(ids=existing["ids"])
                 except Exception:
-                    pass
+                    try:
+                        existing = collection.get(where={"source_file": short_name})
+                        if existing and existing.get("ids"):
+                            collection.delete(ids=existing["ids"])
+                    except Exception:
+                        pass
                 
                 # 2. 切块并写入
                 if collection_name == "memory_knowledge":
@@ -245,8 +251,8 @@ class ChromaRAGClient(RAGClient):
                 if not chunks:
                     continue
 
-                ids = [hashlib.md5(f"{short_name}::chunk::{i}".encode()).hexdigest() for i in range(len(chunks))]
-                metadatas = [{"source_file": short_name, "chunk_index": i} for i in range(len(chunks))]
+                ids = [hashlib.md5(f"{cid}::{short_name}::chunk::{i}".encode()).hexdigest() for i in range(len(chunks))]
+                metadatas = [{"source_file": short_name, "chunk_index": i, "course_id": cid} for i in range(len(chunks))]
                 
                 collection.upsert(documents=chunks, ids=ids, metadatas=metadatas)
                 total_chunks += len(chunks)
@@ -274,7 +280,14 @@ class ChromaRAGClient(RAGClient):
         except Exception as e:
             return {"status": "error", "message": str(e)}
 
-    def retrieve(self, query: str, dataset_names: Optional[List[str]] = None, n_results: int = 4) -> List[str]:
+    def retrieve(
+        self,
+        query: str,
+        dataset_names: Optional[List[str]] = None,
+        n_results: int = 4,
+        course_id: Optional[str] = None,
+        where: Optional[Dict[str, Any]] = None
+    ) -> List[str]:
         """语义检索：从知识库 + 对话记忆中分别召回，返回 chunk 列表"""
         if dataset_names is None:
             dataset_names = ["Classroom_Knowledge"]
@@ -282,6 +295,19 @@ class ChromaRAGClient(RAGClient):
             self._ensure_client()
             all_chunks = []
             
+            # 确定过滤条件
+            query_where = where
+            if query_where is None and course_id:
+                if course_id == "default":
+                    query_where = {"course_id": "default"}
+                else:
+                    query_where = {
+                        "$or": [
+                            {"course_id": course_id},
+                            {"course_id": "default"}
+                        ]
+                    }
+
             for name in dataset_names:
                 collection_name = name.lower().replace(" ", "_").replace("-", "_")
                 try:
@@ -289,7 +315,15 @@ class ChromaRAGClient(RAGClient):
                     count = collection.count()
                     if count == 0:
                         continue
-                    results = collection.query(query_texts=[query], n_results=min(n_results, count), include=["documents", "distances"])
+                    query_kwargs = {
+                        "query_texts": [query],
+                        "n_results": min(n_results, count),
+                        "include": ["documents", "distances"]
+                    }
+                    if query_where is not None:
+                        query_kwargs["where"] = query_where
+
+                    results = collection.query(**query_kwargs)
                     docs = results.get("documents", [[]])[0]
                     distances = results.get("distances", [[]])[0]
                     if distances and len(distances) == len(docs):
