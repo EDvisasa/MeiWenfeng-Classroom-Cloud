@@ -42,12 +42,29 @@
         <p class="text-base text-slate-600 mb-6 leading-normal">
             由候选报告 <code>context_manager_architecture_report</code> 升格列装。践行 Matt Pocock “深模块 (Deep Modules)” 与 DDD “通用语言 (Ubiquitous Language)” 哲学，收纳解决 Bug #6、Bug #7、Bug #9、Bug #12 (ISSUE-11)。彻底解耦 <code>ContextManager</code> 与 <code>prompts.py</code>，设立角色白名单拦截 UI 专属卡片，消除 <code>=== [DYNAMIC_BOUNDARY] ===` 字符串切割，并将尾部人设注入从 O(N) 倒序扫描重构为 O(1) 极速追加。
         </p>
+
+        <!-- 架构演进补丁说明 -->
+        <div class="mb-6 p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs leading-relaxed">
+            <div class="font-bold flex items-center gap-1.5 mb-1.5 text-amber-950 text-sm">
+                <svg class="w-4 h-4 text-amber-600 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"></path></svg>
+                <span>[架构演进补丁] KV-Cache 前缀稳态分层、多模态先图后文与 @file 边界抽离 (Amended by Bug #47)</span>
+            </div>
+            <p>
+                <strong>演进说明 (2026-11-13 · Bug #47)</strong>：为适配端侧推理引擎（<code>strata-poly</code> / <code>-QueryMaxTokens 8192</code>）的 KV-Cache 前缀复用与 Query 窗口上限，在不改写原 O(1) 尾部夹层核心结构的前提下新增三项运行时约束：
+            </p>
+            <ul class="list-disc pl-5 mt-1.5 space-y-1">
+                <li><strong>静先动后分层与分钟级时间锚点</strong>：<code>ContextManager.assemble_messages</code> 在 <code>&lt;system_injection&gt;</code> 内将稳定协议（如 <code>&lt;agent_execution_protocol&gt;</code>）前置，将运行时易变字段（<code>&lt;active_atmosphere_mode&gt;</code>、<code>&lt;openclaw_gateway_status&gt;</code>、<code>&lt;current_time&gt;</code>）沉底，并将 <code>&lt;current_time&gt;</code> 精度收敛至分钟级（<code>%Y-%m-%d %H:%M</code>），消除同分钟重试时的缓存击穿。</li>
+                <li><strong>多模态严格先图后文 (<code>image_url</code> before <code>text</code>)</strong>：通过 <code>chat.py</code> 的 <code>_order_multimodal_images_first</code> 与 <code>context_manager.py</code> 的 <code>_order_images_first</code> / <code>_merge_message_contents</code>，强制保证所有多模态消息（含合并轮次与末尾包裹轮次）内图片块恒定排在文本块之前。</li>
+                <li><strong><code>@file</code> 正文前置归档边界</strong>：<code>chat.py</code> 的 <code>_attach_file_into_last_user_msg</code> 统一收口 <code>@current_file</code> 与 <code>@path</code> 展开，<code>ContextManager._extract_file_contents</code> 将 <code>&lt;file_content&gt;</code> 提取并锚定至 <code>&lt;/current_session_history&gt;</code> 之前，确保动态尾部稳定收敛在 8192 Token 预算内。</li>
+            </ul>
+        </div>
         
         <!-- Badge Row Extensions -->
         <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
             <span class="badge bg-purple-50 text-purple-700 border border-purple-200">🏷️ LLM-Prompt-Injection (人设与系统提示词注入拦截)</span>
             <span class="badge bg-amber-50 text-amber-700 border border-amber-200">✨ Roleplay-Immersion (酒馆式角色扮演沉浸)</span>
             <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">⚡ O(1)-Complexity-Engine (O(1) 极速上下文追加)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by Bug #47 (KV-Cache 分层与图文/@file 边界)</span>
         </div>
     </header>
 

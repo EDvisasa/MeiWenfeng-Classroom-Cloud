@@ -45,12 +45,16 @@
             <p>
                 <strong>演进说明 (2026-11-13)</strong>：本文档定义的 <code>ResponsePipeline</code> 与副作用处理器（<code>side_effects.py</code>）在 <strong><a href="ADR-013_多课题物理沙盒隔离与课时授课闭环决策.html" class="underline font-bold text-amber-900">ADR-013</a></strong> 中升级为<strong>课题敏感路由（Course-Scoped Routing）</strong>。原架构将 <code>&lt;explainer&gt;</code> 讲义和 <code>&lt;glossary&gt;</code> 术语无差别写入全局根目录的做法已被废弃，全面升级为根据当前 <code>active_course_id</code> 隔离落盘至 <code>courses/&lt;course_id&gt;/References/</code> 与 <code>courses/&lt;course_id&gt;/Settings/glossary.json</code>，彻底杜绝跨学科知识污染。
             </p>
+            <p class="mt-2 pt-2 border-t border-amber-200/70">
+                <strong>演进说明 (2026-11-13 · Bug #46)</strong>：<code>ChatRequest</code> 新增只读演练开关 <code>dry_run</code>，<code>ResponsePipeline</code> 增加<strong>测试与生产持久化物理熔断守卫</strong>：当 <code>dry_run=True</code> 或处于生产数据库且会话 ID 命中测试前缀时，自动旁路跳过 <code>memory_logs</code> 与 ChromaDB 向量写入，杜绝验证流量污染生产记忆库。
+            </p>
         </div>
 
         <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
             <span class="badge bg-blue-50 text-blue-700 border border-blue-200">DB-Transaction (核心数据库事务闭环)</span>
             <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">ZPD-Adaptive (最近发展区难度自适应)</span>
             <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by ADR-013 (副作用目录隔离)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by Bug #46 (dry_run / 测试态写保护)</span>
         </div>
     </header>
 

@@ -49,11 +49,15 @@
             <p>
                 <strong>演进说明 (2026-11-13)</strong>：本文档所制定的教材与记忆两级白名单（Classroom_Knowledge vs Memory_Knowledge）在 <strong><a href="ADR-013_多课题物理沙盒隔离与课时授课闭环决策.html" class="underline font-bold text-amber-900">ADR-013</a></strong> 中进一步扩展为<strong>多课题元数据隔离（Multi-Course Metadata Partition）</strong>。在原有一级白名单基础上，RAG 同步与检索强制注入 <code>where={"course_id": active_course_id}</code> 条件，彻底杜绝不同学术课题之间的向量切片交叉串扰。
             </p>
+            <p class="mt-2 pt-2 border-t border-amber-200/70">
+                <strong>演进说明 (2026-11-13 · Bug #46 / ChromaDB 测试隔离)</strong>：<code>chroma_client.py</code> 引入动态目录解析 <code>get_chroma_persist_dir()</code>（支持 <code>CHROMA_PERSIST_DIR</code> 环境变量重定向）与写保护守卫 <code>_check_mutation_safety()</code>，在 pytest 测试态下硬阻断任何针对生产目录 <code>DEFAULT_CHROMA_DIR</code> 的增删改操作；配合 <code>backend/tests/conftest.py</code> 的 <code>isolate_chroma_db</code>（自动隔离）与 <code>mock_rag_client</code>，实现测试与生产记忆向量库的物理隔离。
+            </p>
         </div>
         
         <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
             <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">RAG-Vector-Indexed (知识库卡片向量化索引)</span>
             <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by ADR-013 (多课题向量过滤)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by Bug #46 (ChromaDB 测试物理隔离锁)</span>
         </div>
     </header>
 
