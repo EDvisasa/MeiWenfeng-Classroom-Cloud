@@ -51,17 +51,16 @@ domain: core-architecture
 
 > 💡 **上下文协议与回合切断测试 (Context & Turn Separation Safety)**：任何对 `backend/services/context_manager.py` 中提示词执行框架（如 `[PHASE 2]` 分回合切断规则、`Cross-reference` 导航锚点）的修改，**必须强制执行 `pytest backend/tests/test_context_manager.py`**，确保大模型在调工具回合能静默发 API 不吐独白，并在最终聊天回合正确生成隐状态与标签。
 
-> 🚨 **【极其致命】数据库变异拦截规则 (Database Mutation Safety)**：在编写或修改任何触及数据库的测试用例时（尤其涉及 `DELETE` / `UPDATE` / `DROP` 操作），**严禁直连生产环境数据库（如 `classroom.db`）！** 所有的测试必须、且只能通过 `backend/tests/conftest.py` 中提供的全局 `mock_db_path` fixture 来将数据库路径劫持到内存或临时文件（如 `test.db`）。当前测试库所有脚本已嵌入运行时断言拦截器，物理阻断任何直连抹除生产数据库 `memory_logs` 等表的操作，确保用户积累的重要学习记忆万无一失。
-
 > [!CAUTION]
-> **【致命红线】端到端实测长程记忆防污染与自动回滚规范 (E2E Test & Production Memory Zero-Pollution)**
-> 任何在自动化单元测试之外进行的临时探针、GPU 压测、模型推理中断耗时测试或端到端联调脚本（如使用 `TestClient(app)` 或命令行 `python -c` 触发 `/api/chat/send`），**严禁无隔离直连生产应用端点！**
+> **【全域红线】生产数据库与长程记忆防污染铁律 (Database & Memory Mutation Safety)**  
+> 无论是自动化单元测试还是临时编写的端到端探针/性能联调脚本，**严禁无隔离直连生产环境数据库（如 `classroom.db`）及向量库！**
 > 
-> * **污染根因**：后端的 `ResponsePipeline` 在大模型流式输出收尾时，会自动触发持久化副作用——将对话记录插入 `classroom.db` 的 `memory_logs` 表，并将语义切片写入 ChromaDB `conversation_memory` 向量库，后续甚至会被自动日记浓缩器合并进 Level 1 长期记忆中。若测试脚本未做隔离或测试后未执行清理，将导致虚假的测试指令（如极端学术长文）伪装成“用户的历史对话”，造成本地 AI 角色认知与长期记忆严重错乱（Bug #46）。
-> * **强制执行防护规范 (三选一物理保险)**：
->   1. **预演模式优先（推荐）**：请求体显式设置 `dry_run: true`（如 `{"session_id": "probe", "dry_run": true, ...}`）。后端的 `ResponsePipeline` 会执行完整的模型推理与流式拦截，但底层安全门禁会物理跳过向 `memory_logs` 和 ChromaDB 写入任何数据。
->   2. **测试会话命名触发安全锁**：临时测试会话必须采用 `test-` 或 `test_` 前缀（如 `session_id="test-abort-probe"`）。`ResponsePipeline` 内置了生产库检测与前缀拦截守卫，当检测到直连生产库且属于测试会话时，强制跳过长程记忆双写。
->   3. **生命周期原子回滚**：若因特殊场景必须写入数据库进行全链路闭环验证，必须在 `try...finally` 块中通过 `POST /api/chat/rollback` 撤销该轮消息与向量切片，或在退出时物理清理数据库记录。
+> 1. **自动化单测防护 (pytest)**：在编写或修改涉及数据库的测试用例时（尤其涉及 `DELETE` / `UPDATE` / `DROP` 操作），必须且只能通过 `backend/tests/conftest.py` 中提供的全局 `mock_db_path` fixture 将数据库路径劫持到内存或临时文件（如 `test.db`）。测试套件内置的运行时断言拦截器会物理阻断直连抹除生产数据库的操作。
+> 2. **端到端探针与联调防护 (E2E Probes)**：针对 `/api/chat/send` 等具有自动持久化副作用（在流式收尾时向 `memory_logs` 与 ChromaDB 写入长程记忆，后续甚至会被自动日记浓缩器固化为 Level 1 长期记忆）的应用端点，强制遵守三层物理防线：
+>    - **预演模式优先（推荐）**：请求体显式声明 `"dry_run": true`，`ResponsePipeline` 底层安全门禁会物理跳过向长程记忆库与向量库写入任何数据；
+>    - **测试会话标识锁**：会话 ID 必须显式携带 `test-` 或 `test_` 前缀（如 `session_id="test-probe"`），触发 `ResponsePipeline` 内置生产库守卫；
+>    - **原子回滚闭环**：若确需落库验证完整生命周期，必须在 `try...finally` 块中调用 `POST /api/chat/rollback` 撤销本轮消息与切片，或在退出前清理。
+> 
 > * **自动化单测回归凭证**：修改响应管线与长程记忆防护逻辑后，必须执行 `pytest backend/tests/test_response_pipeline_guard.py` 验证防污染守卫绿灯。
 
 > 🌐 **网络层工具单测拦截规则 (Network Mock Safety)**：对于 `WebSearchTool`、`ReadUrlContentTool` 等联网工具的单元测试，**严禁在自动化测试（pytest）中直连外部真实网络！** 必须通过 `unittest.mock` 拦截 `DDGS` 及 `httpx.Client`，防止因限流或弱网导致 CI 流水线随机性失败。临时探路验证请存放在 `backend/scripts/` 中并及时清理。
@@ -138,8 +137,8 @@ finally:
 
 在对后端报文组装（如 `ContextManager`）以及系统提示词（System Prompt）进行二次开发或优化时，必须严格遵守以下三大铁律：
 
-> 🚨 **【零污染铁律】内存深拷贝与数据库隔离 (Zero DB Pollution)**  
-> 任何向大模型（LLM API）发送请求前追加的临时提示词（如当前时间戳 `<current_time>`、尾部行为规范指针 Tail Injection 等），**必须且只能在报文列表的深拷贝（Deep Copy）上进行**。绝不允许修改前端传入或业务层持有的原始消息对象，确保后续调用 `/sessions/save` 回写 SQLite 数据库或 ChromaDB 时，持久化的数据 100% 为纯净的会话历史。
+> 🚨 **【内存深拷贝铁律】报文列表防原地篡改原则 (In-Memory Message Immutability)**  
+> 在 `ContextManager` 等提示词编排模块中，任何向大模型（LLM API）发送请求前追加的临时系统提示词（如当前时间戳 `<current_time>`、尾部行为规范指针 Tail Injection 等），**必须且只能在报文列表的深拷贝（Deep Copy）上进行追加**。绝不允许原地修改前端传入或业务层持有的原始消息对象，确保后续调用 `/sessions/save` 回写 SQLite 数据库或 ChromaDB 时，持久化的数据 100% 为纯净的真实会话历史。
 
 > 💡 **【效率铁律】非人设系统指令英文凝练原则 (Concise English for System Instructions)**  
 > 中文字符仅用于角色扮演设定（Persona）、剧情对白与用户的真实问答。所有底层系统操作、动作边界、输出格式规范、分步交叉引用指针（Cross-reference Pointers）以及环境约束等非人设运行提示词，**必须采用简洁、高效的英文编写**。这能显著降低 Token 消耗，同时最大化开源 LLM（如 9B 模型）的注意力杠杆率与指令遵循精度。

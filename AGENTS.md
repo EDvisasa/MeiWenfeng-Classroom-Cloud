@@ -42,4 +42,4 @@
 1. **是否认清任务归属？** -> 翻阅 `docs/planning/01_sprint_tasks.md` 锁准具体目标卡片；
 2. **是否掌握词汇标准？** -> 遇核心类/数据表名，校验 `docs/GLOSSARY.md`；
 3. **是否跑通安全测试？** -> 提交代码前，执行 `pytest` 确保无任何安全与接口回归；
-4. **是否恪守生产数据隔离铁律？** -> 严禁任何脚本或调试指令在未隔离环境（未重定向 DB_PATH 与向量库）下直连生产应用端点 `/api/chat/send` 进行端到端实测；临时推理探针必须开启 `dry_run: true` 或在 `try...finally` 中执行 `/rollback` 确保生产记忆零污染。
+4. **是否恪守数据防污染与回滚铁律？** -> 严禁编写任何无隔离脚本直连生产端点，严格执行 [`docs/01_dev_and_test_guide.md`](file:///d:/MeiWenfeng-Classroom/docs/01_dev_and_test_guide.md) 中的全域红线与端到端探针范式。
