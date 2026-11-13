@@ -1344,7 +1344,7 @@ domain: project-planning
 ---
 
 ### ISSUE-64: [/plan, /lesson & /end_lesson] 课题大纲规划、课时授课与下课切回公共档案闭环
-- **Status**: [~] In Progress
+- **Status**: [x] Completed
 - **Triage**: ready-for-agent
 - **Description**:
   - 升级 `/plan`、`/lesson` 与新增 `/end_lesson` 指令形成完整教学闭环：
@@ -1361,19 +1361,19 @@ domain: project-planning
   - `frontend/src/components/StatusPanel.jsx`
   - `backend/tests/test_lesson_course_flow.py`
 - **Acceptance Criteria**:
-  - [ ] 执行 `/plan` 能够准确锁定课题，读取该课题专属 `user_mission.md` 并生成专属 `syllabus.md`；
-  - [ ] 支持中途再次使用 `/plan` 修订细化大纲，且严格保留既往 `completed` 课时记录不被覆写；
-  - [ ] 执行 `/lesson` 能够准确选定并切换至目标课题，沙盒与档案库隔离生效；
-  - [ ] 执行 `/end_lesson` 或课时完成后，档案库指针安全切回公共 `default` 空间，导师转入温存生活化陪伴语境；
-  - [ ] 前端状态栏材料树聚焦展示当前课题子目录，并提供课题切换入口；
-  - [ ] 推进某一课程的课时进度，不影响其他课程的进度状态。
+  - [x] 执行 `/plan` 能够准确锁定课题，读取该课题专属 `user_mission.md` 并生成专属 `syllabus.md`；
+  - [x] 支持中途再次使用 `/plan` 修订细化大纲，且严格保留既往 `completed` 课时记录不被覆写；
+  - [x] 执行 `/lesson` 能够准确选定并切换至目标课题，沙盒与档案库隔离生效；
+  - [x] 执行 `/end_lesson` 或课时完成后，档案库指针安全切回公共 `default` 空间，导师转入温存生活化陪伴语境；
+  - [x] 前端状态栏材料树聚焦展示当前课题子目录，并提供课题切换入口；
+  - [x] 推进某一课程的课时进度，不影响其他课程的进度状态。
 - **Blocked by**: ISSUE-61, ISSUE-63
 - **Verification Command**: `pytest backend/tests/test_lesson_course_flow.py`
 
 ---
 
 ### ISSUE-65: [RAG & Vector Retrieval] 跨课程知识库向量切片检索隔离防污染
-- **Status**: [ ] Pending
+- **Status**: [~] In Progress
 - **Triage**: ready-for-agent
 - **Description**:
   - 阻断 RAG 向量知识库层面的跨学科知识串扰：

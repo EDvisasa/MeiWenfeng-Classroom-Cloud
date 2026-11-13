@@ -80,54 +80,96 @@ Action Required:
 </system_directive>"""
         return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, session_id=session_id)
 
-    # 从数据库获取用户的宏大目标 (Mission)
+    # === 6.1 /end_lesson (别名 /下课, /recess, /dismiss) ===
+    if clean_cmd in ("/end_lesson", "end_lesson", "/下课", "下课", "/recess", "recess", "/dismiss", "dismiss"):
+        from backend.services.course_manager import reset_active_course_id
+        reset_active_course_id()
+        prelude_hint = {
+            "type": "system_hint",
+            "text": "课时学情已结算封存，已下课并切回生活模式与公共基础档案 (default)。",
+            "atmosphere": "daily"
+        }
+        system_injection = """<system_directive mode="recess">
+Event: The user triggered the `/end_lesson` (下课) command to conclude class.
+Active Knowledge Archive: Reset and returned to public basic space (default).
+
+Action Required:
+1. Conclude the formal lesson. Warmly acknowledge today's learning effort in your affectionate persona.
+2. Return completely to your warm daily companionship tone (tender, relaxed, playful, caring).
+3. Do NOT issue any new quizzes, homework, or strict tests. Offer tea, suggest a walk or casual chat, and enjoy off-class leisure.
+</system_directive>"""
+        return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, prelude_hint=prelude_hint, session_id=session_id)
+
+    # 从数据库获取当前激活课题
+    from backend.services.course_manager import get_active_course_id, set_active_course_id, get_active_course, get_formatted_syllabus, get_zpd_metrics, record_quiz_result
     from backend.services.mission_manager import MissionManager
-    user_mission = MissionManager.get_user_mission()
+
+    # 解析命令参数中显式指定的 course_id（如 /lesson pde_navier_stokes 或 /plan pde_navier_stokes）
+    target_course_id = None
+    cmd_tokens = clean_cmd.split()
+    if len(cmd_tokens) > 1 and cmd_tokens[0] in ("/lesson", "/plan"):
+        target_course_id = cmd_tokens[1].strip()
+        set_active_course_id(target_course_id)
+        if session_id:
+            try:
+                from backend.database import get_db_connection
+                conn = get_db_connection()
+                conn.execute("UPDATE chat_sessions SET course_id = ? WHERE id = ?", (target_course_id, session_id))
+                conn.commit()
+                conn.close()
+            except Exception:
+                pass
+    else:
+        target_course_id = get_active_course_id()
+
+    user_mission = MissionManager.get_user_mission(target_course_id)
 
     # 以下指令均需要由大模型接管输出，因此使用“系统提示词注入”并拉起常规对话流
     system_injection = ""
     prelude_hint = None
-    from backend.services.course_manager import get_active_course, get_formatted_syllabus
 
-    active_course = get_active_course()
-    topic_name = active_course["topic"] if active_course else "自由探索（当前无待办课题，请用 /计划 生成）"
+    active_course = get_active_course(target_course_id)
+    topic_name = active_course["topic"] if active_course else "自由探索（当前无待办课题，请用 /plan 生成）"
+    lesson_no = active_course.get("lesson_no", 1) if active_course else 1
 
     file_context = ""
     if current_file_path:
         file_context = f"<active_document>The user is currently reviewing the document: {os.path.basename(current_file_path)}</active_document>"
 
-    if clean_cmd == "/lesson":
-        from backend.services.course_manager import get_zpd_metrics
-        zpd_metrics = get_zpd_metrics(topic_name)
+    if clean_cmd.startswith("/lesson") and not clean_cmd.startswith("/lesson_continue"):
+        zpd_metrics = get_zpd_metrics(topic_name, target_course_id)
         zpd_coefficient = zpd_metrics["coefficient"]
         prelude_hint = {
             "type": "system_hint",
             "icon": "zpd",
-            "text": f"当前 ZPD 难度系数：{zpd_coefficient}（连对两题自动上调，连错自动回调）",
+            "text": f"课题：{target_course_id} | 课时 {lesson_no}：{topic_name} | ZPD 难度系数：{zpd_coefficient}",
+            "atmosphere": "study"
         }
-        system_injection = f"""<system_directive>
-Event: The user triggered the `/lesson` command to start a formal lesson.
-User's Ultimate Mission: {user_mission}
-Current Topic: {topic_name}
+        sandbox_path = f"courses/{target_course_id}/Sandbox/" if target_course_id != "default" else "data/materials/Sandbox/"
+        system_injection = f"""<system_directive mode="lesson">
+Event: The user triggered the `/lesson` command to start a formal lesson in course '{target_course_id}'.
+Active Course: {target_course_id} (Sandbox path: {sandbox_path})
+User's Mission: {user_mission}
+Current Lesson: 课时 {lesson_no} - {topic_name}
 Current ZPD Difficulty Coefficient: {zpd_coefficient}
 {file_context}
 
-Action Required: Enter your mentor persona and teach today's topic with living analogies and short paragraphs.
+Action Required: Enter your mentor persona and teach today's topic with living analogies, intuitive models, and short paragraphs.
 Lesson & Quiz Guidelines:
-1. Grounded Pedagogy: The theory explanation MUST be plain, intuitive, and grounded in common-sense analogies (Reference 极简).
-2. Conclude with a Quiz: Conclude this lesson segment with exactly ONE standard 4-option multiple choice `<quiz>` (encapsulated in `<quiz type="multiple_choice">` adhering to response_format_rules).
-3. ZPD Cognitive Gradient (Current Coefficient: {zpd_coefficient}):
+1. Grounded Pedagogy: The theory explanation MUST be plain, intuitive, and grounded in common-sense analogies.
+2. Isolated Sandbox: Guide the user to inspect and run code in their isolated sandbox: {sandbox_path}.
+3. Conclude with a Quiz: Conclude this lesson segment with exactly ONE standard 4-option multiple choice `<quiz>` (encapsulated in `<quiz type="multiple_choice">` adhering to response_format_rules).
+4. ZPD Cognitive Gradient (Current Coefficient: {zpd_coefficient}):
    - 0.5 ~ 1.0: Intuitive core definitions and scaffolded discrimination.
    - 1.1 ~ 2.0: Execution flow, boundary traps, and common coding pitfalls.
    - 2.1 ~ 3.0: Deep underlying mechanisms, composite multi-condition deductions, and deceptive distractors.
 </system_directive>"""
     elif clean_cmd == "/lesson_continue":
-        from backend.services.course_manager import get_zpd_metrics, record_quiz_result
         is_correct = _parse_quiz_result_correct(last_user_msg)
         if is_correct is not None:
-            zpd_metrics = record_quiz_result(is_correct, topic_name)
+            zpd_metrics = record_quiz_result(is_correct, topic_name, target_course_id)
         else:
-            zpd_metrics = get_zpd_metrics(topic_name)
+            zpd_metrics = get_zpd_metrics(topic_name, target_course_id)
         zpd_coefficient = zpd_metrics["coefficient"]
         total_wrong = zpd_metrics.get("total_consecutive_wrong", zpd_metrics.get("consecutive_wrong", 0))
 
@@ -173,23 +215,30 @@ User's Ultimate Mission: {user_mission}
 4. PASS CONDITION (EVOLVING SANDBOX): 
    - If the user perfectly masters the current topic/code challenge, do NOT just say "pass".
    - First, praise them and explicitly ask: "干得漂亮！你准备好迎接下一阶挑战了吗？" (Or something similar in your persona's tone).
-   - ONLY AFTER the user explicitly replies "yes/ready" in their next message, you MUST use the `<call_tool name="replace_file_content">` tool (to modify existing files) or `<call_tool name="create_file">` tool (to create new files) to surgically evolve their current sandbox code (typically in `data/materials/Sandbox/`) to introduce a new bug or increase the difficulty (Desirable Difficulty / Interleaving).
+   - ONLY AFTER the user explicitly replies "yes/ready" in their next message, you MUST use the `<call_tool name="replace_file_content">` tool (to modify existing files) or `<call_tool name="create_file">` tool (to create new files) to surgically evolve their current sandbox code to introduce a new bug or increase the difficulty (Desirable Difficulty / Interleaving).
    - Provide a brief "学情洞察" (Learning Insight) summarizing their newly acquired ZPD edge so the background memory script can log it.
 5. INTERACTIVE QUIZ: You may occasionally use the `<quiz type="multiple_choice">` tag to throw a pop quiz at the user. The frontend will render it as a UI component. The JSON inside must have "question", "options" (array), "correct_index" (int), and "explanation".
 </critical_rules>
 </system_directive>"""
-    elif clean_cmd == "/plan":
-        syllabus_text = get_formatted_syllabus()
-        system_injection = f"""<system_directive>
-Event: The user triggered the `/plan` command.
-User's Ultimate Mission: {user_mission}
+    elif clean_cmd.startswith("/plan"):
+        syllabus_text = get_formatted_syllabus(target_course_id)
+        system_injection = f"""<system_directive mode="plan">
+Event: The user triggered the `/plan` command to plan or revise the syllabus for course '{target_course_id}'.
+Active Course: {target_course_id}
+User's Ultimate Mission for this course: {user_mission}
 
 <current_syllabus_progress>
 {syllabus_text}
 </current_syllabus_progress>
 
-Action Required: As a mentor, review their recent progress and outline their upcoming cultivation plan.
-Output Format: If you need to append new topics to the syllabus, embed the following tag in your response: `<new_course phase="Phase Name" topic="Topic Name" />`. The system will automatically add it to the pending progress.
+<critical_rules_for_planning>
+1. LIVING SYLLABUS & DYNAMIC REVISION:
+   - If the user is dissatisfied or requests modifications, revise and refine the upcoming syllabus accordingly.
+   - COMPLETED LESSONS PROTECTION: Any topics marked as [已完成] MUST be strictly preserved and not removed or overwritten. Only re-plan or subdivide [当前] and [未修] lessons.
+2. Output Format:
+   - Output each newly planned or refined topic using: `<new_course phase="Phase Name" topic="Topic Name" />`.
+   - The backend interceptor will append to the course progress table and mirror to courses/{target_course_id}/Lessons/syllabus.md.
+</critical_rules_for_planning>
 </system_directive>"""
 
     return _stream_normal_chat_with_injection(last_user_msg, cleaned_messages, persona_type, system_injection, prelude_hint=prelude_hint, session_id=session_id)

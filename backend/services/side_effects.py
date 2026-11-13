@@ -78,10 +78,26 @@ class NewCourseHandler(SideEffectHandler):
         phase = attrs.get("phase", "").strip()
         topic = attrs.get("topic", "").strip()
         if not phase or not topic: return
-        from backend.services.course_manager import append_to_syllabus, get_active_course_id
+        from backend.services.course_manager import append_to_syllabus, get_active_course_id, get_formatted_syllabus
         course_id = attrs.get("course_id") or get_active_course_id()
         append_to_syllabus(phase, topic, course_id=course_id)
         logger.info(f"大纲已成功追加新课题 [course={course_id}]: {phase} - {topic}")
+
+        # Mirror to Lessons/syllabus.md in isolated course directory
+        try:
+            from backend.services.materials_manager import MaterialsManager
+            materials_base = MaterialsManager._get_materials_dir()
+            if course_id and course_id != "default":
+                lessons_dir = os.path.join(materials_base, "courses", course_id, "Lessons")
+            else:
+                lessons_dir = os.path.join(materials_base, "Lessons")
+            os.makedirs(lessons_dir, exist_ok=True)
+            syllabus_md_path = os.path.join(lessons_dir, "syllabus.md")
+            syllabus_content = f"# Course Syllabus: {course_id}\n\n{get_formatted_syllabus(course_id)}\n"
+            with open(syllabus_md_path, "w", encoding="utf-8") as f:
+                f.write(syllabus_content)
+        except Exception as e:
+            logger.error(f"Failed to mirror syllabus to markdown: {e}")
 
 class ExplainerHandler(SideEffectHandler):
     def handle(self, attrs: Dict[str, Any], content: str) -> None:

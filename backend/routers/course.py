@@ -30,13 +30,18 @@ def get_status_summary():
 
         conn.close()
         
+        from backend.services.course_manager import get_active_course_id, list_courses as db_list_courses, get_active_course
+        active_course_id = get_active_course_id()
+        courses = db_list_courses()
+        active_lesson = get_active_course(active_course_id)
+
         # 获取 Mission 相关状态
         active_draft = MissionManager.get_active_draft()
-        user_mission = MissionManager.get_user_mission()
+        user_mission = MissionManager.get_user_mission(active_course_id)
         parsed_mission = MissionManager.parse_mission_markdown(user_mission)
         
-        # 获取知识树
-        knowledge_tree = MaterialsManager.build_knowledge_tree()
+        # 获取知识树（聚焦在当前活跃课程）
+        knowledge_tree = MaterialsManager.build_knowledge_tree(course_id=active_course_id)
 
         return {
             "affection": affection,
@@ -45,6 +50,9 @@ def get_status_summary():
             "refractory_period": refractory_period,
             "active_model": active_model,
             "active_sub_model": active_sub_model,
+            "active_course_id": active_course_id,
+            "courses": courses,
+            "active_lesson": active_lesson,
             "mission": {
                 "current_mission": user_mission,
                 "parsed_goal": parsed_mission.get("goal") or user_mission,
@@ -58,6 +66,14 @@ def get_status_summary():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+@router.post("/course/active")
+def switch_active_course(payload: Dict[str, Any] = Body(...)):
+    """切换当前全局活跃课程"""
+    course_id = payload.get("course_id", "default")
+    from backend.services.course_manager import set_active_course_id
+    set_active_course_id(course_id)
+    return {"status": "success", "active_course_id": course_id}
 
 @router.get("/materials/courses")
 def list_courses():
