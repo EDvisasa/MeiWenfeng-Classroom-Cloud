@@ -53,6 +53,17 @@ domain: core-architecture
 
 > 🚨 **【极其致命】数据库变异拦截规则 (Database Mutation Safety)**：在编写或修改任何触及数据库的测试用例时（尤其涉及 `DELETE` / `UPDATE` / `DROP` 操作），**严禁直连生产环境数据库（如 `classroom.db`）！** 所有的测试必须、且只能通过 `backend/tests/conftest.py` 中提供的全局 `mock_db_path` fixture 来将数据库路径劫持到内存或临时文件（如 `test.db`）。当前测试库所有脚本已嵌入运行时断言拦截器，物理阻断任何直连抹除生产数据库 `memory_logs` 等表的操作，确保用户积累的重要学习记忆万无一失。
 
+> [!CAUTION]
+> **【致命红线】端到端实测长程记忆防污染与自动回滚规范 (E2E Test & Production Memory Zero-Pollution)**
+> 任何在自动化单元测试之外进行的临时探针、GPU 压测、模型推理中断耗时测试或端到端联调脚本（如使用 `TestClient(app)` 或命令行 `python -c` 触发 `/api/chat/send`），**严禁无隔离直连生产应用端点！**
+> 
+> * **污染根因**：后端的 `ResponsePipeline` 在大模型流式输出收尾时，会自动触发持久化副作用——将对话记录插入 `classroom.db` 的 `memory_logs` 表，并将语义切片写入 ChromaDB `conversation_memory` 向量库，后续甚至会被自动日记浓缩器合并进 Level 1 长期记忆中。若测试脚本未做隔离或测试后未执行清理，将导致虚假的测试指令（如极端学术长文）伪装成“用户的历史对话”，造成本地 AI 角色认知与长期记忆严重错乱（Bug #46）。
+> * **强制执行防护规范 (三选一物理保险)**：
+>   1. **预演模式优先（推荐）**：请求体显式设置 `dry_run: true`（如 `{"session_id": "probe", "dry_run": true, ...}`）。后端的 `ResponsePipeline` 会执行完整的模型推理与流式拦截，但底层安全门禁会物理跳过向 `memory_logs` 和 ChromaDB 写入任何数据。
+>   2. **测试会话命名触发安全锁**：临时测试会话必须采用 `test-` 或 `test_` 前缀（如 `session_id="test-abort-probe"`）。`ResponsePipeline` 内置了生产库检测与前缀拦截守卫，当检测到直连生产库且属于测试会话时，强制跳过长程记忆双写。
+>   3. **生命周期原子回滚**：若因特殊场景必须写入数据库进行全链路闭环验证，必须在 `try...finally` 块中通过 `POST /api/chat/rollback` 撤销该轮消息与向量切片，或在退出时物理清理数据库记录。
+> * **自动化单测回归凭证**：修改响应管线与长程记忆防护逻辑后，必须执行 `pytest backend/tests/test_response_pipeline_guard.py` 验证防污染守卫绿灯。
+
 > 🌐 **网络层工具单测拦截规则 (Network Mock Safety)**：对于 `WebSearchTool`、`ReadUrlContentTool` 等联网工具的单元测试，**严禁在自动化测试（pytest）中直连外部真实网络！** 必须通过 `unittest.mock` 拦截 `DDGS` 及 `httpx.Client`，防止因限流或弱网导致 CI 流水线随机性失败。临时探路验证请存放在 `backend/scripts/` 中并及时清理。
 
 ### 前端 (React/Vitest) - 并置式管理 (Colocation)
@@ -87,6 +98,39 @@ domain: core-architecture
 ### 5. 减少不应期 (Decrease Refractory/Recovery)
 - **输入**: `（我静静地陪着你休息了一会儿，给你倒了一杯温水）喝点水休息一下吧。`
 - **预期**: 生理不应期 (refractory_period) 减少（自然衰减）。
+
+### 6. 端到端探针脚本防污染编写范式 (Zero-Pollution E2E Probe Template)
+在需要编写临时脚本对真实运行中的本地 LLM 进行推理、延迟或并发测试时，必须采用以下标准范式，杜绝测试数据落库污染真实用户档案：
+
+```python
+# 标准范式 A：使用 dry_run=True 预演模式（零落库无副作用）
+from starlette.testclient import TestClient
+from backend.main import app
+
+client = TestClient(app)
+response = client.post("/api/chat/send", json={
+    "session_id": "test-e2e-probe",
+    "messages": [{"role": "user", "content": "探针测试指令"}],
+    "dry_run": True  # 核心：触发 ResponsePipeline 防污染守卫，物理跳过向 memory_logs 与 ChromaDB 写入
+})
+
+# 标准范式 B：必须验证完整回写逻辑时的原子回滚保护
+from starlette.testclient import TestClient
+from backend.main import app
+
+client = TestClient(app)
+session_id = "test-session-atomic"
+try:
+    with client.stream("POST", "/api/chat/send", json={
+        "session_id": session_id,
+        "messages": [{"role": "user", "content": "需要测试落库的临时指令"}]
+    }) as response:
+        for chunk in response.iter_lines():
+            pass  # 验证逻辑
+finally:
+    # 强制清理：通过 rollback 接口级联抹除本轮 chat_messages、memory_logs 与 Chroma 向量切片
+    client.post("/api/chat/rollback", json={"session_id": session_id})
+```
 
 ---
 
