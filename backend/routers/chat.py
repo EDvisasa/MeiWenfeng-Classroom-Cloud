@@ -83,6 +83,72 @@ def get_system_context(payload: ChatRequest):
         
     return {"status": "success", "baseSystemTokens": tokens, "system_prompt": full_preview_prompt}
 
+def _order_multimodal_images_first(items: List[Any]) -> List[Any]:
+    """确保多模态 content 数组中所有 image_url 块排在最前面，text 等文本块排在最后面"""
+    images = [it for it in items if isinstance(it, dict) and it.get("type") == "image_url"]
+    others = [it for it in items if not (isinstance(it, dict) and it.get("type") == "image_url")]
+    return images + others
+
+
+def _attach_file_into_last_user_msg(
+    file_path: str,
+    token: str,
+    keep_token_on_image: bool,
+    last_user_msg: str,
+    cleaned_messages: List[Dict[str, Any]],
+) -> str:
+    """将 @file（图片或文本文件）注入到最后一条 user 消息，确保图片始终位于文本之前"""
+    import base64
+    import os
+
+    ext = file_path.lower().split('.')[-1]
+    basename = os.path.basename(file_path)
+
+    if ext in ['png', 'jpg', 'jpeg', 'webp', 'gif']:
+        with open(file_path, "rb") as f:
+            img_data = base64.b64encode(f.read()).decode('utf-8')
+        mime_type = "image/jpeg" if ext in ['jpg', 'jpeg'] else f"image/{ext}"
+        replacement_tag = f'<image_attached filename="{basename}"/>'
+        text_rep = f"{token} {replacement_tag}" if keep_token_on_image else replacement_tag
+        img_item = {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{img_data}"}}
+
+        last_user_msg = last_user_msg.replace(token, text_rep)
+        for msg in reversed(cleaned_messages):
+            if msg["role"] == "user":
+                if isinstance(msg["content"], str):
+                    msg["content"] = [
+                        img_item,
+                        {"type": "text", "text": msg["content"].replace(token, text_rep)},
+                    ]
+                else:
+                    for item in msg["content"]:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            item["text"] = item["text"].replace(token, text_rep)
+                    msg["content"] = _order_multimodal_images_first([img_item] + list(msg["content"]))
+                break
+        return last_user_msg
+
+    # 文本文件处理
+    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+        file_content = f.read(20000)
+        if f.read(1):
+            file_content += "\n\n...[文件内容过大，已自动截断。如果您需要分析全部文本，请主动调用 `grep_search` 或 `read_file` 工具继续探索。]"
+
+    file_info = f'\n\n<file_content filename="{basename}">\n{file_content}\n</file_content>\n'
+    text_rep = f"{token} {file_info}"
+    last_user_msg = last_user_msg.replace(token, text_rep)
+    for msg in reversed(cleaned_messages):
+        if msg["role"] == "user":
+            if isinstance(msg["content"], str):
+                msg["content"] = msg["content"].replace(token, text_rep)
+            else:
+                for item in msg["content"]:
+                    if isinstance(item, dict) and item.get("type") == "text":
+                        item["text"] = item["text"].replace(token, text_rep)
+            break
+    return last_user_msg
+
+
 @router.post("/send")
 def send_message(payload: ChatRequest):
     """发送对话消息，返回流式 EventSource"""
@@ -115,19 +181,20 @@ def send_message(payload: ChatRequest):
                         elif sub.get("type") == "image_url":
                             existing_images.append(sub)
             
-            new_content = []
-            if text_str:
-                new_content.append({"type": "text", "text": text_str})
-            else:
-                new_content.append({"type": "text", "text": "请看这张图片"})
-            
-            new_content.extend(existing_images)
+            # 图片组必须位于 text 之前，确保 kvmem Query 锚点包裹完整视觉 Token
+            new_content = list(existing_images)
             for img_url in msg_images:
                 new_content.append({
                     "type": "image_url",
                     "image_url": {"url": img_url}
                 })
+            new_content.append({
+                "type": "text",
+                "text": text_str if text_str else "请看这张图片"
+            })
             item_content = new_content
+        elif isinstance(item_content, list):
+            item_content = _order_multimodal_images_first(item_content)
 
         cleaned_messages.append({"role": m["role"], "content": item_content, "timestamp": m.get("timestamp")})
 
@@ -160,59 +227,24 @@ def send_message(payload: ChatRequest):
         # 拦截测验提交，将其映射为一个隐式的 slash command，以确保系统提示词注入
         return handle_slash_command("/lesson_continue", payload, last_user_msg, cleaned_messages)
 
+    import os
+    import re
+
     # 处理 @current_file
     if "@current_file" in last_user_msg and payload.current_file_path:
         try:
-            import os
-            import base64
             if os.path.exists(payload.current_file_path) and os.path.isfile(payload.current_file_path):
-                ext = payload.current_file_path.lower().split('.')[-1]
-                if ext in ['png', 'jpg', 'jpeg', 'webp', 'gif']:
-                    with open(payload.current_file_path, "rb") as f:
-                        img_data = base64.b64encode(f.read()).decode('utf-8')
-                    mime_type = "image/jpeg" if ext in ['jpg', 'jpeg'] else f"image/{ext}"
-                    replacement_text = f"<image_attached filename=\"{os.path.basename(payload.current_file_path)}\"/>"
-                    last_user_msg = last_user_msg.replace("@current_file", f"@current_file {replacement_text}")
-                    
-                    for msg in reversed(cleaned_messages):
-                        if msg["role"] == "user":
-                            if isinstance(msg["content"], str):
-                                msg["content"] = [
-                                    {"type": "text", "text": msg["content"].replace("@current_file", f"@current_file {replacement_text}")}
-                                ]
-                            else:
-                                for item in msg["content"]:
-                                    if item.get("type") == "text":
-                                        item["text"] = item["text"].replace("@current_file", f"@current_file {replacement_text}")
-                            msg["content"].append({
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{mime_type};base64,{img_data}"}
-                            })
-                            break
-                else:
-                    with open(payload.current_file_path, "r", encoding="utf-8", errors="ignore") as f:
-                        file_content = f.read(20000)
-
-                    file_info = f"\n\n<file_content filename=\"{os.path.basename(payload.current_file_path)}\">\n{file_content}\n</file_content>\n"
-                    last_user_msg = last_user_msg.replace("@current_file", f"@current_file {file_info}")
-
-                    for msg in reversed(cleaned_messages):
-                        if msg["role"] == "user":
-                            if isinstance(msg["content"], str):
-                                msg["content"] = msg["content"].replace("@current_file", f"@current_file {file_info}")
-                            else:
-                                for item in msg["content"]:
-                                    if item.get("type") == "text":
-                                        item["text"] = item["text"].replace("@current_file", f"@current_file {file_info}")
-                            break
+                last_user_msg = _attach_file_into_last_user_msg(
+                    file_path=payload.current_file_path,
+                    token="@current_file",
+                    keep_token_on_image=True,
+                    last_user_msg=last_user_msg,
+                    cleaned_messages=cleaned_messages,
+                )
         except Exception as e:
             logger.error(f"Failed to read current file: {e}")
 
     # 处理任意绝对路径，例如 @D:\...\file.txt 或 @/Users/.../file.txt
-    import re
-    import os
-    import base64
-    # 匹配以 @ 开头的任何路径（绝对或相对，遇到空格结束）
     path_matches = list(re.finditer(r'@([^\s<>"]+)', last_user_msg))
     for match in path_matches:
         full_match = match.group(0)
@@ -232,55 +264,16 @@ def send_message(payload: ChatRequest):
                 curr_dir = os.path.dirname(curr_dir)
 
         if resolved_path:
-            file_path = resolved_path
             try:
-                ext = file_path.lower().split('.')[-1]
-                if ext in ['png', 'jpg', 'jpeg', 'webp', 'gif']:
-                    # Image processing: vision multimodal format
-                    with open(file_path, "rb") as f:
-                        img_data = base64.b64encode(f.read()).decode('utf-8')
-                    mime_type = "image/jpeg" if ext in ['jpg', 'jpeg'] else f"image/{ext}"
-
-                    replacement_text = f"<image_attached filename=\"{os.path.basename(file_path)}\"/>"
-                    last_user_msg = last_user_msg.replace(full_match, replacement_text)
-
-                    for msg in reversed(cleaned_messages):
-                        if msg["role"] == "user":
-                            if isinstance(msg["content"], str):
-                                msg["content"] = [
-                                    {"type": "text", "text": msg["content"].replace(full_match, replacement_text)}
-                                ]
-                            else:
-                                for item in msg["content"]:
-                                    if item.get("type") == "text":
-                                        item["text"] = item["text"].replace(full_match, replacement_text)
-
-                            msg["content"].append({
-                                "type": "image_url",
-                                "image_url": {"url": f"data:{mime_type};base64,{img_data}"}
-                            })
-                            break
-                else:
-                    # Text processing
-                    with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                        file_content = f.read(20000)
-                        if f.read(1):
-                            file_content += "\n\n...[文件内容过大，已自动截断。如果您需要分析全部文本，请主动调用 `grep_search` 或 `read_file` 工具继续探索。]"
-
-                    file_info = f"\n\n<file_content filename=\"{os.path.basename(file_path)}\">\n{file_content}\n</file_content>\n"
-                    last_user_msg = last_user_msg.replace(full_match, f"{full_match} {file_info}")
-
-                    for msg in reversed(cleaned_messages):
-                        if msg["role"] == "user":
-                            if isinstance(msg["content"], str):
-                                msg["content"] = msg["content"].replace(full_match, f"{full_match} {file_info}")
-                            else:
-                                for item in msg["content"]:
-                                    if item.get("type") == "text":
-                                        item["text"] = item["text"].replace(full_match, f"{full_match} {file_info}")
-                            break
+                last_user_msg = _attach_file_into_last_user_msg(
+                    file_path=resolved_path,
+                    token=full_match,
+                    keep_token_on_image=False,
+                    last_user_msg=last_user_msg,
+                    cleaned_messages=cleaned_messages,
+                )
             except Exception as e:
-                logger.error(f"Failed to read mentioned file {file_path}: {e}")
+                logger.error(f"Failed to read mentioned file {resolved_path}: {e}")
 
     system_prompt, kb_count, mem_count = _build_full_system_prompt(payload, original_last_user_msg)
 

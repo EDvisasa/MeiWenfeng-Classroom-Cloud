@@ -472,3 +472,18 @@ domain: project-planning
   3. **请求协议层支持预演模式 (`dry_run`)**：在 [chat.py](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py) 的 `ChatRequest` 增设 `dry_run: Optional[bool] = False`，允许任何调试探针在不污染长程档案的前提下跑通端到端流式推理；
   4. **宪法级制度约束列装**：在 [AGENTS.md](file:///d:/MeiWenfeng-Classroom/AGENTS.md) 与开发测试指南中追加铁律：严禁在未做环境隔离（重定向数据库与向量库）的前提下向生产应用端点灌入测试流量，若临时借用必须在 `try...finally` 块中通过 `/rollback` 强制复原；
   5. **自动化测试守卫验证**：在 [test_response_pipeline_guard.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_response_pipeline_guard.py) 中新增生产库长程记忆防污染回归单测，全量通过。
+
+### 47. [已解决 / KV-Cache 协同与报文装配边界] 图文倒置、秒级时间击穿前缀缓存与大文件超 8192 Query 上限
+- **现象描述**：在与本地推理引擎 `strata-poly`（`kvmem` `-QueryMaxTokens 8192`）联合运行日常对话、带图提问、重生成重试（Regenerate）及 `@file` 大文件分析时出现三类边界失效点：
+  1. **带图轮次 Query 锚点错位报错**：日志出现 `query_end=14921` 但 `prompt=15938`（图片 Token 漏在 `query_end` 之外），触发 `bounded Query has no text after its image group`；
+  2. **Regenerate 秒级前缀击穿**：仅隔数秒重试同一句话时，约 450 Tokens 的静态执行协议与提问前缀全部重算无法复用；
+  3. **`@file` 大文件超 8192 Tokens 截断**：挂载接近 20,000 字符大文件（约 6,000~8,000 Tokens）叠加约 2,500 Tokens 的 `tail_injection`，导致最后一条 `user` 消息超过 8192 Tokens，引发 `query_begin` 被截断并破坏记忆注入完整性。
+- **根因分析**：
+  1. [chat.py](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py) 在组装 `msg.images`、`@current_file` 图片与 `@path` 图片时均将 `image_url` append 在 `text` 之后；且 [context_manager.py](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 在多模态合流及纯图片兜底插入（`new_content.insert(0, ...)`）时也未保证图在前、文在后；
+  2. `assemble_messages` 使用了精确到秒的时间格式 `%Y-%m-%d %H:%M:%S`，且将高频变化的 `<current_time>` 放在了静态协议 `<agent_execution_protocol>` 之前（同时违反了协议文本内声称时间块在 `below` 的描述）；
+  3. `assemble_messages` 直接将包含超大 `<file_content>` 的用户正文整体包入 `tail_injection` 之后的 `<current_user_instruction>` 中，使动态尾注总长度失控突破 8192 限制。
+- **解决路线**：
+  1. **双端强制“图片在前、文本在后”归一化**：在 [chat.py](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py) 提取 `_order_multimodal_images_first` 与 `_attach_file_into_last_user_msg` 统一复用，确保所有多模态构造路径均为 `[所有 image_url] + [text]`；并在 [context_manager.py](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 合并及尾注注入出口做最终归一兜底；
+  2. **动静分层与分钟级时间戳后置**：将 `time_str` 精度收敛为 `%Y-%m-%d %H:%M`，并在 `<system_injection>` 内部按“纯静态 `<agent_execution_protocol>` -> 动态尾注 -> `<active_atmosphere_mode>` -> `<openclaw_gateway_status>` -> `<current_time>`”顺序排列，对齐 `below` 指代并最大化 Regenerate KV-Cache 命中；
+  3. **`@file` 前置归档入会话历史区**：在 `assemble_messages` 组装尾部文本时，通过 `_extract_file_contents` 将 `<file_content>...</file_content>` 块抽离并置于 `</current_session_history>` 之前作为本轮挂载的文件上下文保留，仅将轻量 `tail_injection` 与干净 `<current_user_instruction>` 留在末尾（稳定控制在 ~2,700 Tokens 以内）；
+  4. **自动化回归验证**：在 [test_context_manager.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 与 [test_image_chat_api.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_image_chat_api.py) 增设图文顺位、分钟级静态前缀顺序与 `@file` 抽离前置回归单测，全量验证通过。

@@ -485,3 +485,57 @@ def test_atmosphere_mode_injection_issue_48():
     assembled_study = assemble_messages(messages, bundle_study)
     last_content_study = assembled_study[-1]["content"]
     assert "<active_atmosphere_mode>STUDY (研学模式" in last_content_study
+
+
+def test_kv_cache_minute_time_and_static_first_ordering():
+    """
+    验证 KV-Cache Prefix 防击穿机制：
+    1. <current_time> 精确到分钟 (YYYY-MM-DD HH:MM)，避免重试时秒级变化破坏缓存；
+    2. 静态协议 <agent_execution_protocol> 位于动态块 <openclaw_gateway_status> 与 <current_time> 之前；
+    3. <current_time> 位于 <system_injection> 最末尾（紧邻免责保护框）。
+    """
+    import re
+    from backend.services.context_manager import assemble_messages, ContextBundle
+
+    bundle = ContextBundle(static_system_prompt="You are a mentor.", dynamic_tail="<dynamic_attributes>score=10</dynamic_attributes>")
+    assembled = assemble_messages([{"role": "user", "content": "再讲一遍"}], bundle)
+    last_content = assembled[-1]["content"]
+
+    time_match = re.search(r"<current_time>(.*?)</current_time>", last_content)
+    assert time_match is not None
+    assert re.match(r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$", time_match.group(1)), f"Expected YYYY-MM-DD HH:MM, got {time_match.group(1)}"
+
+    idx_proto_start = last_content.find("<agent_execution_protocol>")
+    idx_proto_end = last_content.find("</agent_execution_protocol>")
+    idx_dyn = last_content.find("<dynamic_attributes>score=10", idx_proto_end)
+    idx_gw = last_content.find("<openclaw_gateway_status>", idx_proto_end)
+    idx_time = last_content.find(f"<current_time>{time_match.group(1)}</current_time>")
+    idx_note = last_content.find("[NOTE:", idx_proto_end)
+    assert -1 not in (idx_proto_start, idx_proto_end, idx_dyn, idx_gw, idx_time, idx_note)
+    assert idx_proto_start < idx_proto_end < idx_dyn < idx_gw < idx_time < idx_note
+
+
+def test_file_content_extracted_before_session_history_end():
+    """
+    验证 @file 展开的大文件内容 <file_content> 会被前置归档在 </current_session_history> 之前，
+    只把轻量的 tail_injection 与纯提问留在末尾，防止突破 --kvmem-query-max-tokens (8192)。
+    """
+    from backend.services.context_manager import assemble_messages
+
+    large_body = "x = 1\n" * 3000
+    user_msg = f"请帮我检查代码逻辑 @big.py \n\n<file_content filename=\"big.py\">\n{large_body}\n</file_content>\n"
+    assembled = assemble_messages([{"role": "user", "content": user_msg}], "你是导师")
+    content = assembled[-1]["content"]
+
+    idx_file = content.find('<file_content filename="big.py">')
+    idx_history_end = content.find("</current_session_history>")
+    idx_sys_inj = content.find("<system_injection>")
+    idx_instr_start = content.find("<current_user_instruction>")
+
+    assert -1 not in (idx_file, idx_history_end, idx_sys_inj, idx_instr_start)
+    assert idx_file < idx_history_end < idx_sys_inj < idx_instr_start
+
+    tail_after_instr = content[idx_instr_start:]
+    assert "请帮我检查代码逻辑 @big.py" in tail_after_instr
+    assert "<file_content" not in tail_after_instr
+    assert large_body not in tail_after_instr

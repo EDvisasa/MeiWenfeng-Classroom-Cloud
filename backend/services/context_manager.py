@@ -270,6 +270,51 @@ def build_base_system_prompt(
     return bundle, kb_count, mem_count
 
 
+_FILE_CONTENT_RE = re.compile(r'\s*(<file_content\b[^>]*>[\s\S]*?</file_content>)\s*')
+
+
+def _order_images_first(items: List[Any]) -> List[Any]:
+    """确保多模态 content 数组中 image_url 块排在最前面，text 文本块排在后面"""
+    images = [it for it in items if isinstance(it, dict) and it.get("type") == "image_url"]
+    others = [it for it in items if not (isinstance(it, dict) and it.get("type") == "image_url")]
+    return images + others
+
+
+def _merge_message_contents(prev_c: Any, curr_c: Any) -> Any:
+    """合并连续同角色消息，同时保证多模态内容图片在前、文本在后"""
+    if isinstance(prev_c, str) and isinstance(curr_c, str):
+        return prev_c + "\n\n" + curr_c
+    prev_list = prev_c if isinstance(prev_c, list) else [{"type": "text", "text": prev_c}]
+    curr_list = curr_c if isinstance(curr_c, list) else [{"type": "text", "text": curr_c}]
+    return _order_images_first(prev_list + curr_list)
+
+
+def _extract_file_contents(text: str) -> Tuple[str, str]:
+    """
+    将用户消息中的 <file_content>...</file_content> 块抽离前置，
+    使大文件落在 </current_session_history> 之前，避免尾部动态注入段突破 --kvmem-query-max-tokens (8192) 上限。
+    """
+    if not text or "<file_content" not in text:
+        return "", text
+    matches = _FILE_CONTENT_RE.findall(text)
+    if not matches:
+        return "", text
+    extracted = "\n\n".join(m.strip() for m in matches) + "\n"
+    cleaned = _FILE_CONTENT_RE.sub(" ", text).strip()
+    if not cleaned:
+        cleaned = "[请结合上方附带文件内容回答]"
+    return extracted, cleaned
+
+
+def _build_tail_wrapped_text(raw_text: str, session_history_end: str, tail_injection: str, directive: str) -> str:
+    """组装最终一轮用户文本：抽离文件前置入历史区 + 历史结束边界 + 尾部注入 + 用户提问"""
+    extracted_files, cleaned_user_text = _extract_file_contents(raw_text)
+    return (
+        f"{extracted_files}{session_history_end}{tail_injection}"
+        f"\n\n---\n{directive}\n\n<current_user_instruction>\n{cleaned_user_text}\n</current_user_instruction>"
+    )
+
+
 def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, ContextBundle]) -> List[Dict[str, Any]]:
     """
     统一组装最终发送给大模型 API 的报文数组（标准化三步管线）：
@@ -381,24 +426,13 @@ def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, 
     )
     formatted_messages = [{"role": "system", "content": f"{static_sys}{session_history_start}"}]
     for msg in adjusted_messages:
+        msg_content = _order_images_first(msg["content"]) if isinstance(msg["content"], list) else msg["content"]
         if len(formatted_messages) > 0 and formatted_messages[-1]["role"] == msg["role"]:
-            prev_c = formatted_messages[-1]["content"]
-            curr_c = msg["content"]
-            if isinstance(prev_c, str) and isinstance(curr_c, str):
-                formatted_messages[-1]["content"] += "\n\n" + curr_c
-            elif isinstance(prev_c, list) and isinstance(curr_c, list):
-                formatted_messages[-1]["content"] = prev_c + curr_c
-            elif isinstance(prev_c, list) and isinstance(curr_c, str):
-                formatted_messages[-1]["content"] = prev_c + [{"type": "text", "text": curr_c}]
-            elif isinstance(prev_c, str) and isinstance(curr_c, list):
-                formatted_messages[-1]["content"] = [{"type": "text", "text": prev_c}] + curr_c
+            formatted_messages[-1]["content"] = _merge_message_contents(formatted_messages[-1]["content"], msg_content)
         else:
-            formatted_messages.append({"role": msg["role"], "content": msg["content"]})
+            formatted_messages.append({"role": msg["role"], "content": msg_content})
 
-    time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    tail_content = ""
-    if dynamic_tail:
-        tail_content += f"{dynamic_tail}\n\n"
+    time_str = datetime.now().strftime('%Y-%m-%d %H:%M')
 
     gateway_status_str = "UNKNOWN"
     try:
@@ -413,7 +447,14 @@ def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, 
     else:
         atmosphere_tag = "<active_atmosphere_mode>DAILY (生活模式 - 温情家庭日常相伴与通俗生活伴读)</active_atmosphere_mode>"
 
-    tail_content += f"<current_time>{time_str}</current_time>\n{atmosphere_tag}\n<openclaw_gateway_status>{gateway_status_str}</openclaw_gateway_status>\n\n{get_cross_reference_protocol()}"
+    # 动静分层排序（提升 KV-Cache Prefix 命中率）：静态协议在前，动态尾注居中，分钟级时间戳放最末尾
+    tail_sections = [get_cross_reference_protocol()]
+    if dynamic_tail:
+        tail_sections.append(dynamic_tail)
+    tail_sections.append(
+        f"{atmosphere_tag}\n<openclaw_gateway_status>{gateway_status_str}</openclaw_gateway_status>\n<current_time>{time_str}</current_time>"
+    )
+    tail_content = "\n\n".join(tail_sections)
 
     tail_injection = (
         "[Runtime Context Protocol & Execution Pointer]\n"
@@ -438,25 +479,22 @@ def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, 
     if len(formatted_messages) > 0 and formatted_messages[-1]["role"] == "user":
         original_user_content = formatted_messages[-1]["content"]
         if isinstance(original_user_content, str):
-            formatted_messages[-1]["content"] = f"{session_history_end}{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n{original_user_content}\n</current_user_instruction>"
+            formatted_messages[-1]["content"] = _build_tail_wrapped_text(
+                original_user_content, session_history_end, tail_injection, directive
+            )
         elif isinstance(original_user_content, list):
-            new_content = []
-            text_injected = False
-            for item in original_user_content:
-                if isinstance(item, dict) and item.get("type") == "text":
-                    orig_t = item.get("text", "")
-                    injected_text = f"{session_history_end}{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n{orig_t}\n</current_user_instruction>"
-                    new_content.append({"type": "text", "text": injected_text})
-                    text_injected = True
-                else:
-                    new_content.append(item)
-            if not text_injected:
-                new_content.insert(0, {
-                    "type": "text",
-                    "text": f"{session_history_end}{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n[图片输入]\n</current_user_instruction>"
-                })
-            formatted_messages[-1]["content"] = new_content
+            image_items = [item for item in original_user_content if isinstance(item, dict) and item.get("type") == "image_url"]
+            other_non_text = [item for item in original_user_content if not (isinstance(item, dict) and item.get("type") in ("image_url", "text"))]
+            text_parts = [item.get("text", "") for item in original_user_content if isinstance(item, dict) and item.get("type") == "text"]
+            combined_text = "\n".join(t for t in text_parts if t).strip() or "[图片输入]"
+            injected_text = _build_tail_wrapped_text(
+                combined_text, session_history_end, tail_injection, directive
+            )
+            # 强制保证图片在最前，合并后的唯一 text 文本在最后
+            formatted_messages[-1]["content"] = image_items + other_non_text + [{"type": "text", "text": injected_text}]
     else:
-        formatted_messages.append({"role": "user", "content": f"{session_history_end}{tail_injection}\n\n---\n{directive}\n\n<current_user_instruction>\n[下一轮提问等待中 / Waiting for next prompt]\n</current_user_instruction>"})
+        formatted_messages.append({"role": "user", "content": _build_tail_wrapped_text(
+            "[下一轮提问等待中 / Waiting for next prompt]", session_history_end, tail_injection, directive
+        )})
 
     return formatted_messages
