@@ -8,11 +8,20 @@ ChromaDB 本地向量知识库客户端
   fallback: chromadb 内置默认嵌入（all-MiniLM-L6-v2）
 """
 import os
+import sys
+import threading
 import hashlib
 import re
 from typing import Dict, List, Any, Optional
 
-CHROMA_PERSIST_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "rag_index", "chroma")
+DEFAULT_CHROMA_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "rag_index", "chroma"))
+
+def get_chroma_persist_dir() -> str:
+    """动态获取当前激活的 Chroma 持久化目录路径，支持通过环境变量 CHROMA_PERSIST_DIR 重定向"""
+    path = os.environ.get("CHROMA_PERSIST_DIR", DEFAULT_CHROMA_DIR)
+    return os.path.abspath(path)
+
+CHROMA_PERSIST_DIR = get_chroma_persist_dir()
 LOCAL_MODELS_DIR = os.path.abspath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "rag_index", "models"))
 
 # 优先锁定工程本地模型目录，防止模型缓存落入系统 C 盘 (C:\Users\<user>\.cache\huggingface)
@@ -22,12 +31,13 @@ if not os.environ.get("HF_HOME"):
 # 禁用 Transformers 异步多线程权重加载，规避 Windows Python 3.13 下 torch.storage 多线程并发 access violation
 os.environ["HF_DEACTIVATE_ASYNC_LOAD"] = "1" 
 
-def _get_chroma_client():
+def _get_chroma_client(persist_dir: Optional[str] = None):
     try:
         import chromadb
         from chromadb.config import Settings
+        target_dir = persist_dir or get_chroma_persist_dir()
         client = chromadb.PersistentClient(
-            path=CHROMA_PERSIST_DIR,
+            path=target_dir,
             settings=Settings(anonymized_telemetry=False)
         )
         return client
@@ -191,18 +201,32 @@ class ChromaRAGClient(RAGClient):
     def __init__(self):
         self._client = None
         self._ef = None
+        self._active_dir = None
         self._lock = threading.Lock()
 
+    def _check_mutation_safety(self, action: str):
+        """运行时安全防护：严禁在测试环境下对生产向量记忆库执行任何写操作（save/delete/sync）"""
+        target_dir = os.path.abspath(get_chroma_persist_dir())
+        is_prod = target_dir == DEFAULT_CHROMA_DIR
+        is_test_env = "pytest" in sys.modules or os.environ.get("TESTING") == "1"
+        if is_prod and is_test_env:
+            raise RuntimeError(
+                f"【全域红线拦截】禁止在测试环境下改写生产向量记忆库: {target_dir} (Action: {action})！"
+                f"测试流程必须重定向 CHROMA_PERSIST_DIR 至独立测试目录 (如 tmp_path 或 test_chroma) 或使用 Mock。"
+            )
+
     def _ensure_client(self):
-        if self._client is None:
+        target_dir = get_chroma_persist_dir()
+        if self._client is None or self._active_dir != target_dir:
             with self._lock:
-                if self._client is None:
-                    os.makedirs(CHROMA_PERSIST_DIR, exist_ok=True)
+                if self._client is None or self._active_dir != target_dir:
+                    os.makedirs(target_dir, exist_ok=True)
                     # 先初始化变量，最后再赋值给 self._client，避免其他线程过早看到 _client 不为空
-                    client = _get_chroma_client()
+                    client = _get_chroma_client(target_dir)
                     ef = _get_embedding_fn()
                     self._ef = ef
                     self._client = client
+                    self._active_dir = target_dir
 
     def _get_collection(self, name: str):
         self._ensure_client()
@@ -214,6 +238,7 @@ class ChromaRAGClient(RAGClient):
     # ── 知识库文件同步 ────────────────────────────────────────────
     def sync_knowledge(self, files_content: Dict[str, str], dataset_name: str = "Classroom_Knowledge", course_id: Optional[str] = None) -> Dict[str, Any]:
         """把 Markdown 文件分块后存入 ChromaDB，支持幂等更新（按文件名删旧存新）"""
+        self._check_mutation_safety("sync_knowledge")
         try:
             self._ensure_client()
             collection_name = dataset_name.lower().replace(" ", "_").replace("-", "_")
@@ -341,6 +366,7 @@ class ChromaRAGClient(RAGClient):
     # ── 对话记忆专用接口 ──────────────────────────────────────────
     def save_memory(self, user_msg: str, assistant_msg: str, level: int = 0, session_id: Optional[str] = None) -> Optional[str]:
         """把一轮对话存入 conversation_memory collection，用于后续语义召回，返回 doc_id"""
+        self._check_mutation_safety("save_memory")
         try:
             self._ensure_client()
             collection = self._get_collection("conversation_memory")
@@ -369,6 +395,7 @@ class ChromaRAGClient(RAGClient):
         """从 conversation_memory collection 中精准物理移除指定的记忆切片"""
         if not doc_id:
             return False
+        self._check_mutation_safety("delete_memory")
         try:
             self._ensure_client()
             collection = self._get_collection("conversation_memory")

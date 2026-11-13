@@ -53,15 +53,18 @@ domain: core-architecture
 
 > [!CAUTION]
 > **【全域红线】生产数据库与长程记忆防污染铁律 (Database & Memory Mutation Safety)**  
-> 无论是自动化单元测试还是临时编写的端到端探针/性能联调脚本，**严禁无隔离直连生产环境数据库（如 `classroom.db`）及向量库！**
+> 无论是自动化单元测试还是临时编写的端到端探针/性能联调脚本，**严禁无隔离直连生产环境数据库（`classroom.db`）及向量库（`rag_index/chroma/`）！**
 > 
-> 1. **自动化单测防护 (pytest)**：在编写或修改涉及数据库的测试用例时（尤其涉及 `DELETE` / `UPDATE` / `DROP` 操作），必须且只能通过 `backend/tests/conftest.py` 中提供的全局 `mock_db_path` fixture 将数据库路径劫持到内存或临时文件（如 `test.db`）。测试套件内置的运行时断言拦截器会物理阻断直连抹除生产数据库的操作。
+> 1. **自动化单测防护 (pytest)**：
+>    - **关系型数据库 (SQLite)**：强制且自动通过 `backend/tests/conftest.py` 中的 `mock_db_path` fixture 将数据库路径劫持到临时文件（`test.db`）。测试套件内置运行时断言拦截器物理阻断直连抹除生产数据库。
+>    - **向量数据库 (ChromaDB)**：全局通过 `isolate_chroma_db` fixture 自动重定向环境变量 `CHROMA_PERSIST_DIR` 至 `tmp_path/test_chroma`；对于无需真实向量计算的业务测试，优先使用 `mock_rag_client` fixture 实现零 I/O、零模型加载的纯轻量 Mock。
+>    - **生产向量库硬拦截门禁**：`ChromaRAGClient` 底层内置了写入阻断守卫（`_check_mutation_safety`），在测试模式下一旦检测到指向生产目录，立即抛出 `RuntimeError` 终止测试。
 > 2. **端到端探针与联调防护 (E2E Probes)**：针对 `/api/chat/send` 等具有自动持久化副作用（在流式收尾时向 `memory_logs` 与 ChromaDB 写入长程记忆，后续甚至会被自动日记浓缩器固化为 Level 1 长期记忆）的应用端点，强制遵守三层物理防线：
 >    - **预演模式优先（推荐）**：请求体显式声明 `"dry_run": true`，`ResponsePipeline` 底层安全门禁会物理跳过向长程记忆库与向量库写入任何数据；
 >    - **测试会话标识锁**：会话 ID 必须显式携带 `test-` 或 `test_` 前缀（如 `session_id="test-probe"`），触发 `ResponsePipeline` 内置生产库守卫；
 >    - **原子回滚闭环**：若确需落库验证完整生命周期，必须在 `try...finally` 块中调用 `POST /api/chat/rollback` 撤销本轮消息与切片，或在退出前清理。
 > 
-> * **自动化单测回归凭证**：修改响应管线与长程记忆防护逻辑后，必须执行 `pytest backend/tests/test_response_pipeline_guard.py` 验证防污染守卫绿灯。
+> * **自动化单测回归凭证**：修改响应管线与长程记忆防护逻辑后，必须执行 `pytest backend/tests/test_response_pipeline_guard.py backend/tests/test_chroma_isolation.py` 验证防污染守卫绿灯。
 
 > 🌐 **网络层工具单测拦截规则 (Network Mock Safety)**：对于 `WebSearchTool`、`ReadUrlContentTool` 等联网工具的单元测试，**严禁在自动化测试（pytest）中直连外部真实网络！** 必须通过 `unittest.mock` 拦截 `DDGS` 及 `httpx.Client`，防止因限流或弱网导致 CI 流水线随机性失败。临时探路验证请存放在 `backend/scripts/` 中并及时清理。
 
