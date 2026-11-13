@@ -4,7 +4,7 @@ import shlex
 
 import re
 import xml.etree.ElementTree as ET
-from typing import Generator, List, Dict, Any, Protocol
+from typing import Generator, List, Dict, Any, Protocol, Optional
 from openai import OpenAI
 
 class AgentTool:
@@ -419,15 +419,32 @@ class GrepSearchTool(AgentTool):
             
         return "\n".join(results)
 
+def _get_active_sandbox_dir(course_id: Optional[str] = None) -> str:
+    """Resolves the current active sandbox directory based on active course or course_id parameter."""
+    try:
+        from backend.services.course_manager import get_active_course_id
+        from backend.services.materials_manager import MaterialsManager
+        cid = course_id or get_active_course_id()
+        materials_base = MaterialsManager._get_materials_dir()
+        if cid and cid != "default":
+            sandbox_dir = os.path.realpath(os.path.join(materials_base, "courses", cid, "Sandbox"))
+        else:
+            sandbox_dir = os.path.realpath(os.path.join(materials_base, "Sandbox"))
+    except Exception:
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+        sandbox_dir = os.path.realpath(os.path.join(project_root, "data", "materials", "Sandbox"))
+    os.makedirs(sandbox_dir, exist_ok=True)
+    return sandbox_dir
+
 class ReplaceFileContentTool(AgentTool):
     name = "replace_file_content"
-    description = "Surgically replace a block of text in a specific file. Restricted to the data/materials/Sandbox directory."
+    description = "Surgically replace a block of text in a specific file. Restricted to the active course Sandbox directory."
     parameters_schema = {
         "type": "object",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "The path to the file in the Sandbox."
+                "description": "The path to the file in the Sandbox (relative or absolute)."
             },
             "old_content": {
                 "type": "string",
@@ -450,10 +467,11 @@ class ReplaceFileContentTool(AgentTool):
             return "[Error] path, old_content, and new_content are required."
             
         # Security Guardrail: Sandbox Restriction
-        # Use realpath to resolve symbolic links (symlink bypass prevention)
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        sandbox_dir = os.path.realpath(os.path.join(project_root, "data", "materials", "Sandbox"))
-        target_path = os.path.realpath(path)
+        sandbox_dir = _get_active_sandbox_dir(params.get("course_id"))
+        if not os.path.isabs(path):
+            target_path = os.path.realpath(os.path.join(sandbox_dir, path))
+        else:
+            target_path = os.path.realpath(path)
         
         # Use commonpath for mathematically safe boundary checking (handles all OS path quirks)
         try:
@@ -493,13 +511,13 @@ class ReplaceFileContentTool(AgentTool):
 
 class CreateFileTool(AgentTool):
     name = "create_file"
-    description = "Create a completely new file with content. Restricted to the data/materials/Sandbox directory."
+    description = "Create a completely new file with content. Restricted to the active course Sandbox directory."
     parameters_schema = {
         "type": "object",
         "properties": {
             "path": {
                 "type": "string",
-                "description": "The path of the new file to create in the Sandbox."
+                "description": "The path of the new file to create in the Sandbox (relative or absolute)."
             },
             "content": {
                 "type": "string",
@@ -517,9 +535,11 @@ class CreateFileTool(AgentTool):
             return "[Error] path and content are required."
             
         # Security Guardrail: Sandbox Restriction
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-        sandbox_dir = os.path.realpath(os.path.join(project_root, "data", "materials", "Sandbox"))
-        target_path = os.path.realpath(path)
+        sandbox_dir = _get_active_sandbox_dir(params.get("course_id"))
+        if not os.path.isabs(path):
+            target_path = os.path.realpath(os.path.join(sandbox_dir, path))
+        else:
+            target_path = os.path.realpath(path)
         
         try:
             if os.path.commonpath([sandbox_dir, target_path]) != sandbox_dir:

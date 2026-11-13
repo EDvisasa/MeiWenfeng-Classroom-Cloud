@@ -1323,7 +1323,7 @@ domain: project-planning
 ---
 
 ### ISSUE-63: [Side Effects & Filesystem] 讲义、术语及沙盒代码按课题目录强隔离
-- **Status**: [~] In Progress
+- **Status**: [x] Completed
 - **Triage**: ready-for-agent
 - **Description**:
   - 彻底阻断不同课题间的文件与术语交叉污染：
@@ -1335,16 +1335,16 @@ domain: project-planning
   - `backend/services/agent_tools.py`
   - `backend/tests/test_isolated_side_effects.py`
 - **Acceptance Criteria**:
-  - [ ] 课程 A 生成的 `<glossary>` 和 `<explainer>` 只能在课程 A 的目录及数据库记录中查到；
-  - [ ] 课程 B 操作沙盒代码时无法越权读取或覆盖课程 A 的沙盒代码；
-  - [ ] 沙盒工具支持相对路径自动补全至当前激活课题沙盒根目录。
+  - [x] 课程 A 生成的 `<glossary>` 和 `<explainer>` 只能在课程 A 的目录及数据库记录中查到；
+  - [x] 课程 B 操作沙盒代码时无法越权读取或覆盖课程 A 的沙盒代码；
+  - [x] 沙盒工具支持相对路径自动补全至当前激活课题沙盒根目录。
 - **Blocked by**: ISSUE-61, ISSUE-62
 - **Verification Command**: `pytest backend/tests/test_isolated_side_effects.py`
 
 ---
 
 ### ISSUE-64: [/plan, /lesson & /end_lesson] 课题大纲规划、课时授课与下课切回公共档案闭环
-- **Status**: [ ] Pending
+- **Status**: [~] In Progress
 - **Triage**: ready-for-agent
 - **Description**:
   - 升级 `/plan`、`/lesson` 与新增 `/end_lesson` 指令形成完整教学闭环：
