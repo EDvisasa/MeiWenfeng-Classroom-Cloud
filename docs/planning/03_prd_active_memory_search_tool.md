@@ -36,8 +36,8 @@ domain: project-planning
    深度直连本地 `classroom.db` 的 `memory_logs`（日记摘要与内容）和 `chat_messages`（无损历史对话记录），执行高效参数化匹配与多维筛选，生成高信噪比、带时间戳的 Markdown 结构化记忆卡；
 3. **生动情感质感卡片 (`Remembering...` UI Card)**：
    前端 `ChatPanel.jsx` 的 `ToolBlock` 将 `search_memory` 映射为 `Remembering...`，在执行期间呈现柔和呼吸灯脉冲点，展示检索词与提取到的记忆片段，让用户直观感受到导师正在记忆殿堂中深潜回忆；
-4. **安全护栏与端侧 KV-Cache 兼容**：
-   严格受 `_sanitize_tool_output` 40,000 字符全局上限保护；工具回调参数遵循 Dict/Object 规范，在 PolyStrata 引擎下享有 100% Append-Only KV-Cache 满血加速。
+4. **安全护栏与标准 OpenAI 工具协议兼容**：
+   严格受 `_sanitize_tool_output` 40,000 字符全局上限保护；工具回调参数严格遵循 OpenAI Chat Completions 标准 JSON 字符串契约（`function.arguments` 为 `str`），兼容主流云端与本地推理网关。
 
 ---
 
@@ -53,7 +53,7 @@ domain: project-planning
 8. **US-08 (全局安全截断)**: As a system architect, I want `search_memory` output to be governed by `_sanitize_tool_output`, preventing runaway results from triggering HTTP 413 or tokenizer memory overflow.
 9. **US-09 (前端交互折叠)**: As a front-end user, I want the `Remembering...` card to support click-to-expand details (IN/OUT), so that I can inspect the exact historical records the AI referenced.
 10. **US-10 (双系统角色隔离无缝承接)**: As a roleplay designer, I want the AI tutor to seamlessly transition from internal memory inspection to natural dialogue, answering with appropriate warmth and pedagogical accuracy.
-11. **US-11 (PolyStrata 缓存无损)**: As an inference engineer, I want the tool call arguments to be parsed as Python dicts, ensuring zero HTTP 400 errors and 100% KV-Cache reuse on PolyStrata poly.6 MTP backend.
+11. **US-11 (标准工具回调兼容)**: As an inference engineer, I want the tool call arguments to strictly follow the OpenAI JSON string contract (`function.arguments` as `str`), ensuring zero HTTP 400 errors across OpenAI-compatible proxies and local inference backends.
 12. **US-12 (无结果友好兜底)**: As an AI tutor agent, I want the tool to return a clear notice (e.g. `[No memory records found matching '...']`) instead of throwing an error, so that I can gracefully acknowledge memory gaps without hallucinating.
 
 ---

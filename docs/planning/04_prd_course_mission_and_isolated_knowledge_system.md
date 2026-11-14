@@ -1,7 +1,7 @@
 ---
 id: PLAN-04
 title: 课题驱动的多课程隔离架构与课时授课闭环 (Course-Mission Driven Isolated Knowledge & Lesson System)
-status: draft
+status: active
 created: 2026-11-13
 domain: core-architecture
 ---
