@@ -11,9 +11,7 @@ domain: project-planning
 
 ## 🔴 当前处理中：待修复 Bug 与架构重构工单 (Active Issues & Refactorings)
 
-### 15. [待重构] 斜杠指令 (Slash Commands) 巨石阵结构
-- **现象描述**：`slash_handler.py` 内部使用庞大的 `if/elif` 链为每个指令硬塞海量多行 XML 系统指令。难以新增或删除，完全违背删除测试 (Deletion Test)。
-- **调查方向**：提炼 `CommandStrategy` 接口，每条指令独立为类，由核心注册器分发。
+*(当前暂无活跃待办缺陷或未拆分重构工单，新增问题将登记在此处。)*
 
 ## 🟢 已闭环归档：Bug 与架构重构成果 (Resolved Archive)
 
@@ -122,6 +120,13 @@ domain: project-planning
 
 ### 14. [已解决 / 架构解耦] Model Router 路由层人设泄漏
 - **状态更新**：已在架构解耦重构中彻底解决。网络路由层 `backend/services/model_router.py` 中的 `stream_chat` 函数已移除了长达 30 行的 `perfect_one_shot` 硬编码及所有角色扮演逻辑。该逻辑被收拢迁移至上下文与管线引擎 `backend/services/context_manager.py` 的 `assemble_messages` 方法中进行集中组装。路由层现在只纯粹负责接收并分发完全就绪的报文。
+
+### 15. [已解决 / 策略模式重构] 斜杠指令 (Slash Commands) 巨石阵结构
+- **现象描述**：`slash_handler.py` 原先使用长段 `if/elif` 链混杂所有指令分支及重复的课程上下文解析、SSE 包装样板代码，难以独立增删。
+- **解决路线**：
+  1. 在 [slash_handler.py](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py) 提炼出 `SlashCommandContext`、`CommandStrategy(ABC)` 与 `CommandRegistry` 核心注册器，按单一职责拆分为 13 个独立指令策略类及 `DefaultFallbackCommandStrategy` 兜底策略；
+  2. 收敛 `_sse_response` 与 `_resolve_course_context` 公共辅助函数，消除多处重复的 SSE 管线装配及课题上下文查表逻辑，完整保留 `handle_slash_command`、`SlashHandler` 与 `handle_mission_interrogation` 对外接缝；
+  3. 在 [test_slash_handler_registry.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_slash_handler_registry.py) 新增注册表解析、自定义策略插入/隔离（Deletion Test）、未知指令回退与静态代理单测，并与全量既有斜杠测试一同通过验证。
 
 ### 16. [已解决 / 架构解耦] 长程对话上下文管理与提示词尾部注入 (Tail Injection)
 - **状态更新**：已正式抽离并列装高内聚的 `backend/services/context_manager.py` 模块。采用“顶部静态系统预设 (Static Persona) + 尾部三明治动态注入 (Tail Injection)”架构，动态整合 RAG 切片、近期记忆日志与 IDE 状态。同时实现了严格的**分回合工具切断协议 (Turn Separation Protocol)**，在调工具回合静默触发 API 调用不吐独白，彻底解决了长程对话中的格式错乱与 Token 浪费问题。

@@ -25,10 +25,13 @@ All notable changes to this project will be documented in this file.
   - `ChatRequest` 增加 `atmosphere_mode` 参数，并在 `context_manager` 运行时尾部注入生效标签，保持静态 System Prompt 的 KV-Cache 命中率。
 
 ### Fixed
+- **OpenAI 标准 Tool Calls 字符串协议恢复与离线截断单测重构 (Bug #48)**:
+  - 废止原 `ISSUE-50` 为迁就旧模板将 `tool_calls` 强转为 Python `dict` 及附加顶层 `arguments` 的临时适配，恢复 `backend/services/agent_executor.py` 为标准 OpenAI Chat Completions JSON 字符串契约（`function.arguments` 恒定输出 `str`，移除顶层 `arguments`），解决第三方 OpenAI 兼容网关在多轮工具回调时返回 HTTP 400 `invalid_json` 的问题；
+  - 更新 `backend/tests/test_agent_executor.py` 断言并补充 `dict` 参数归一化回归测试；将 `backend/tests/test_simulation_and_truncation.py` 中早年未 Mock 的 `test_truncation_logic` 改为纯本地 `OpenAILLMClient` Mock 离线验证。
 - **KV-Cache 前缀稳态分层、多模态先图后文与 `@file` 边界抽离 (Bug #47)**:
   - 在 `backend/services/context_manager.py` 的 `assemble_messages` 内实施 `<system_injection>` 静先动后分层，将 `<agent_execution_protocol>` 前置并把 `<active_atmosphere_mode>`、`<openclaw_gateway_status>`、`<current_time>` 沉底，同时将 `<current_time>` 精度降为分钟级（`%Y-%m-%d %H:%M`），避免重试或重生成触发前缀缓存失效；
-  - 在 `backend/routers/chat.py`（`_order_multimodal_images_first`）与 `context_manager.py`（`_order_images_first`、`_merge_message_contents`、`assemble_messages`）严格规范多模态数组顺序，确保所有 `image_url` 永远位于 `text` 之前，适配端侧推理 `strata-poly` / `kvmem` 的 bounded Query 校验；
-  - 在 `chat.py`（`_attach_file_into_last_user_msg`）统一收口 `@current_file` 与 `@path` 文件展开，并在 `context_manager.py` 新增 `_extract_file_contents` 将 `<file_content>` 锚定前移至 `</current_session_history>` 之前，保证动态尾部收敛在 8192 QueryMaxTokens 上限内；
+  - 在 `backend/routers/chat.py`（`_order_multimodal_images_first`）与 `context_manager.py`（`_order_images_first`、`_merge_message_contents`、`assemble_messages`）严格规范多模态数组顺序，确保所有 `image_url` 永远位于 `text` 之前；
+  - 在 `chat.py`（`_attach_file_into_last_user_msg`）统一收口 `@current_file` 与 `@path` 文件展开，并在 `context_manager.py` 新增 `_extract_file_contents` 将 `<file_content>` 锚定前移至 `</current_session_history>` 之前，防止动态尾部超过 8192 Token 上限；
   - 同步补充 `ADR-009` 架构演进补丁。
 - **全链路测试与生产记忆库/ChromaDB 物理隔离与硬熔断守卫 (Bug #46)**:
   - `ChatRequest` 新增 `dry_run` 只读演练参数，`backend/services/response_pipeline.py` 增加持久化熔断守卫（命中 `dry_run` 或生产 DB 下的测试会话前缀时旁路跳过 `memory_logs` 与 ChromaDB 写入）；
@@ -37,14 +40,13 @@ All notable changes to this project will be documented in this file.
 - **右侧状态面板加宽与顶部胶囊按钮防挤压 (ISSUE-55 & Bug #41)**:
   - 将 `.right-panel-container` 宽度由 `300px` 提至 `344px` 确立为宽度单一点 (SSOT)，`.right-panel` 改为 `width: 100%`，彻底解决胶囊按钮挤成两行与字词折行问题；
   - 提炼 `pillStyle` 统一按钮内联样式，施加 `whiteSpace: 'nowrap'`、`flexShrink: 0` 与 `lineHeight: 1`，清除多余边距与重叠挤压源。
-- **PolyStrata 推理引擎 Tool Calling 400 根治与 Tool Calls Dict 规范化 (ISSUE-50)**:
-  - 针对底层端侧 PolyStrata / Jinja 模板校验触发 `TemplateRequestError` 导致 HTTP 400 的问题，在 `backend/services/agent_executor.py` 实施参数类型规范化；
-  - 对原生与 XML 解析提取的 `tool_calls` 参数执行深拷贝与 `json.loads` 反序列化为 Python Dict，兼容根层级与 `function` 层级字段；
-  - 在单轮 Agent 工具调用循环（Tool Calling Loop）内保持严格的 Append-Only 追加语义与缓存命中。
 
 ### Changed
+- **斜杠指令分发器策略模式拆分 (Bug #15)**:
+  - 在 `backend/services/slash_handler.py` 提炼 `SlashCommandContext`、`CommandStrategy(ABC)` 与 `CommandRegistry`，将原有巨型 `if/elif` 链拆分为 13 个独立策略类与 `DefaultFallbackCommandStrategy` 兜底策略，并通过 `_sse_response` / `_resolve_course_context` 消除重复样板；
+  - 新增 `backend/tests/test_slash_handler_registry.py` 验证注册路由、未知指令兜底与策略增删隔离。
 - **上下文双层场域隔离与 KV Cache 静态基石前缀加速理顺 (ISSUE-51)**:
-  - 明确业务红线：保留 `<current_session_history>`（防 RAG 记忆召回幻觉的认知屏障）与动态 `<current_time>`（作息与好感度演化的时间脉搏），回执归档于 `docs/reports/receipt_to_poly_engine_agent.md`；
+  - 明确业务红线：保留 `<current_session_history>`（防 RAG 记忆召回幻觉的认知屏障）与动态 `<current_time>`（作息与好感度演化的时间脉搏）；
   - 保证 `formatted_messages[0]`（System Prompt）纯净且单会话字节级恒定，锁定长上下文前缀 KV-Cache 命中；
   - 固化历史轮次时序标尺 `[YYYY-MM-DD HH:MM]`，动态尾部协议单向挂载在最新的 User 消息中。
 - **通用人设压缩提取元结构与调色盘三元组解耦 (ISSUE-47)**:
