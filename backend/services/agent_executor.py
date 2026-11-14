@@ -167,27 +167,26 @@ class AgentExecutor:
             if fake_xml:
                 yield {"type": "text", "text": fake_xml}
 
-            # Prepare assistant message with native tool calls
-            # PolyStrata Jinja template strictly requires arguments to be a Python dict/object
+            # Prepare assistant message with native OpenAI tool calls (function.arguments must be a JSON string)
             assistant_msg = {"role": "assistant"}
             assistant_msg["content"] = full_content if full_content.strip() else ""
             
             cleaned_tool_calls = []
             for tc in parsed_tools:
                 payload = copy.deepcopy(tc.get("raw_payload", {}))
-                func = payload.get("function", {})
-                if isinstance(func.get("arguments"), str):
-                    try:
-                        func["arguments"] = json.loads(func["arguments"])
-                    except Exception:
-                        func["arguments"] = {}
-                if "arguments" in payload and isinstance(payload["arguments"], str):
-                    try:
-                        payload["arguments"] = json.loads(payload["arguments"])
-                    except Exception:
-                        payload["arguments"] = {}
-                elif "arguments" not in payload and "arguments" in func:
-                    payload["arguments"] = func["arguments"]
+                payload.pop("arguments", None)
+                func = payload.get("function")
+                if not isinstance(func, dict):
+                    func = {"name": tc.get("name", ""), "arguments": "{}"}
+                    payload["function"] = func
+
+                raw_args = func.get("arguments")
+                if isinstance(raw_args, str):
+                    func["arguments"] = raw_args if raw_args.strip() else "{}"
+                elif raw_args is None:
+                    func["arguments"] = "{}"
+                else:
+                    func["arguments"] = json.dumps(raw_args, ensure_ascii=False)
                 cleaned_tool_calls.append(payload)
 
             assistant_msg["tool_calls"] = cleaned_tool_calls

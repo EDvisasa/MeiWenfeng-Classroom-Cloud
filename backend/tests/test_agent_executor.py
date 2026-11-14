@@ -83,11 +83,49 @@ def test_agent_executor_with_tool_call():
         last_request_msgs = mock_llm.received_messages[-1]
         assert last_request_msgs[-2]["role"] == "assistant"
         assert last_request_msgs[-2].get("tool_calls")
-        # PolyStrata Jinja compatibility check: arguments must be dict
-        assert isinstance(last_request_msgs[-2]["tool_calls"][0]["function"]["arguments"], dict)
-        assert last_request_msgs[-2]["tool_calls"][0]["function"]["arguments"] == {"command": "echo hello"}
+        # OpenAI Chat Completions contract: function.arguments must stay a JSON string without top-level arguments
+        tc_payload = last_request_msgs[-2]["tool_calls"][0]
+        assert "arguments" not in tc_payload
+        assert isinstance(tc_payload["function"]["arguments"], str)
+        import json
+        assert json.loads(tc_payload["function"]["arguments"]) == {"command": "echo hello"}
         assert last_request_msgs[-1]["role"] == "tool"
         assert "hello" in last_request_msgs[-1]["content"]
+
+def test_agent_executor_normalizes_dict_arguments_to_json_string():
+    """Verify dict tool_call arguments and legacy top-level arguments are normalized to standard OpenAI JSON strings."""
+    class DictToolLLMClient(MockLLMClient):
+        pass
+
+    iter1 = [
+        {"type": "tool_calls_chunk", "tool_calls": [
+            {"index": 0, "id": "call_dict_1", "type": "function", "function": {"name": "execute_bash", "arguments": '{"command": "echo hello"}'}}
+        ]}
+    ]
+    iter2 = [{"type": "text", "text": "Done."}]
+
+    mock_llm = DictToolLLMClient([iter1, iter2])
+    with patch("backend.services.agent_executor.TOOL_REGISTRY", mock_registry), \
+         patch("backend.services.tool_engine.TOOL_REGISTRY", mock_registry):
+        executor = AgentExecutor(llm_client=mock_llm, max_iterations=3)
+        with patch("backend.services.stream_parser.StreamParser.get_parsed_tool_calls", return_value=[{
+            "id": "call_dict_1",
+            "name": "execute_bash",
+            "param": {"command": "echo hello"},
+            "raw_payload": {
+                "id": "call_dict_1",
+                "type": "function",
+                "arguments": {"command": "echo hello"},
+                "function": {"name": "execute_bash", "arguments": {"command": "echo hello"}},
+            },
+        }]):
+            list(executor.run([{"role": "user", "content": "Run"}]))
+
+        tc_payload = mock_llm.received_messages[-1][-2]["tool_calls"][0]
+        assert "arguments" not in tc_payload
+        assert isinstance(tc_payload["function"]["arguments"], str)
+        import json
+        assert json.loads(tc_payload["function"]["arguments"]) == {"command": "echo hello"}
 
 def test_tool_execution_engine_global_safety_ceiling():
     """Verify that ToolExecutionEngine enforces a global safety ceiling on tool outputs (Bug #16)."""

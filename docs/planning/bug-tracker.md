@@ -487,3 +487,13 @@ domain: project-planning
   2. **动静分层与分钟级时间戳后置**：将 `time_str` 精度收敛为 `%Y-%m-%d %H:%M`，并在 `<system_injection>` 内部按“纯静态 `<agent_execution_protocol>` -> 动态尾注 -> `<active_atmosphere_mode>` -> `<openclaw_gateway_status>` -> `<current_time>`”顺序排列，对齐 `below` 指代并最大化 Regenerate KV-Cache 命中；
   3. **`@file` 前置归档入会话历史区**：在 `assemble_messages` 组装尾部文本时，通过 `_extract_file_contents` 将 `<file_content>...</file_content>` 块抽离并置于 `</current_session_history>` 之前作为本轮挂载的文件上下文保留，仅将轻量 `tail_injection` 与干净 `<current_user_instruction>` 留在末尾（稳定控制在 ~2,700 Tokens 以内）；
   4. **自动化回归验证**：在 [test_context_manager.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 与 [test_image_chat_api.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_image_chat_api.py) 增设图文顺位、分钟级静态前缀顺序与 `@file` 抽离前置回归单测，全量验证通过。
+
+### 48. [已解决 / OpenAI 工具调用协议] 多轮工具回调把 `function.arguments` 转成对象导致第三方网关报错 HTTP 400 `invalid_json`
+- **现象描述**：在切换到 `GG公益站 (在线)`（`https://gcli.ggchan.dev/v1`，模型 `pg-gemini-4-hydrogen`）等第三方 OpenAI 兼容网关并发起需要调用工具（如 `web_search`）的对话时，第 1 轮工具调用成功并拿到工具结果，但进入第 2 轮将工具结果回传大模型时直接失败，抛出 `Error code: 400 - {'error': {'message': 'request body is not valid JSON', 'type': 'invalid_request_error', 'param': None, 'code': 'invalid_json'}}`。
+- **根因分析**：
+  1. [agent_executor.py](file:///d:/MeiWenfeng-Classroom/backend/services/agent_executor.py) 第 171-194 行历史遗留一段面向旧版模板的兼容逻辑，在回填 `assistant.tool_calls` 前无差别执行 `json.loads` 将 `function.arguments` 从标准 JSON 字符串改写为 Python `dict` 对象，并在 `tool_calls[i]` 顶层额外写入非标准的 `arguments` 字段；
+  2. OpenAI Chat Completions 标准协议要求 `tool_calls[i].function.arguments` 必须为 JSON 字符串（`string`），严禁传成 JSON 对象；严格按 Go/强类型结构体反序列化请求体的反代网关遇到对象类型后反序列化失败，并返回 400 `invalid_json`；
+  3. 同步核查本地推理服务 `kvmem-poly` 源码 `backends/polystrata/serve/frontend.py` 的 `tool_arguments()` 函数，确认其服务端已原生接收标准 JSON 字符串并自行解码供 Jinja 模板渲染，无需客户端发送非标准对象。
+- **解决路线**：
+  1. **恢复标准 OpenAI 工具调用报文**：在 [agent_executor.py](file:///d:/MeiWenfeng-Classroom/backend/services/agent_executor.py) 中移除非标准顶层 `payload["arguments"]`，确保 `function["arguments"]` 始终输出合规 JSON 字符串（若原本已是 `str` 则保留原串或空串兜底 `"{}"`，若为 `dict`/其它值则用 `json.dumps(..., ensure_ascii=False)` 序列化）；
+  2. **更新并补强单元测试**：修改 [test_agent_executor.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_executor.py) 中的工具调用断言以对齐 OpenAI 字符串契约，并新增 `test_agent_executor_normalizes_dict_arguments_to_json_string` 覆盖遗留 `dict`/顶层 `arguments` 归一化回归测试。
