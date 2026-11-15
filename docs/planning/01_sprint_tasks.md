@@ -1476,3 +1476,22 @@ domain: project-planning
   - [x] 全部 `test_context_manager.py`、`test_memory_search_tool.py`、`test_agent_tools.py`、`test_openclaw_bridge.py` 单测通过。
 - **Verification Command**: `.venv\Scripts\python.exe -m pytest backend/tests/test_context_manager.py backend/tests/test_memory_search_tool.py backend/tests/test_agent_tools.py backend/tests/test_openclaw_bridge.py`
 
+---
+
+### <a id="issue-69"></a>[ISSUE-69] 加固 `search_memory` 关键词检索时间戳优先排序 (`timestamp DESC` 先于 `id DESC`)
+- **Status**: `DONE` (已完成 / 2026-11-16 经单测绿灯验证)
+- **Parent**: `PLAN-03, ISSUE-67`
+- **User Story**: 作为记忆检索引擎维护者，为了防止在历史记录导入、迁移或主键号段非严格递增时，关键词检索退化按 `id DESC` 排序导致早年记录顶替最新记忆，我需要让 `search_memory` 的排序键统一优先使用标准化时间戳 `DESC`，仅以 `id DESC` 作为同秒并列决胜键。
+- **What to build**:
+  1. 在 [`MemorySearchEngine._fetch_target_hits`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py#L633-L637) 中提前统一计算 `norm_ts_sql = _sql_norm_ts()`；
+  2. 将 `terms` 分支的 `ORDER BY` 从 `match_score DESC, id DESC` / `id DESC` 升级为 `match_score DESC, {norm_ts_sql} DESC, id DESC`（多词）与 `{norm_ts_sql} DESC, id DESC`（单词），与 `timeline` 分支保持一致的时间语义排序。
+- **Affected Files**:
+  - [`backend/services/memory_search_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py)
+  - [`backend/tests/test_memory_search_tool.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/CHANGELOG.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/CHANGELOG.md)
+- **Acceptance Criteria**:
+  - [x] `search_memory` 单词检索与多词同分检索均优先按标准化时间戳降序返回最新记录，不再因主键高低倒置排序；
+  - [x] `test_memory_search_tool.py` 全量 21 项单测（含新增 `test_search_memory_prefers_newer_timestamp_over_higher_id`）全部通过。
+- **Verification Command**: `.venv\Scripts\python.exe -m pytest backend/tests/test_memory_search_tool.py -v`
+

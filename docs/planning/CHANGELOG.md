@@ -33,6 +33,8 @@ All notable changes to this project will be documented in this file.
   - `ChatRequest` 增加 `atmosphere_mode` 参数，并在 `context_manager` 运行时尾部注入生效标签，保持静态 System Prompt 的 KV-Cache 命中率。
 
 ### Fixed
+- **`search_memory` 关键词检索时间戳决胜排序加固 (ISSUE-69)**:
+  - 加固 [`backend/services/memory_search_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py) `_fetch_target_hits` 的关键词查询排序键，统一在 `id DESC` 之前优先使用标准化时间戳 `_sql_norm_ts() DESC`，避免主键非严格递增或同分场景下早年记录顶替近期记忆。
 - **`[Memory]` 多词空格检索、跨源空结果提示与已回滚日记隔离 (Bug #49)**:
   - 在 `backend/services/memory_search_engine.py` 提取 `JOURNAL_VISIBLE_SQL = "COALESCE(status, 'active') NOT IN ('archived', 'rolled_back')"` 统一剔除已归档与已回滚日记；为 `search_memory` 补齐空格分词、SQL `LIKE` 通配符转义及多关键词打分排序；当单侧 `target`（`journals` / `conversations`）查询为空且对端表存在记录时附加跨源提示，并在 `backend/services/tool_engine.py`（`_format_command_str`）显式展示非默认 `target`；
   - 将 `backend/services/response_pipeline.py`（`clean_memory_text`）与 `backend/services/compact_service.py`（`call_llm_for_summary`）的内联推理/状态/工具标签剥离统一收口至 `memory_search_engine.strip_internal_tags` SSOT，并同步更新 `ADR-014` 架构决策。

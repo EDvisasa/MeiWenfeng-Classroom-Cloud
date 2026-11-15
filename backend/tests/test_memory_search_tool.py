@@ -1145,6 +1145,27 @@ def test_timeline_order_oldest_anchor_and_ui_formatting():
     assert engine._format_command_str("get_memory_calendar", {"date_range": "2026-10"}) == "Remembering calendar: 2026-10"
 
 
+def test_search_memory_prefers_newer_timestamp_over_higher_id():
+    from backend.services.agent_tools import TOOL_REGISTRY
 
+    search_tool = TOOL_REGISTRY["search_memory"]
+    conn = get_db_connection()
+    try:
+        conn.executemany(
+            "INSERT INTO memory_logs (id, timestamp, content, summary, level, status, session_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            [
+                (500, "2026-06-13 12:00:00", "六月十三记录：时钟树与分频器早期草案。", None, 0, "compressed", None),
+                (100, "2026-10-15 12:00:00", "十月十五记录：时钟树与分频器最终定稿。", None, 0, "compressed", None),
+            ],
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
+    single_hit = search_tool.execute({"query": "时钟树", "target": "journals", "limit": 1})
+    assert "journal #100" in single_hit
+    assert "journal #500" not in single_hit
+
+    multi_hits = search_tool.execute({"query": "时钟树 分频", "target": "journals", "limit": 2})
+    assert multi_hits.index("journal #100") < multi_hits.index("journal #500")
 

@@ -630,10 +630,10 @@ class MemorySearchEngine:
             clauses.append(kw_where)
             sql_params.extend(kw_params)
 
+        norm_ts_sql = _sql_norm_ts()
         if terms:
-            order_by = "match_score DESC, id DESC" if len(terms) >= 2 else "id DESC"
+            order_by = f"match_score DESC, {norm_ts_sql} DESC, id DESC" if len(terms) >= 2 else f"{norm_ts_sql} DESC, id DESC"
         else:
-            norm_ts_sql = _sql_norm_ts()
             order_by = f"{norm_ts_sql} ASC, id ASC" if order == "oldest" else f"{norm_ts_sql} DESC, id DESC"
         limit_sql = "LIMIT ?" if fetch_limit is not None else ""
         query_params: List[Any] = [*score_params, *sql_params]
