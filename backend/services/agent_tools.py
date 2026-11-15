@@ -804,7 +804,7 @@ class OpenClawAgentTool(AgentTool):
 _MEMORY_SHARED_DATE_PROPS = {
     "date_range": {
         "type": "string",
-        "description": "Optional date filter: 'YYYY-MM-DD', 'YYYY-MM', 'recent_7d', or 'recent_30d'.",
+        "description": "Optional date filter: 'YYYY-MM-DD', 'YYYY-MM', 'YYYY' (year, e.g. '2026'), 'recent_7d', 'recent_30d', or 'all' (full history). Omit all date params when querying the whole archive.",
     },
     "start_date": {
         "type": "string",
@@ -822,17 +822,92 @@ _MEMORY_TARGET_PROP = {
     "description": "Source filter: 'journals' (daily summaries), 'conversations' (past chat turns), or 'all'. Default is 'all'.",
 }
 
+_MEMORY_ORDER_PROP = {
+    "type": "string",
+    "enum": ["newest", "oldest"],
+    "description": "Sort/selection direction when truncated: 'newest' (default, latest first) or 'oldest' (chronologically earliest first).",
+}
+
 _MEMORY_LIMIT_PROP = {
     "type": "integer",
     "description": "Maximum preview hits to return. Default 5, hard ceiling 15.",
 }
 
 
+class GetMemoryCalendarTool(AgentTool):
+    name = "get_memory_calendar"
+    description = (
+        "[Memory] List active dates with daily conversation segment counts, "
+        "session titles, and diary counts (not stored on disk; [Memory] is the ONLY tool category for chat/journal history). "
+        "Start here to map date spans or find earliest/latest history: omit all date params or pass date_range='YYYY' (e.g. '2026') or 'all'; "
+        "set order='oldest' to inspect earliest active days first, or target='conversations'/'journals' so diaries do not mask conversation dates."
+    )
+    is_safe = True
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            **_MEMORY_SHARED_DATE_PROPS,
+            "target": _MEMORY_TARGET_PROP,
+            "order": _MEMORY_ORDER_PROP,
+            "limit": {
+                "type": "integer",
+                "description": "Maximum active dates to list. Default 15, hard ceiling 31.",
+            },
+        },
+    }
+
+    def execute(self, params: dict) -> str:
+        from backend.services.memory_search_engine import MemorySearchEngine
+
+        p = params or {}
+        return MemorySearchEngine().calendar(
+            start_date=p.get("start_date"),
+            end_date=p.get("end_date"),
+            date_range=p.get("date_range"),
+            target=(p.get("target") or "all").strip().lower(),
+            order=(p.get("order") or "newest").strip().lower(),
+            limit=p.get("limit"),
+        )
+
+
+class GetMemoryTimelineTool(AgentTool):
+    name = "get_memory_timeline"
+    description = (
+        "[Memory] Browse past dialogues and diaries chronologically by date or date range "
+        "(not stored on disk). Omit dates or pass date_range='YYYY'/'all' for macro spans, "
+        "and set order='oldest' to start from the earliest records. Returns concise previews with record IDs, or active dates if empty."
+    )
+    is_safe = True
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            **_MEMORY_SHARED_DATE_PROPS,
+            "target": _MEMORY_TARGET_PROP,
+            "order": _MEMORY_ORDER_PROP,
+            "limit": _MEMORY_LIMIT_PROP,
+        },
+    }
+
+    def execute(self, params: dict) -> str:
+        from backend.services.memory_search_engine import MemorySearchEngine
+
+        p = params or {}
+        return MemorySearchEngine().timeline(
+            date_range=p.get("date_range"),
+            start_date=p.get("start_date"),
+            end_date=p.get("end_date"),
+            target=(p.get("target") or "all").strip().lower(),
+            order=(p.get("order") or "newest").strip().lower(),
+            limit=p.get("limit"),
+        )
+
+
 class SearchMemoryTool(AgentTool):
     name = "search_memory"
     description = (
-        "[Memory] Recall past dialogues, shared promises, and diaries by keyword "
-        "(not stored on disk; ONLY tool category for chat/journal history). Returns concise previews and record IDs."
+        "[Memory] Search past dialogues, shared promises, and diaries by specific keyword or phrase "
+        "(not stored on disk). Best when looking up exact terms; for date spans or earliest history, "
+        "use get_memory_calendar or get_memory_timeline first. Returns concise previews and record IDs."
     )
     is_safe = True
     parameters_schema = {
@@ -859,65 +934,6 @@ class SearchMemoryTool(AgentTool):
             date_range=p.get("date_range"),
             start_date=p.get("start_date"),
             end_date=p.get("end_date"),
-            limit=p.get("limit"),
-        )
-
-
-class GetMemoryTimelineTool(AgentTool):
-    name = "get_memory_timeline"
-    description = (
-        "[Memory] Browse past dialogues and diaries chronologically by date or date range "
-        "(not stored on disk). Returns concise previews with record IDs, or active dates if empty."
-    )
-    is_safe = True
-    parameters_schema = {
-        "type": "object",
-        "properties": {
-            **_MEMORY_SHARED_DATE_PROPS,
-            "target": _MEMORY_TARGET_PROP,
-            "limit": _MEMORY_LIMIT_PROP,
-        },
-    }
-
-    def execute(self, params: dict) -> str:
-        from backend.services.memory_search_engine import MemorySearchEngine
-
-        p = params or {}
-        return MemorySearchEngine().timeline(
-            date_range=p.get("date_range"),
-            start_date=p.get("start_date"),
-            end_date=p.get("end_date"),
-            target=(p.get("target") or "all").strip().lower(),
-            limit=p.get("limit"),
-        )
-
-
-class GetMemoryCalendarTool(AgentTool):
-    name = "get_memory_calendar"
-    description = (
-        "[Memory] List active dates in a date range with daily conversation segment counts, "
-        "session titles, and diary counts (not stored on disk). Use this to map a timeline first."
-    )
-    is_safe = True
-    parameters_schema = {
-        "type": "object",
-        "properties": {
-            **_MEMORY_SHARED_DATE_PROPS,
-            "limit": {
-                "type": "integer",
-                "description": "Maximum active dates to list. Default 15, hard ceiling 31.",
-            },
-        },
-    }
-
-    def execute(self, params: dict) -> str:
-        from backend.services.memory_search_engine import MemorySearchEngine
-
-        p = params or {}
-        return MemorySearchEngine().calendar(
-            start_date=p.get("start_date"),
-            end_date=p.get("end_date"),
-            date_range=p.get("date_range"),
             limit=p.get("limit"),
         )
 
@@ -970,9 +986,9 @@ TOOL_REGISTRY = {
     "web_search": WebSearchTool(),
     "read_url_content": ReadUrlContentTool(),
     "call_openclaw_agent": OpenClawAgentTool(),
-    "search_memory": SearchMemoryTool(),
-    "get_memory_timeline": GetMemoryTimelineTool(),
     "get_memory_calendar": GetMemoryCalendarTool(),
+    "get_memory_timeline": GetMemoryTimelineTool(),
+    "search_memory": SearchMemoryTool(),
     "expand_memory": ExpandMemoryTool(),
 }
 

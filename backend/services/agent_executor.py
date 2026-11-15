@@ -7,7 +7,7 @@ import httpx
 import copy
 
 from backend.services.agent_tools import TOOL_REGISTRY
-from backend.services.stream_parser import StreamParser, ToolFormatter
+from backend.services.stream_parser import StreamParser
 from backend.services.tool_engine import ToolExecutionEngine
 
 class LLMClientProtocol(Protocol):
@@ -161,11 +161,6 @@ class AgentExecutor:
 
             parsed_tools = parser.get_parsed_tool_calls()
             full_content = parser.get_clean_content()
-            
-            # 2. Pipeline Stage 2: Format fake XML for UI
-            fake_xml = ToolFormatter.generate_fake_xml(parsed_tools)
-            if fake_xml:
-                yield {"type": "text", "text": fake_xml}
 
             # Prepare assistant message with native OpenAI tool calls (function.arguments must be a JSON string)
             assistant_msg = {"role": "assistant"}

@@ -2,6 +2,7 @@ import logging
 import sqlite3
 from typing import List, Dict, Any
 from backend.database import get_db_connection
+from backend.services.memory_search_engine import strip_tool_xml_tags
 from backend.services.model_router import get_active_model
 from backend.services.rag_factory import get_rag_client
 from openai import OpenAI
@@ -168,10 +169,12 @@ def process_memory_decay(phase_a_only=False, phase_b_only=False) -> Dict[str, An
 
             combined_text = ""
             if today_level1:
-                combined_text += f"【今日旧日记】\\n{today_level1['summary']}\\n---\\n"
+                combined_text += f"【今日旧日记】\n{strip_tool_xml_tags(today_level1['summary'])}\n---\n"
 
-            combined_text += "【新聊天记录】\\n"
-            combined_text += "\n---\n".join([r["content"] for r in level0_rows])
+            combined_text += "【新聊天记录】\n"
+            combined_text += "\n---\n".join(
+                cleaned for r in level0_rows if (cleaned := strip_tool_xml_tags(r["content"]))
+            )
 
             start_time = level0_rows[0]["timestamp"][:16]
             end_time = level0_rows[-1]["timestamp"][:16]

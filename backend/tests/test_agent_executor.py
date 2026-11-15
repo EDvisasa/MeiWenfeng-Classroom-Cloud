@@ -92,6 +92,12 @@ def test_agent_executor_with_tool_call():
         assert last_request_msgs[-1]["role"] == "tool"
         assert "hello" in last_request_msgs[-1]["content"]
 
+        # Fake <tool_batch>/<call_tool> XML filler must NOT pollute streamed assistant text chunks
+        streamed_text = "".join(r.get("text", "") for r in results if isinstance(r, dict) and r.get("type") == "text")
+        assert "<tool_batch" not in streamed_text
+        assert "</tool_batch" not in streamed_text
+        assert "<call_tool" not in streamed_text
+
 def test_agent_executor_normalizes_dict_arguments_to_json_string():
     """Verify dict tool_call arguments and legacy top-level arguments are normalized to standard OpenAI JSON strings."""
     class DictToolLLMClient(MockLLMClient):

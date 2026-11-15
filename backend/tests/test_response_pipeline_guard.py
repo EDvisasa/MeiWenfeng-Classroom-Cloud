@@ -164,3 +164,28 @@ def test_response_pipeline_production_db_guard_blocks_test_session_pollution(mon
         assert not mock_conn.cursor.called
 
 
+def test_clean_memory_text_strips_tool_batch_shells_completely():
+    from backend.services.response_pipeline import clean_memory_text
+
+    dirty_batch = (
+        "你好呀！\n"
+        "<tool_batch>\n<call_tool name=\"search_memory\">\n<query>x</query>\n</call_tool>\n</tool_batch>\n"
+        "*微笑* 找到了。"
+    )
+    cleaned = clean_memory_text(dirty_batch)
+    assert cleaned == "你好呀！\n\n*微笑* 找到了。" or cleaned == "你好呀！\n*微笑* 找到了。"
+    assert "<tool_batch" not in cleaned
+    assert "</tool_batch" not in cleaned
+    assert "<call_tool" not in cleaned
+
+    shells_only = clean_memory_text("<tool_batch> </tool_batch> <tool_batch> </tool_batch> <tool_call>{}</tool_call>")
+    assert shells_only == ""
+
+    unclosed_func = clean_memory_text(
+        "夫君别急~\n<tool_batch>\n<function=get_memory_calendar>\n<parameter=date_range>2026-07</parameter>\n</function>"
+    )
+    assert unclosed_func == "夫君别急~"
+    assert "<tool_batch" not in unclosed_func
+    assert "<function=" not in unclosed_func
+
+

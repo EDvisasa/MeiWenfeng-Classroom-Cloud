@@ -6,6 +6,7 @@ from openai import OpenAI
 import tiktoken
 
 from backend.database import get_db_connection
+from backend.services.memory_search_engine import strip_tool_xml_tags
 from backend.services.model_router import get_active_model
 
 logger = logging.getLogger(__name__)
@@ -89,8 +90,9 @@ def call_llm_for_summary(messages: List[Dict[str, Any]]) -> str:
         content = m.get("content", "")
         if isinstance(content, list):
             content = " ".join([item.get("text", "") for item in content if isinstance(item, dict) and item.get("type") == "text"])
-        # 剥离内部标签避免干扰
-        cleaned = re.sub(r'<thought>.*?</thought>', '', content, flags=re.DOTALL)
+        # 剥离内部标签与工具封装空壳避免干扰
+        cleaned = strip_tool_xml_tags(content)
+        cleaned = re.sub(r'<thought>.*?</thought>', '', cleaned, flags=re.DOTALL)
         cleaned = re.sub(r'<monologue>.*?</monologue>', '', cleaned, flags=re.DOTALL)
         cleaned = re.sub(r'<property_update.*?>', '', cleaned)
         cleaned = cleaned.strip()

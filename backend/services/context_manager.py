@@ -8,6 +8,7 @@ from dataclasses import dataclass
 
 from backend.database import get_db_connection
 from backend.services.character_state import CharacterStateManager, CharacterStateError
+from backend.services.memory_search_engine import strip_tool_xml_tags
 from backend.services.prompts import get_system_prompt
 
 logger = logging.getLogger("context_manager")
@@ -160,7 +161,13 @@ def build_base_system_prompt(
         recent_logs = cursor.fetchall()
         conn.close()
         if recent_logs:
-            recent_memory_text = "【近期日记摘要（优先级最高，包含最近2-3天的确切记忆）】\n" + "\n---\n".join([f"[{r['timestamp'].split()[0]}] {r['summary']}" for r in reversed(recent_logs)])
+            cleaned_logs = [
+                f"[{r['timestamp'].split()[0]}] {cleaned_summary}"
+                for r in reversed(recent_logs)
+                if (cleaned_summary := strip_tool_xml_tags(r["summary"]))
+            ]
+            if cleaned_logs:
+                recent_memory_text = "【近期日记摘要（优先级最高，包含最近2-3天的确切记忆）】\n" + "\n---\n".join(cleaned_logs)
     except Exception as e:
         logger.error(f"Failed to fetch recent memory logs in context_manager: {e}")
 
@@ -181,8 +188,8 @@ def build_base_system_prompt(
             if isinstance(mem_chunks_from_kb, str): mem_chunks_from_kb = [mem_chunks_from_kb] if mem_chunks_from_kb else []
             if isinstance(mem_chunks_raw, str): mem_chunks_raw = [mem_chunks_raw] if mem_chunks_raw else []
 
-            kb_chunks = [p for p in kb_chunks if p]
-            mem_chunks = [p for p in mem_chunks_from_kb + mem_chunks_raw if p]
+            kb_chunks = [c for p in kb_chunks if p and (c := strip_tool_xml_tags(p))]
+            mem_chunks = [c for p in mem_chunks_from_kb + mem_chunks_raw if p and (c := strip_tool_xml_tags(p))]
 
             kb_count = len(kb_chunks)
             mem_count = len(mem_chunks)
@@ -199,7 +206,7 @@ def build_base_system_prompt(
 
     dynamic_parts = []
 
-    _memory_recall_pointer = "Partial slices only — if missing details, use `[Memory]` tools (`search_memory`, etc.), not disk files."
+    _memory_recall_pointer = "Partial slices only — if missing details, use `[Memory]` tools (`get_memory_calendar`, `get_memory_timeline`, `search_memory`, etc.), not disk files."
 
     # 1. 最宏观背景：RAG 检索知识库切片
     if rag_context:
@@ -344,15 +351,23 @@ def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, 
                 clean_ts = c_ts
 
         if isinstance(content, str):
-            if not content.strip() and role == "assistant":
-                continue
+            if role == "assistant":
+                content = strip_tool_xml_tags(content)
+                if not content.strip():
+                    continue
             if clean_ts and not content.startswith(f"[{clean_ts}]"):
                 content = f"[{clean_ts}] {content}"
         elif isinstance(content, list):
             # 视觉多模态内容列表，深拷贝避免外部副作用
             copied_content = []
             for item in content:
-                copied_content.append(dict(item) if isinstance(item, dict) else item)
+                if isinstance(item, dict):
+                    item_copy = dict(item)
+                    if role == "assistant" and item_copy.get("type") == "text":
+                        item_copy["text"] = strip_tool_xml_tags(item_copy.get("text", ""))
+                    copied_content.append(item_copy)
+                else:
+                    copied_content.append(item)
             content = copied_content
             if clean_ts:
                 for item in content:

@@ -502,3 +502,14 @@ domain: project-planning
 - **解决路线**：
   1. **恢复标准 OpenAI 工具调用报文**：在 [agent_executor.py](file:///d:/MeiWenfeng-Classroom/backend/services/agent_executor.py) 中移除非标准顶层 `payload["arguments"]`，确保 `function["arguments"]` 始终输出合规 JSON 字符串（若原本已是 `str` 则保留原串或空串兜底 `"{}"`，若为 `dict`/其它值则用 `json.dumps(..., ensure_ascii=False)` 序列化）；
   2. **更新并补强单元测试**：修改 [test_agent_executor.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_executor.py) 中的工具调用断言以对齐 OpenAI 字符串契约，并新增 `test_agent_executor_normalizes_dict_arguments_to_json_string` 覆盖遗留 `dict`/顶层 `arguments` 归一化回归测试。
+
+### 49. [已解决 / `[Memory]` 召回准确性] 多词空格查询必空、跨表空结果误导与已回滚测试记忆泄漏
+- **现象描述**：在排查 `Strata-llama-main` 调用 `[Memory]` 工具寻找早期记忆的 QA 会话（`2026-11-16 01:26`）时发现三处联锁缺陷：
+  1. `search_memory` 传入空格分隔的多关键词 `'初次见面 第一天 醉仙楼 相遇 试探 猎物'` 后直接返回 `[No memory records found]`（库内实际有 13 条含 `醉仙楼` 记录）；
+  2. `get_memory_timeline` 在传入 `target="conversations"` 查询 `2026-06-01..2026-07-15` 时，只返回 `chat_messages` 的活跃月份 `2026-08/10/11`，既未提示同期 `journals`（`memory_logs`）尚存 519 条记录，前端工具卡片 `Remembering timeline: ...` 也未显式展示非默认 `target`；
+  3. 此前已被撤回回滚的测试对话（`status='rolled_back'`，`#2171`–`#2181`）在 Chroma 已被清理，但仍可通过 `search_memory` / `get_memory_timeline` / `get_memory_calendar` / `expand_memory` 被搜出并污染上下文。
+- **解决路线**：
+  1. **统一剔除 `rolled_back` 状态日记**：在 [memory_search_engine.py](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py) 提取公共 SQL 过滤条件 `JOURNAL_VISIBLE_SQL = "COALESCE(status, 'active') NOT IN ('archived', 'rolled_back')"`，统一收口 `calendar`、`expand`、`_fetch_target_hits` 与 `_collect_bucket_counts`，保留 `active` 与历史 `compressed` 日记并严格排除 `archived` 与 `rolled_back`；
+  2. **多关键词分词检索与相关度排序**：在 `_tokenize_search_terms` 与 `_build_term_sql_parts` 中对空格分隔多词拆词、防 `LIKE` 通配符注入（保留字面 `_`/`%`）并按 SQL `match_score` 与去内部标签（`<think>`/`<tool_batch>`）后的精确命中词数 + 时序排序；抽取共享表检索器 `_fetch_target_hits` 统一 `journals` 与 `conversations` 的查询、洗净与打分；
+  3. **空结果跨 `target` 客观提示与 UI 透出非默认 `target`**：在 `_build_empty_notice` / `_build_peer_target_hint` 中，当单侧 `target`（`journals` 或 `conversations`）查询为空且另一侧存在匹配或同范围活跃记录时附带客观重试提示（默认 `target='all'` 保持原文案不变）；同时在 [tool_engine.py](file:///d:/MeiWenfeng-Classroom/backend/services/tool_engine.py) 的 `_format_command_str` 中为非默认 `target` 展示 `(journals)` / `(conversations)` 标识；
+  4. **TDD 回归闭环**：在 [test_memory_search_tool.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py) 新增 `rolled_back` 屏蔽、多关键词排名与通配符隔离、跨 `target` 空提示与命令显示 3 组集成测试。

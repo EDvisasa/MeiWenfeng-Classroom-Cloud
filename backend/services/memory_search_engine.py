@@ -11,6 +11,16 @@ STRIP_INTERNAL_TAGS_RE = re.compile(
     re.IGNORECASE,
 )
 
+TOOL_XML_TAGS_RE = re.compile(
+    r"<tool_batch\b[^>]*/>|<tool_batch\b[^>]*(?<!/)>[\s\S]*?(?:</tool_batch>|$)"
+    r"|<tool_call\b[^>]*/>|<tool_call\b[^>]*(?<!/)>[\s\S]*?(?:</tool_call>|$)"
+    r"|<call_tool\b[^>]*/>|<call_tool\b[^>]*(?<!/)>[\s\S]*?(?:</call_tool>|$)"
+    r"|<execute_bash\b[^>]*/>|<execute_bash\b[^>]*(?<!/)>[\s\S]*?(?:</execute_bash>|$)"
+    r"|<function(?:=|\b)[^>]*/>|<function(?:=|\b)[^>]*(?<!/)>[\s\S]*?(?:</function>|$)"
+    r"|</(?:tool_batch|tool_call|call_tool|execute_bash|function)\s*>",
+    re.IGNORECASE,
+)
+
 DEFAULT_LIMIT = 5
 MAX_LIMIT = 15
 PREVIEW_CHARS = 150
@@ -18,14 +28,30 @@ DEFAULT_CONTEXT_TURNS = 4
 MAX_CONTEXT_TURNS = 8
 VALID_TARGETS = {"all", "journals", "conversations"}
 VALID_SOURCE_TYPES = {"journal", "conversation"}
+VALID_ORDERS = {"newest", "oldest"}
+JOURNAL_VISIBLE_SQL = "COALESCE(status, 'active') NOT IN ('archived', 'rolled_back')"
+
+
+def _normalize_stripped_whitespace(text: str) -> str:
+    cleaned = re.sub(r"[ \t]+\n", "\n", text)
+    cleaned = re.sub(r"\n{3,}", "\n\n", cleaned)
+    return cleaned.strip()
+
+
+def strip_tool_xml_tags(text: Optional[str]) -> str:
+    """Remove tool-wrapper XML tags and empty shells (e.g., <tool_batch> </tool_batch>) from text."""
+    if not text:
+        return ""
+    return _normalize_stripped_whitespace(TOOL_XML_TAGS_RE.sub("", text))
 
 
 def strip_internal_tags(text: Optional[str]) -> str:
-    """Remove internal reasoning and state tags before surfacing historical records."""
+    """Remove internal reasoning, state, and tool-wrapper tags before surfacing historical records."""
     if not text:
         return ""
     cleaned = STRIP_INTERNAL_TAGS_RE.sub("", text)
-    return re.sub(r"\n{3,}", "\n\n", cleaned).strip()
+    cleaned = TOOL_XML_TAGS_RE.sub("", cleaned)
+    return _normalize_stripped_whitespace(cleaned)
 
 
 def _truncate_preview(text: str, max_chars: int = PREVIEW_CHARS) -> str:
@@ -41,8 +67,45 @@ def _escape_like(term: str) -> str:
     return f"%{escaped}%"
 
 
+def _tokenize_search_terms(query: Optional[str]) -> List[str]:
+    """Split whitespace-separated query keywords while deduplicating case-insensitively."""
+    if not query or not query.strip():
+        return []
+    terms: List[str] = []
+    seen = set()
+    for raw in query.split():
+        key = raw.lower()
+        if key and key not in seen:
+            seen.add(key)
+            terms.append(raw)
+    return terms
+
+
+def _build_term_sql_parts(
+    terms: List[str],
+    col_exprs: Tuple[str, ...],
+) -> Tuple[str, List[Any], str, List[Any]]:
+    """Build SQL WHERE predicate and relevance match_score expression for 1+ search terms."""
+    term_clauses: List[str] = []
+    where_params: List[Any] = []
+    for term in terms:
+        pat = _escape_like(term)
+        sub = " OR ".join(f"{col} LIKE ? ESCAPE '\\'" for col in col_exprs)
+        term_clauses.append(f"({sub})")
+        where_params.extend([pat] * len(col_exprs))
+
+    if len(terms) == 1:
+        return term_clauses[0], where_params, "1", []
+
+    where_clause = "(" + " OR ".join(term_clauses) + ")"
+    score_expr = "(" + " + ".join(f"(CASE WHEN {tc} THEN 1 ELSE 0 END)" for tc in term_clauses) + ")"
+    score_params = list(where_params)
+    return where_clause, where_params, score_expr, score_params
+
+
 DATE_DAY_RE = re.compile(r"\d{4}-\d{2}-\d{2}")
 DATE_MONTH_RE = re.compile(r"\d{4}-\d{2}")
+DATE_YEAR_RE = re.compile(r"\d{4}")
 
 
 def _build_date_clauses(
@@ -59,7 +122,9 @@ def _build_date_clauses(
 
     if date_range and str(date_range).strip():
         dr = str(date_range).strip().lower()
-        if dr == "recent_7d":
+        if dr == "all":
+            pass
+        elif dr == "recent_7d":
             cutoff = (datetime.now() - timedelta(days=7)).strftime("%Y-%m-%d %H:%M:%S")
             clauses.append(f"{norm_ts} >= ?")
             params.append(cutoff)
@@ -73,10 +138,13 @@ def _build_date_clauses(
         elif DATE_MONTH_RE.fullmatch(dr):
             clauses.append(f"{norm_ts} LIKE ?")
             params.append(f"{dr}-%")
+        elif DATE_YEAR_RE.fullmatch(dr):
+            clauses.append(f"{norm_ts} LIKE ?")
+            params.append(f"{dr}-%")
         else:
             return [], [], (
                 f"[Error] Invalid date_range '{date_range}'. "
-                "Expected 'YYYY-MM-DD', 'YYYY-MM', 'recent_7d', or 'recent_30d'."
+                "Expected 'YYYY-MM-DD', 'YYYY-MM', 'YYYY', 'recent_7d', 'recent_30d', or 'all'."
             )
 
     sd = str(start_date).strip() if start_date and str(start_date).strip() else None
@@ -142,14 +210,68 @@ class MemorySearchEngine:
             )
         return f"[Error] Unsupported mode '{mode}'. Supported modes: search, timeline, expand."
 
+    @staticmethod
+    def _normalize_target_and_order(
+        target: Optional[str],
+        order: Optional[str],
+    ) -> Tuple[str, str, Optional[str]]:
+        norm_target = (target or "all").strip().lower()
+        if norm_target not in VALID_TARGETS:
+            return "", "", f"[Error] Invalid target '{target}'. Expected one of: all, journals, conversations."
+        norm_order = (order or "newest").strip().lower()
+        if norm_order not in VALID_ORDERS:
+            return "", "", f"[Error] Invalid order '{order}'. Expected 'newest' or 'oldest'."
+        return norm_target, norm_order, None
+
+    def _collect_target_date_stats(
+        self,
+        conn,
+        target: str,
+        date_clauses: Optional[List[str]] = None,
+        date_params: Optional[List[Any]] = None,
+    ) -> Tuple[int, Optional[str], Optional[str]]:
+        """Compute (total_rows, earliest_day, latest_day) across active records for selected target."""
+        total = 0
+        min_days: List[str] = []
+        max_days: List[str] = []
+        norm_ts = "replace(COALESCE(timestamp, ''), 'T', ' ')"
+        day_expr = f"substr({norm_ts}, 1, 10)"
+        for key in ("journals", "conversations"):
+            if target not in ("all", key):
+                continue
+            spec = self._TARGET_SPECS[key]
+            clauses = [spec["base_where"], "length(trim(COALESCE(timestamp, ''))) >= 10"]
+            params: List[Any] = []
+            if date_clauses:
+                clauses.extend(date_clauses)
+                params.extend(date_params or [])
+            row = conn.execute(
+                f"SELECT COUNT(*) AS cnt, MIN({day_expr}) AS min_d, MAX({day_expr}) AS max_d "
+                f"FROM {spec['table']} WHERE {' AND '.join(clauses)}",
+                params,
+            ).fetchone()
+            if row:
+                total += int(row["cnt"] or 0)
+                if row["min_d"]:
+                    min_days.append(row["min_d"])
+                if row["max_d"]:
+                    max_days.append(row["max_d"])
+        return total, (min(min_days) if min_days else None), (max(max_days) if max_days else None)
+
     def calendar(
         self,
         start_date: Optional[str] = None,
         end_date: Optional[str] = None,
         date_range: Optional[str] = None,
+        target: str = "all",
+        order: str = "newest",
         limit: Optional[int] = None,
     ) -> str:
         """Aggregate per-day conversation session counts, session titles, and diary counts."""
+        norm_target, norm_order, arg_err = self._normalize_target_and_order(target, order)
+        if arg_err:
+            return arg_err
+
         log_date_clauses, log_date_params, date_err = _build_date_clauses(
             date_range=date_range,
             start_date=start_date,
@@ -176,51 +298,55 @@ class MemorySearchEngine:
 
         conn = get_db_connection()
         try:
-            log_clauses = [
-                "COALESCE(status, 'active') != 'archived'",
-                "length(trim(COALESCE(timestamp, ''))) >= 10",
-                *log_date_clauses,
-            ]
-            log_rows = conn.execute(
-                f"""
-                SELECT substr(replace(COALESCE(timestamp, ''), 'T', ' '), 1, 10) AS day, COUNT(*) AS cnt
-                FROM memory_logs
-                WHERE {' AND '.join(log_clauses)}
-                GROUP BY day
-                """,
-                log_date_params,
-            ).fetchall()
-            for row in log_rows:
-                if row["day"]:
-                    _ensure_day(row["day"])["journals"] = row["cnt"]
+            if norm_target in ("all", "journals"):
+                log_clauses = [
+                    JOURNAL_VISIBLE_SQL,
+                    "length(trim(COALESCE(timestamp, ''))) >= 10",
+                    *log_date_clauses,
+                ]
+                log_rows = conn.execute(
+                    f"""
+                    SELECT substr(replace(COALESCE(timestamp, ''), 'T', ' '), 1, 10) AS day, COUNT(*) AS cnt
+                    FROM memory_logs
+                    WHERE {' AND '.join(log_clauses)}
+                    GROUP BY day
+                    """,
+                    log_date_params,
+                ).fetchall()
+                for row in log_rows:
+                    if row["day"]:
+                        _ensure_day(row["day"])["journals"] = row["cnt"]
 
-            msg_clauses = [
-                "m.role IN ('user', 'assistant')",
-                "length(trim(COALESCE(m.timestamp, ''))) >= 10",
-                *msg_date_clauses,
-            ]
-            msg_rows = conn.execute(
-                f"""
-                SELECT
-                    substr(replace(COALESCE(m.timestamp, ''), 'T', ' '), 1, 10) AS day,
-                    COALESCE(m.session_id, 'default') AS sid,
-                    COALESCE(NULLIF(trim(s.title), ''), m.session_id, 'untitled') AS title,
-                    COUNT(*) AS msg_cnt
-                FROM chat_messages m
-                LEFT JOIN chat_sessions s ON s.id = m.session_id
-                WHERE {' AND '.join(msg_clauses)}
-                GROUP BY day, sid
-                ORDER BY day ASC, MIN(m.id) ASC
-                """,
-                msg_date_params,
-            ).fetchall()
-            for row in msg_rows:
-                day = row["day"]
-                if not day:
-                    continue
-                entry = _ensure_day(day)
-                entry["msgs"] += row["msg_cnt"]
-                entry["sessions"][row["sid"]] = _truncate_preview(str(row["title"]), max_chars=40)
+            if norm_target in ("all", "conversations"):
+                msg_clauses = [
+                    "m.role IN ('user', 'assistant')",
+                    "length(trim(COALESCE(m.timestamp, ''))) >= 10",
+                    *msg_date_clauses,
+                ]
+                msg_rows = conn.execute(
+                    f"""
+                    SELECT
+                        substr(replace(COALESCE(m.timestamp, ''), 'T', ' '), 1, 10) AS day,
+                        COALESCE(m.session_id, 'default') AS sid,
+                        COALESCE(NULLIF(trim(s.title), ''), m.session_id, 'untitled') AS title,
+                        COUNT(*) AS msg_cnt
+                    FROM chat_messages m
+                    LEFT JOIN chat_sessions s ON s.id = m.session_id
+                    WHERE {' AND '.join(msg_clauses)}
+                    GROUP BY day, sid
+                    ORDER BY day ASC, MIN(m.id) ASC
+                    """,
+                    msg_date_params,
+                ).fetchall()
+                for row in msg_rows:
+                    day = row["day"]
+                    if not day:
+                        continue
+                    entry = _ensure_day(day)
+                    entry["msgs"] += row["msg_cnt"]
+                    entry["sessions"][row["sid"]] = _truncate_preview(str(row["title"]), max_chars=40)
+
+            _, db_earliest, _ = self._collect_target_date_stats(conn, norm_target)
         finally:
             conn.close()
 
@@ -229,24 +355,37 @@ class MemorySearchEngine:
                 date_range=date_range,
                 start_date=start_date,
                 end_date=end_date,
+                target=norm_target,
             )
 
-        selected_days = sorted(sorted(day_map.keys(), reverse=True)[:capped_days])
+        all_days = sorted(day_map.keys())
+        total_days = len(all_days)
+        scope_earliest = all_days[0]
+        scope_latest = all_days[-1]
+        is_truncated = total_days > capped_days
+        selected_days = all_days[:capped_days] if norm_order == "oldest" else all_days[-capped_days:]
+
         lines: List[str] = []
         for day in selected_days:
             entry = day_map[day]
             sess_cnt = len(entry["sessions"])
             msg_cnt = entry["msgs"]
             j_cnt = entry["journals"]
-            counts = (
-                f"{sess_cnt} session{'s' if sess_cnt != 1 else ''}, "
-                f"{msg_cnt} msg{'s' if msg_cnt != 1 else ''}, "
-                f"{j_cnt} journal{'s' if j_cnt != 1 else ''}"
-            )
-            titles = list(entry["sessions"].values())[:4]
-            title_part = f" | topics: {', '.join(repr(t) for t in titles)}" if titles else ""
-            if len(entry["sessions"]) > 4:
-                title_part += f" (+{len(entry['sessions']) - 4} more)"
+            if norm_target == "journals":
+                counts = f"{j_cnt} journal{'s' if j_cnt != 1 else ''}"
+                title_part = ""
+            else:
+                parts = [
+                    f"{sess_cnt} session{'s' if sess_cnt != 1 else ''}",
+                    f"{msg_cnt} msg{'s' if msg_cnt != 1 else ''}",
+                ]
+                if norm_target == "all":
+                    parts.append(f"{j_cnt} journal{'s' if j_cnt != 1 else ''}")
+                counts = ", ".join(parts)
+                titles = list(entry["sessions"].values())[:4]
+                title_part = f" | topics: {', '.join(repr(t) for t in titles)}" if titles else ""
+                if len(entry["sessions"]) > 4:
+                    title_part += f" (+{len(entry['sessions']) - 4} more)"
             lines.append(f"- [{day}] {counts}{title_part}")
 
         meta: List[str] = []
@@ -256,9 +395,35 @@ class MemorySearchEngine:
             meta.append(f"start_date: {start_date!r}")
         if end_date:
             meta.append(f"end_date: {end_date!r}")
-        meta.append(f"active_days: {len(selected_days)}")
+        if norm_target != "all":
+            meta.append(f"target: {norm_target}")
+        if norm_order != "newest":
+            meta.append(f"order: {norm_order}")
+
+        if is_truncated:
+            effective_earliest = db_earliest or scope_earliest
+            showing_word = "oldest" if norm_order == "oldest" else "latest"
+            meta.append(f"earliest_active_day: {effective_earliest}")
+            meta.append(f"total_active_days: {total_days} (showing {showing_word} {len(selected_days)})")
+            if norm_order == "newest":
+                footer = (
+                    f'Note: Truncated — showing latest {len(selected_days)} of {total_days} active days in range '
+                    f'({scope_earliest}..{scope_latest}); earliest active day in DB for target={norm_target!r} is '
+                    f'{effective_earliest}. Call get_memory_calendar(order="oldest") to start from {scope_earliest}, '
+                    'or narrow start_date/end_date. Call get_memory_timeline with date_range="YYYY-MM-DD" to inspect records for a specific day.'
+                )
+            else:
+                footer = (
+                    f'Note: Truncated — showing oldest {len(selected_days)} of {total_days} active days in range '
+                    f'({scope_earliest}..{scope_latest}); earliest active day in DB for target={norm_target!r} is '
+                    f'{effective_earliest}. Narrow start_date/end_date to step past {selected_days[-1]}, or call '
+                    'get_memory_timeline with date_range="YYYY-MM-DD" to inspect records for a specific day.'
+                )
+        else:
+            meta.append(f"active_days: {len(selected_days)}")
+            footer = 'Note: Call get_memory_timeline with date_range="YYYY-MM-DD" to inspect records for a specific day.'
+
         header = f"[Memory Calendar Overview | {' | '.join(meta)}]"
-        footer = 'Note: Call get_memory_timeline with date_range="YYYY-MM-DD" to inspect records for a specific day.'
         return "\n".join([header, *lines, footer])
 
     @staticmethod
@@ -287,10 +452,10 @@ class MemorySearchEngine:
         try:
             if source_type == "journal":
                 row = conn.execute(
-                    """
+                    f"""
                     SELECT id, timestamp, level, summary, content, session_id
                     FROM memory_logs
-                    WHERE id = ? AND COALESCE(status, 'active') != 'archived'
+                    WHERE id = ? AND {JOURNAL_VISIBLE_SQL}
                     """,
                     (rec_id,),
                 ).fetchone()
@@ -380,6 +545,7 @@ class MemorySearchEngine:
         target: str = "all",
         query: str = "",
         limit: Optional[int] = None,
+        order: str = "newest",
     ) -> str:
         return self._run_preview_query(
             mode="timeline",
@@ -389,7 +555,101 @@ class MemorySearchEngine:
             start_date=start_date,
             end_date=end_date,
             limit=limit,
+            order=order,
         )
+
+    _TARGET_SPECS = {
+        "journals": {
+            "table": "memory_logs",
+            "base_where": JOURNAL_VISIBLE_SQL,
+            "select_cols": "id, timestamp, summary, content",
+            "search_cols": ("COALESCE(summary, '')", "COALESCE(content, '')"),
+            "type_rank": 1,
+        },
+        "conversations": {
+            "table": "chat_messages",
+            "base_where": "role IN ('user', 'assistant')",
+            "select_cols": "id, session_id, role, content, timestamp",
+            "search_cols": ("COALESCE(content, '')",),
+            "type_rank": 0,
+        },
+    }
+
+    @staticmethod
+    def _format_bucket_counts(buckets: Dict[str, Tuple[int, int]]) -> str:
+        return ", ".join(f"{b} ({j + m})" for b, (j, m) in buckets.items())
+
+    def _fetch_target_hits(
+        self,
+        conn,
+        target_key: str,
+        terms: List[str],
+        full_query: str,
+        date_clauses: List[str],
+        date_params: List[Any],
+        fetch_limit: Optional[int] = None,
+        order: str = "newest",
+    ) -> List[Tuple[int, int, str, int, int, str]]:
+        """Query a single memory source, strip internal tags, score term matches, and format preview hits."""
+        spec = self._TARGET_SPECS[target_key]
+        clauses = [spec["base_where"], *date_clauses]
+        sql_params = list(date_params)
+        score_expr = "1"
+        score_params: List[Any] = []
+        if terms:
+            kw_where, kw_params, score_expr, score_params = _build_term_sql_parts(terms, spec["search_cols"])
+            clauses.append(kw_where)
+            sql_params.extend(kw_params)
+
+        if terms:
+            order_by = "match_score DESC, id DESC" if len(terms) >= 2 else "id DESC"
+        else:
+            norm_ts_sql = "replace(COALESCE(timestamp, ''), 'T', ' ')"
+            order_by = f"{norm_ts_sql} ASC, id ASC" if order == "oldest" else f"{norm_ts_sql} DESC, id DESC"
+        limit_sql = "LIMIT ?" if fetch_limit is not None else ""
+        query_params: List[Any] = [*score_params, *sql_params]
+        if fetch_limit is not None:
+            query_params.append(fetch_limit)
+
+        rows = conn.execute(
+            f"""
+            SELECT {spec['select_cols']}, {score_expr} AS match_score
+            FROM {spec['table']}
+            WHERE {' AND '.join(clauses)}
+            ORDER BY {order_by}
+            {limit_sql}
+            """,
+            query_params,
+        ).fetchall()
+
+        query_lower = full_query.lower()
+        hits: List[Tuple[int, int, str, int, int, str]] = []
+        for row in rows:
+            if target_key == "journals":
+                preview = strip_internal_tags(row["summary"] or row["content"])
+                if not preview:
+                    continue
+                searchable = "\n".join(
+                    p for p in (strip_internal_tags(row["summary"]), strip_internal_tags(row["content"])) if p
+                ).lower()
+                line = f"- [journal #{row['id']} | {row['timestamp']}] {_truncate_preview(preview)}"
+            else:
+                preview = strip_internal_tags(row["content"])
+                if not preview:
+                    continue
+                searchable = preview.lower()
+                line = (
+                    f"- [conversation #{row['id']} | session:{row['session_id']} | "
+                    f"{row['timestamp']} | {row['role']}] {_truncate_preview(preview)}"
+                )
+
+            hit_count = sum(1 for t in terms if t.lower() in searchable) if terms else 1
+            if terms and hit_count == 0:
+                continue
+            exact_hit = 1 if (query_lower and query_lower in searchable) else 0
+            norm_ts = str(row["timestamp"] or "").replace("T", " ")
+            hits.append((hit_count, exact_hit, norm_ts, spec["type_rank"], row["id"], line))
+        return hits
 
     def _run_preview_query(
         self,
@@ -400,9 +660,11 @@ class MemorySearchEngine:
         start_date: Optional[str],
         end_date: Optional[str],
         limit: Optional[int],
+        order: str = "newest",
     ) -> str:
-        if target not in VALID_TARGETS:
-            return f"[Error] Invalid target '{target}'. Expected one of: all, journals, conversations."
+        norm_target, norm_order, arg_err = self._normalize_target_and_order(target, order)
+        if arg_err:
+            return arg_err
 
         date_clauses, date_params, date_err = _build_date_clauses(
             date_range=date_range,
@@ -413,73 +675,70 @@ class MemorySearchEngine:
             return date_err
 
         capped_limit = self._normalize_limit(limit)
+        terms = _tokenize_search_terms(query)
+        multi_term = len(terms) >= 2
         lines: List[str] = []
+        ranked_hits: List[Tuple[int, int, str, int, int, str]] = []
+        total_matching = 0
+        scope_min_day: Optional[str] = None
+        scope_max_day: Optional[str] = None
+        db_earliest: Optional[str] = None
 
         conn = get_db_connection()
         try:
-            if target in ("all", "journals"):
-                clauses = ["COALESCE(status, 'active') != 'archived'"]
-                sql_params: List[Any] = []
-                if query:
-                    like_pat = _escape_like(query)
-                    clauses.append("(COALESCE(summary, '') LIKE ? ESCAPE '\\' OR COALESCE(content, '') LIKE ? ESCAPE '\\')")
-                    sql_params.extend([like_pat, like_pat])
-                if date_clauses:
-                    clauses.extend(date_clauses)
-                    sql_params.extend(date_params)
-                sql_params.append(capped_limit)
-
-                rows = conn.execute(
-                    f"""
-                    SELECT id, timestamp, level, summary, content
-                    FROM memory_logs
-                    WHERE {' AND '.join(clauses)}
-                    ORDER BY id DESC
-                    LIMIT ?
-                    """,
-                    sql_params,
-                ).fetchall()
-                for row in rows:
-                    text = strip_internal_tags(row["summary"] or row["content"])
-                    lines.append(
-                        f"- [journal #{row['id']} | {row['timestamp']}] {_truncate_preview(text)}"
-                    )
-
-            if target in ("all", "conversations"):
-                remaining = capped_limit - len(lines) if target == "all" else capped_limit
-                if remaining > 0:
-                    clauses = ["role IN ('user', 'assistant')"]
-                    sql_params = []
-                    if query:
-                        clauses.append("COALESCE(content, '') LIKE ? ESCAPE '\\'")
-                        sql_params.append(_escape_like(query))
-                    if date_clauses:
-                        clauses.extend(date_clauses)
-                        sql_params.extend(date_params)
-                    sql_params.append(max(remaining * 2, capped_limit))
-
-                    rows = conn.execute(
-                        f"""
-                        SELECT id, session_id, role, content, timestamp
-                        FROM chat_messages
-                        WHERE {' AND '.join(clauses)}
-                        ORDER BY id DESC
-                        LIMIT ?
-                        """,
-                        sql_params,
-                    ).fetchall()
-                    query_lower = query.lower()
-                    for row in rows:
-                        clean = strip_internal_tags(row["content"])
-                        if query_lower and query_lower not in clean.lower():
-                            continue
-                        if not clean:
-                            continue
-                        lines.append(
-                            f"- [conversation #{row['id']} | session:{row['session_id']} | {row['timestamp']} | {row['role']}] {_truncate_preview(clean)}"
+            if not terms:
+                timeline_hits: List[Tuple[int, int, str, int, int, str]] = []
+                for key in ("journals", "conversations"):
+                    if norm_target in ("all", key):
+                        timeline_hits.extend(
+                            self._fetch_target_hits(
+                                conn,
+                                key,
+                                terms,
+                                query,
+                                date_clauses,
+                                date_params,
+                                fetch_limit=capped_limit + 1,
+                                order=norm_order,
+                            )
                         )
-                        if len(lines) >= capped_limit:
-                            break
+                timeline_hits.sort(
+                    key=lambda item: (item[2], item[3], item[4]),
+                    reverse=(norm_order != "oldest"),
+                )
+                lines = [item[-1] for item in timeline_hits[:capped_limit]]
+                if lines:
+                    total_matching, scope_min_day, scope_max_day = self._collect_target_date_stats(
+                        conn, norm_target, date_clauses, date_params
+                    )
+                    total_matching = max(total_matching, len(timeline_hits))
+                    _, db_earliest, _ = self._collect_target_date_stats(conn, norm_target)
+            else:
+                if norm_target in ("all", "journals"):
+                    j_limit = max(capped_limit * 4, 40)
+                    j_hits = self._fetch_target_hits(
+                        conn, "journals", terms, query, date_clauses, date_params, fetch_limit=j_limit
+                    )
+                    if multi_term:
+                        ranked_hits.extend(j_hits)
+                    else:
+                        lines.extend(item[-1] for item in j_hits[:capped_limit])
+
+                if norm_target in ("all", "conversations"):
+                    remaining = capped_limit if multi_term else (capped_limit - len(lines) if norm_target == "all" else capped_limit)
+                    if remaining > 0:
+                        c_limit = max(remaining * 4, 40)
+                        c_hits = self._fetch_target_hits(
+                            conn, "conversations", terms, query, date_clauses, date_params, fetch_limit=c_limit
+                        )
+                        if multi_term:
+                            ranked_hits.extend(c_hits)
+                        else:
+                            lines.extend(item[-1] for item in c_hits[:remaining])
+
+                if multi_term:
+                    ranked_hits.sort(reverse=True)
+                    lines = [item[-1] for item in ranked_hits[:capped_limit]]
         finally:
             conn.close()
 
@@ -488,7 +747,8 @@ class MemorySearchEngine:
                 date_range=date_range,
                 start_date=start_date,
                 end_date=end_date,
-                target=target,
+                target=norm_target,
+                query=query,
             )
 
         meta = [f"mode: {mode}"]
@@ -500,10 +760,32 @@ class MemorySearchEngine:
             meta.append(f"start_date: {start_date!r}")
         if end_date:
             meta.append(f"end_date: {end_date!r}")
-        meta.append(f"target: {target}")
+        meta.append(f"target: {norm_target}")
+        if not terms and norm_order != "newest":
+            meta.append(f"order: {norm_order}")
         meta.append(f"hits: {len(lines)}")
-        header = f"[Memory Search Results | {' | '.join(meta)}]"
+
         footer = "Note: Call expand_memory with source_type and record_id to inspect full details if needed."
+        if not terms and total_matching > len(lines):
+            effective_earliest = db_earliest or scope_min_day
+            meta.append(f"total_matching: {total_matching}")
+            if effective_earliest:
+                meta.append(f"earliest_active_day: {effective_earliest}")
+            span_label = f"{scope_min_day}..{scope_max_day}" if (scope_min_day and scope_max_day) else "scope"
+            if norm_order == "newest":
+                footer = (
+                    f'Note: Showing newest {len(lines)} of {total_matching} records ({span_label}); '
+                    f'earliest_active_day={effective_earliest or "unknown"}. Call get_memory_timeline(order="oldest") '
+                    f'to read from {scope_min_day or "the start"}, or call expand_memory with source_type and record_id to inspect full details.'
+                )
+            else:
+                footer = (
+                    f'Note: Showing oldest {len(lines)} of {total_matching} records ({span_label}); '
+                    f'earliest_active_day={effective_earliest or "unknown"}. Narrow start_date/end_date to step forward, '
+                    'or call expand_memory with source_type and record_id to inspect full details.'
+                )
+
+        header = f"[Memory Search Results | {' | '.join(meta)}]"
         return "\n".join([header, *lines, footer])
 
     @staticmethod
@@ -548,11 +830,58 @@ class MemorySearchEngine:
                 counts[b][idx] += row["cnt"]
 
         if target in ("all", "journals"):
-            _query_table("memory_logs", "COALESCE(status, 'active') != 'archived'", 0)
+            _query_table("memory_logs", JOURNAL_VISIBLE_SQL, 0)
         if target in ("all", "conversations"):
             _query_table("chat_messages", "role IN ('user', 'assistant')", 1)
 
         return {k: (v[0], v[1]) for k, v in sorted(counts.items())}
+
+    def _build_peer_target_hint(
+        self,
+        conn,
+        target: str,
+        date_range: Optional[str],
+        start_date: Optional[str],
+        end_date: Optional[str],
+        scope_label: Optional[str],
+        query: str,
+        anchor_year: Optional[str],
+    ) -> str:
+        """Build an objective hint if the peer target ('journals' vs 'conversations') holds matching records."""
+        if target not in ("journals", "conversations"):
+            return ""
+        peer_target = "journals" if target == "conversations" else "conversations"
+        date_clauses, date_params, date_err = _build_date_clauses(
+            date_range=date_range,
+            start_date=start_date,
+            end_date=end_date,
+        )
+        if date_err:
+            return ""
+
+        terms = _tokenize_search_terms(query)
+        peer_count = len(self._fetch_target_hits(conn, peer_target, terms, query, date_clauses, date_params))
+        if peer_count > 0:
+            scope_phrase = f" for {scope_label}" if scope_label else ""
+            return (
+                f" Note: {peer_count} matching {peer_target} record(s) exist{scope_phrase}"
+                f" — retry with target='all' or target='{peer_target}'."
+            )
+
+        if scope_label and not terms:
+            peer_buckets = (
+                self._collect_bucket_counts(conn, 7, target=peer_target, prefix=f"{anchor_year}-")
+                if anchor_year
+                else {}
+            )
+            if not peer_buckets:
+                peer_buckets = self._collect_bucket_counts(conn, 4, target=peer_target)
+            if peer_buckets:
+                return (
+                    f" Note: {peer_target} has active records ({self._format_bucket_counts(peer_buckets)})"
+                    f" — consider target='all' or target='{peer_target}'."
+                )
+        return ""
 
     def _build_empty_notice(
         self,
@@ -560,15 +889,17 @@ class MemorySearchEngine:
         start_date: Optional[str],
         end_date: Optional[str],
         target: str = "all",
+        query: str = "",
     ) -> str:
-        """Build an objective empty notice with progressive active date/month/year hints when date-scoped."""
+        """Build an objective empty notice with progressive active hints and cross-target guidance."""
         dr = str(date_range).strip() if date_range and str(date_range).strip() else None
         sd = str(start_date).strip() if start_date and str(start_date).strip() else None
         ed = str(end_date).strip() if end_date and str(end_date).strip() else None
-        if not (dr or sd or ed):
-            return "[No memory records found matching the given criteria.]"
+        if dr and dr.lower() == "all" and not sd and not ed:
+            scope_label = None
+        else:
+            scope_label = (dr or f"{sd or '...'}..{ed or '...'}") if (dr or sd or ed) else None
 
-        scope_label = dr or (f"{sd or '...'}..{ed or '...'}")
         anchor_month: Optional[str] = None
         anchor_year: Optional[str] = None
         if dr and DATE_DAY_RE.fullmatch(dr):
@@ -576,6 +907,8 @@ class MemorySearchEngine:
             anchor_year = dr[:4]
         elif dr and DATE_MONTH_RE.fullmatch(dr):
             anchor_year = dr[:4]
+        elif dr and DATE_YEAR_RE.fullmatch(dr):
+            anchor_year = dr
         elif sd and ed and sd[:7] == ed[:7]:
             anchor_month = sd[:7]
             anchor_year = sd[:4]
@@ -588,22 +921,46 @@ class MemorySearchEngine:
 
         conn = get_db_connection()
         try:
-            def _fmt(buckets: Dict[str, Tuple[int, int]]) -> str:
-                return ", ".join(f"{b} ({j + m})" for b, (j, m) in buckets.items())
+            peer_hint = self._build_peer_target_hint(
+                conn=conn,
+                target=target,
+                date_range=date_range,
+                start_date=start_date,
+                end_date=end_date,
+                scope_label=scope_label,
+                query=query,
+                anchor_year=anchor_year,
+            )
 
+            if not scope_label:
+                if peer_hint:
+                    return f"[No memory records found matching the given criteria (target='{target}').{peer_hint}]"
+                return "[No memory records found matching the given criteria.]"
+
+            active_hint = ""
             if anchor_month:
                 day_hits = self._collect_bucket_counts(conn, 10, target=target, prefix=f"{anchor_month}-")
                 if day_hits:
-                    return f"[No memory records found for {scope_label}. Active dates in {anchor_month}: {_fmt(day_hits)}.]"
+                    active_hint = f"Active dates in {anchor_month}: {self._format_bucket_counts(day_hits)}."
 
-            if anchor_year:
+            if not active_hint and anchor_year:
                 month_hits = self._collect_bucket_counts(conn, 7, target=target, prefix=f"{anchor_year}-")
                 if month_hits:
-                    return f"[No memory records found for {scope_label}. Active months in {anchor_year}: {_fmt(month_hits)}.]"
+                    active_hint = f"Active months in {anchor_year}: {self._format_bucket_counts(month_hits)}."
 
-            year_hits = self._collect_bucket_counts(conn, 4, target=target)
-            if year_hits:
-                return f"[No memory records found for {scope_label}. Active years: {_fmt(year_hits)}.]"
+            if not active_hint:
+                year_hits = self._collect_bucket_counts(conn, 4, target=target)
+                if year_hits:
+                    active_hint = f"Active years: {self._format_bucket_counts(year_hits)}."
+
+            if active_hint or peer_hint:
+                target_note = "" if target == "all" else f" (target='{target}')"
+                parts = [f"No memory records found for {scope_label}{target_note}."]
+                if active_hint:
+                    parts.append(active_hint)
+                if peer_hint:
+                    parts.append(peer_hint.strip())
+                return f"[{' '.join(parts)}]"
         finally:
             conn.close()
 

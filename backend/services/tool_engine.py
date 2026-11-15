@@ -31,14 +31,21 @@ class ToolExecutionEngine:
             return f"Browser: {url}"
         elif t_name == "execute_bash":
             return t_param.get("command", "")
-        elif t_name == "search_memory":
-            return f"Remembering: '{t_param.get('query', '')}'"
-        elif t_name in ("get_memory_timeline", "get_memory_calendar"):
+        elif t_name in ("search_memory", "get_memory_timeline", "get_memory_calendar"):
+            target = str(t_param.get("target") or "all").strip().lower()
+            order = str(t_param.get("order") or "newest").strip().lower()
+            qualifiers = [q for q in (
+                target if target in ("journals", "conversations") else "",
+                "oldest" if (t_name != "search_memory" and order == "oldest") else "",
+            ) if q]
+            suffix = f" ({', '.join(qualifiers)})" if qualifiers else ""
+            if t_name == "search_memory":
+                return f"Remembering{suffix}: '{t_param.get('query', '')}'"
             sd = t_param.get("start_date")
             ed = t_param.get("end_date")
-            scope = f"{sd or '...'}..{ed or '...'}" if (sd or ed) else (t_param.get("date_range") or "recent")
+            scope = f"{sd or '...'}..{ed or '...'}" if (sd or ed) else (t_param.get("date_range") or "all")
             prefix = "Remembering calendar" if t_name == "get_memory_calendar" else "Remembering timeline"
-            return f"{prefix}: {scope}"
+            return f"{prefix}{suffix}: {scope}"
         elif t_name == "expand_memory":
             return f"Remembering detail: {t_param.get('source_type', '')}#{t_param.get('record_id', '')}"
         else:
