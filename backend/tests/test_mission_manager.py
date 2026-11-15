@@ -5,14 +5,8 @@ from backend.database import init_db
 import backend.database as db_module
 
 @pytest.fixture(autouse=True)
-def setup_test_environment(monkeypatch, tmp_path):
-    # 1. 隔离数据库：使用临时的测试数据库，防止污染真实用户的 classroom.db
-    test_db_path = tmp_path / "test_classroom.db"
-    monkeypatch.setattr(db_module, "DB_PATH", str(test_db_path))
-    
-    # 初始化测试库的表结构
-    init_db()
-    
+def setup_test_environment(mock_db_path, monkeypatch, tmp_path):
+    # 1. 隔离数据库：复用 conftest.py 的快照测试库 mock_db_path，防止污染真实用户的 classroom.db
     # 2. 隔离文件系统：重定向物理文件写入路径到临时文件夹
     # MissionManager uses base_root = os.path.dirname(...) and builds 'data/materials'
     # We will mock the os.path.abspath to return the tmp_path so it writes inside tmp_path

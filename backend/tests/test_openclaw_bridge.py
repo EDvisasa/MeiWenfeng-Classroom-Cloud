@@ -99,31 +99,21 @@ def test_mcp_tools_exposure():
     if os.path.exists(file_path):
         os.remove(file_path)
 
-def test_check_openclaw_status_online():
-    """Test check_openclaw_status returns online=True when WSL command succeeds."""
-    clear_openclaw_status_cache()
-    with patch("subprocess.run") as mock_run:
-        mock_result = MagicMock()
-        mock_result.returncode = 0
-        mock_result.stdout = "OpenClaw CLI version 1.2.0"
-        mock_run.return_value = mock_result
+def test_check_openclaw_status_online_and_offline():
+    """Test check_openclaw_status handles both zero and non-zero WSL CLI exit codes."""
+    cases = [
+        (0, "OpenClaw CLI version 1.2.0", "", True, "ONLINE"),
+        (1, "", "Gateway not found", False, "OFFLINE"),
+    ]
+    for returncode, stdout, stderr, expected_online, expected_token in cases:
+        clear_openclaw_status_cache()
+        with patch("subprocess.run") as mock_run:
+            mock_result = MagicMock(returncode=returncode, stdout=stdout, stderr=stderr)
+            mock_run.return_value = mock_result
 
-        res = check_openclaw_status(timeout=3, ttl=5)
-        assert res["online"] is True
-        assert "ONLINE" in res["status_str"]
-
-def test_check_openclaw_status_offline():
-    """Test check_openclaw_status returns online=False when CLI fails or throws error."""
-    clear_openclaw_status_cache()
-    with patch("subprocess.run") as mock_run:
-        mock_result = MagicMock()
-        mock_result.returncode = 1
-        mock_result.stderr = "Gateway not found"
-        mock_run.return_value = mock_result
-
-        res = check_openclaw_status(timeout=3, ttl=5)
-        assert res["online"] is False
-        assert "OFFLINE" in res["status_str"]
+            res = check_openclaw_status(timeout=3, ttl=5)
+            assert res["online"] is expected_online
+            assert expected_token in res["status_str"]
 
 def test_check_openclaw_status_ttl_cache():
     """Test check_openclaw_status caches result for ttl seconds."""

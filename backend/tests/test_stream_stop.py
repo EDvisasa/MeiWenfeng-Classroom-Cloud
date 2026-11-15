@@ -86,7 +86,9 @@ def test_api_chat_stop_endpoint():
     assert data2["status"] == "idle"
 
 def test_openai_llm_client_finally_closes_stream():
-    llm_client = OpenAILLMClient(api_key="none", base_url="http://127.0.0.1:18200/v1", model_id="test")
+    from unittest.mock import patch as _patch
+    with _patch("backend.services.agent_executor.OpenAI"):
+        llm_client = OpenAILLMClient(api_key="none", base_url="http://127.0.0.1:18200/v1", model_id="test")
     
     mock_response = MagicMock()
     mock_chunk1 = MagicMock()
@@ -109,7 +111,9 @@ def test_openai_llm_client_finally_closes_stream():
     mock_response.close.assert_called_once()
 
 def test_openai_llm_client_early_exit_on_abort():
-    llm_client = OpenAILLMClient(api_key="none", base_url="http://127.0.0.1:18200/v1", model_id="test")
+    from unittest.mock import patch as _patch
+    with _patch("backend.services.agent_executor.OpenAI"):
+        llm_client = OpenAILLMClient(api_key="none", base_url="http://127.0.0.1:18200/v1", model_id="test")
     
     controller = StreamController(session_id="test-abort-session")
 

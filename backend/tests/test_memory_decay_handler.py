@@ -8,14 +8,10 @@ from backend.services.memory_decay import MemoryDecayHandler
 from unittest.mock import patch
 
 @pytest.fixture
-def test_db(tmp_path):
-    db_file = tmp_path / "test.db"
-    with patch("backend.database.DB_PATH", str(db_file)):
-        from backend.database import init_db
-        init_db()
-        conn = get_db_connection()
-        yield conn
-        conn.close()
+def test_db(mock_db_path):
+    conn = get_db_connection()
+    yield conn
+    conn.close()
 
 def test_memory_decay_handler_registers_successfully():
     """Test that MemoryDecayHandler can be registered with ActionRegistry"""

@@ -12,12 +12,8 @@ app.include_router(course_router)
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
-def setup_test_environment(monkeypatch, tmp_path):
-    # 1. 隔离数据库：使用临时的测试数据库
-    test_db_path = tmp_path / "test_classroom.db"
-    monkeypatch.setattr(db_module, "DB_PATH", str(test_db_path))
-    init_db()
-    
+def setup_test_environment(mock_db_path, monkeypatch, tmp_path):
+    # 1. 隔离数据库：复用 conftest.py 的快照测试库 mock_db_path
     # 2. 隔离文件系统：欺骗 MaterialsManager 让它在 tmp_path 里面找文件
     original_abspath = os.path.abspath
     def mock_abspath(path):

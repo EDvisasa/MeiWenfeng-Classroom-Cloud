@@ -112,45 +112,28 @@ def test_temporal_decay_beyond_grace_period_smooth_decay(mem_db):
 
 
 def test_temporal_decay_stops_strictly_at_stage_floor(mem_db):
-    """验证极端长时间离线时，衰减严格阻断在阶段保底线，绝不无限跌穿"""
+    """验证极端长时间离线时，各阶段衰减严格阻断在对应阶段保底线，绝不无限跌穿"""
     conn = mem_db["conn"]
     now = datetime(2026, 9, 8, 12, 0, 0)
-    past = now - timedelta(days=60)  # 离线整整 60 天
+    cases = [
+        # (initial_value, absent_days, expected_floor, expected_decay)
+        (90, 60, 65, 25),  # Stage 4 (floor=65)
+        (60, 30, 40, 20),  # Stage 3 (floor=40)
+    ]
+    for init_val, absent_days, expected_floor, expected_decay in cases:
+        past = now - timedelta(days=absent_days)
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT OR REPLACE INTO affection (id, value, social_status, social_skills, refractory_period, reunion_warmup_turns, last_updated)
+            VALUES (1, ?, 50, 50, 0, 0, ?)
+        """, (init_val, past.strftime("%Y-%m-%d %H:%M:%S")))
+        conn.commit()
 
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO affection (id, value, social_status, social_skills, refractory_period, last_updated)
-        VALUES (1, 90, 50, 50, 0, ?)
-    """, (past.strftime("%Y-%m-%d %H:%M:%S"),))
-    conn.commit()
-
-    state, reunion_info = CharacterStateManager.evaluate_temporal_decay(now=now)
-
-    # Stage 4 保底线是 65，即使过了 60 天也只能停留在 65
-    assert state.affection == 65
-    assert reunion_info is not None
-    assert reunion_info["decay_amount"] == 25  # 90 - 65
-    assert state.reunion_warmup_turns == 2
-
-
-def test_stage_three_floor_stops_at_forty(mem_db):
-    """验证 Stage 3（50~74）离线衰减精确阻断于 40 点"""
-    conn = mem_db["conn"]
-    now = datetime(2026, 9, 8, 12, 0, 0)
-    past = now - timedelta(days=30)
-
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO affection (id, value, social_status, social_skills, refractory_period, last_updated)
-        VALUES (1, 60, 50, 50, 0, ?)
-    """, (past.strftime("%Y-%m-%d %H:%M:%S"),))
-    conn.commit()
-
-    state, reunion_info = CharacterStateManager.evaluate_temporal_decay(now=now)
-
-    assert state.affection == 40
-    assert reunion_info["decay_amount"] == 20
-    assert state.reunion_warmup_turns == 2
+        state, reunion_info = CharacterStateManager.evaluate_temporal_decay(now=now)
+        assert state.affection == expected_floor
+        assert reunion_info is not None
+        assert reunion_info["decay_amount"] == expected_decay
+        assert state.reunion_warmup_turns == 2
 
 
 def test_warmup_bonus_and_turn_decrement(mem_db):

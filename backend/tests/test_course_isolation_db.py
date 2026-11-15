@@ -23,14 +23,11 @@ from backend.services.mission_manager import MissionManager
 
 
 @pytest.fixture(autouse=True)
-def clean_and_reset_db(tmp_path):
-    """Create a temporary sqlite db for isolation testing."""
-    test_db = str(tmp_path / "test_classroom.db")
-    with patch("backend.database.DB_PATH", test_db), \
-         patch("backend.services.course_manager.DB_PATH", test_db):
+def clean_and_reset_db(mock_db_path):
+    """Sync course_manager.DB_PATH with isolated snapshot DB from mock_db_path."""
+    with patch("backend.services.course_manager.DB_PATH", mock_db_path):
         reset_active_course_id()
-        init_db()
-        yield test_db
+        yield mock_db_path
         reset_active_course_id()
 
 

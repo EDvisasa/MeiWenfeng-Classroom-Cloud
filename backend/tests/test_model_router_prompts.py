@@ -13,7 +13,8 @@ def test_stream_chat_prompt_assembly():
     system_prompt = "Base System Prompt: You are a fox demon."
     
     # We mock AgentExecutor because we only want to test prompt assembly, not execution
-    with mock.patch('backend.services.model_router.AgentExecutor') as MockExecutor:
+    with mock.patch('backend.services.model_router.AgentExecutor') as MockExecutor, \
+         mock.patch('backend.services.model_router.OpenAILLMClient'):
         # Setup mock return for run()
         mock_instance = MockExecutor.return_value
         mock_instance.run.return_value = [{"type": "text", "text": "mocked response"}]
@@ -46,7 +47,8 @@ def test_stream_chat_time_perception_injection():
     time_str = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
     system_prompt = f"当前时间：{time_str}"
     
-    with mock.patch('backend.services.model_router.AgentExecutor') as MockExecutor:
+    with mock.patch('backend.services.model_router.AgentExecutor') as MockExecutor, \
+         mock.patch('backend.services.model_router.OpenAILLMClient'):
         mock_instance = MockExecutor.return_value
         mock_instance.run.return_value = [{"type": "text", "text": "mocked response"}]
         

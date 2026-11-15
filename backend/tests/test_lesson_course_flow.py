@@ -22,18 +22,15 @@ import backend.services.side_effects
 
 
 @pytest.fixture(autouse=True)
-def clean_and_reset_env(tmp_path):
-    """Create a temporary sqlite db and materials directory for isolation testing."""
-    test_db = str(tmp_path / "test_classroom.db")
+def clean_and_reset_env(mock_db_path, tmp_path):
+    """Reuse snapshot sqlite db from mock_db_path and isolate materials dir."""
     test_materials = str(tmp_path / "materials")
     os.makedirs(test_materials, exist_ok=True)
 
-    with patch("backend.database.DB_PATH", test_db), \
-         patch("backend.services.course_manager.DB_PATH", test_db), \
+    with patch("backend.services.course_manager.DB_PATH", mock_db_path), \
          patch.object(MaterialsManager, "_get_materials_dir", return_value=test_materials):
         reset_active_course_id()
-        init_db()
-        yield test_db, test_materials
+        yield mock_db_path, test_materials
         reset_active_course_id()
 
 

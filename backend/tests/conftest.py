@@ -11,12 +11,27 @@ def mock_append_to_syllabus():
     with patch('backend.mcp_server.append_to_syllabus') as mock_append:
         yield mock_append
 
-@pytest.fixture(autouse=True)
-def mock_db_path(tmp_path):
-    db_file = tmp_path / "test.db"
-    with patch("backend.database.DB_PATH", str(db_file)):
+import os
+import shutil
+
+os.environ.setdefault("TESTING", "1")
+
+
+@pytest.fixture(scope="session")
+def _template_db_path(tmp_path_factory):
+    """Initialize SQLite schema and seed data once per pytest session."""
+    tpl_file = tmp_path_factory.mktemp("db_template") / "template.db"
+    with patch("backend.database.DB_PATH", str(tpl_file)):
         from backend.database import init_db
         init_db()
+    return str(tpl_file)
+
+
+@pytest.fixture(autouse=True)
+def mock_db_path(tmp_path, _template_db_path):
+    db_file = tmp_path / "test.db"
+    shutil.copy2(_template_db_path, db_file)
+    with patch("backend.database.DB_PATH", str(db_file)):
         yield str(db_file)
 
 @pytest.fixture(autouse=True)

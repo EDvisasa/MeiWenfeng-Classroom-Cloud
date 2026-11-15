@@ -27,13 +27,15 @@ async def lifespan(app: FastAPI):
     init_db()
 
     # 2.5 预加载 ChromaDB (避免初次检索时卡顿和防止“加载”)
-    try:
-        from backend.services.chroma_client import chroma_rag_client
-        print("Preloading ChromaDB...")
-        chroma_rag_client._ensure_client()
-        print("ChromaDB preloaded successfully.")
-    except Exception as e:
-        print(f"Failed to preload ChromaDB: {e}")
+    import os
+    if os.getenv("TESTING") != "1":
+        try:
+            from backend.services.chroma_client import chroma_rag_client
+            print("Preloading ChromaDB...")
+            chroma_rag_client._ensure_client()
+            print("ChromaDB preloaded successfully.")
+        except Exception as e:
+            print(f"Failed to preload ChromaDB: {e}")
         
     yield
     # Shutdown: Windows 热重载僵尸进程终极杀手。

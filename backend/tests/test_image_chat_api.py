@@ -58,6 +58,13 @@ def test_assemble_messages_multimodal():
     assert "<current_user_instruction>" in text_item["text"]
     assert "分析这张图" in text_item["text"]
 
+    # Also verify image-only message places [图片输入] text strictly after image_url
+    img_only = [{"role": "user", "content": [{"type": "image_url", "image_url": {"url": "data:image/png;base64,onlyimg"}}]}]
+    img_only_assembled = assemble_messages(img_only, system_prompt)
+    img_only_content = img_only_assembled[-1]["content"]
+    assert [item.get("type") for item in img_only_content] == ["image_url", "text"]
+    assert "[图片输入]" in img_only_content[-1]["text"]
+
 def test_memory_session_save_and_retrieve_with_images():
     test_session_id = "test_image_session_unit_test"
     dummy_image = "data:image/jpeg;base64,/9j/4AAQSkZJRg=="
@@ -104,21 +111,6 @@ def test_memory_session_save_and_retrieve_with_images():
     # Cleanup
     from backend.routers.memory import delete_session
     delete_session(test_session_id)
-
-
-def test_assemble_messages_image_only_places_text_after_image():
-    """验证纯图片消息在尾部注入时，图片依然位于最前面，[图片输入] 文本必须排在图片后面"""
-    multimodal_messages = [
-        {
-            "role": "user",
-            "content": [{"type": "image_url", "image_url": {"url": "data:image/png;base64,onlyimg"}}],
-        }
-    ]
-    assembled = assemble_messages(multimodal_messages, "You are Mei Wenfeng.")
-    content = assembled[-1]["content"]
-    types = [item.get("type") for item in content]
-    assert types == ["image_url", "text"]
-    assert "[图片输入]" in content[-1]["text"]
 
 
 def test_send_message_multimodal_images_always_before_text(tmp_path, mock_rag_client):

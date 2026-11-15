@@ -54,8 +54,9 @@ def test_chroma_client_interface(mock_get_config):
 # 测试 2: 验证各个客户端的 retrieve 方法返回的都是 List[str] 格式
 def test_ragflow_retrieve_returns_list():
     client = RAGFlowClient()
-    # 模拟 httpx.Client().post 返回
-    with patch("httpx.Client.post") as mock_post, patch("backend.services.ragflow_client.RAGFlowClient._get_or_create_dataset", return_value="ds-123"):
+    # 模拟 httpx.Client().post 返回 (patch httpx.Client 避免 Windows SSL 上下文初始化开销)
+    with patch("httpx.Client") as mock_http_cls, patch("backend.services.ragflow_client.RAGFlowClient._get_or_create_dataset", return_value="ds-123"):
+        mock_post = mock_http_cls.return_value.__enter__.return_value.post
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"data": {"chunks": [{"content": "chunk1"}, {"content": "chunk2"}]}}
@@ -70,7 +71,8 @@ def test_ragflow_retrieve_returns_list():
 
 def test_external_retrieve_returns_list():
     client = ExternalRAGClient(base_url="http://test", api_key="test")
-    with patch("httpx.Client.post") as mock_post:
+    with patch("httpx.Client") as mock_http_cls:
+        mock_post = mock_http_cls.return_value.__enter__.return_value.post
         mock_resp = MagicMock()
         mock_resp.status_code = 200
         mock_resp.json.return_value = {"chunks": ["chunk1", "chunk2"]}

@@ -1,5 +1,6 @@
 import pytest
 
+@pytest.mark.slow
 def test_litellm_proxy_dependencies():
     """
     Test that the LiteLLM proxy server dependencies (e.g., 'backoff', 'websockets')

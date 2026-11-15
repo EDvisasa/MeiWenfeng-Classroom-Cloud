@@ -21,60 +21,51 @@ def test_get_cross_reference_protocol_structure():
 
 def test_build_base_system_prompt(mock_db_path):
     """
-    验证 build_base_system_prompt 能正常构建系统提示词且不会报错，
-    同时确保应用了 mock_db_path 隔离生产数据库。
+    验证 build_base_system_prompt 能正常构建系统提示词并隔离生产库，
+    并在传入 IDE 光标选区及选中代码片段时准确构建 <ide_context> 区域提示词。
     """
-    prompt, kb_count, mem_count = build_base_system_prompt(
-        last_user_msg="测试消息",
-        persona_type="default"
-    )
     from backend.services.context_manager import ContextBundle
-    assert isinstance(prompt, (str, ContextBundle))
-    assert len(prompt) > 0
-    assert kb_count >= 0
-    assert mem_count >= 0
 
-def test_build_base_system_prompt_with_selection(mock_db_path):
-    """
-    验证 build_base_system_prompt 在传入 IDE 光标选区及选中代码片段时，
-    能准确构建 <ide_context> 区域提示词。
-    """
-    prompt, _, _ = build_base_system_prompt(
+    prompt, kb_count, mem_count = build_base_system_prompt(
         last_user_msg="请解释这段代码",
+        persona_type="default",
         current_file_path="/path/to/app.js",
         cursor_line=15,
         selection_start_line=10,
         selection_end_line=20,
-        selected_text="function hello() { return 'world'; }"
+        selected_text="function hello() { return 'world'; }",
     )
+    assert isinstance(prompt, (str, ContextBundle))
+    assert len(prompt) > 0
+    assert kb_count >= 0
+    assert mem_count >= 0
     assert "<ide_context>" in prompt
     assert "- Highlighted Region: Lines 10 to 20" in prompt
     assert "function hello() { return 'world'; }" in prompt
 
+
 def test_assemble_messages_injects_timestamp():
     """
-    TDD [Bug #5] RED step:
-    验证 assemble_messages 能够接收消息中的 timestamp 属性，
-    并在每一轮对白的 content 前面自动注入精简的时序标尺 [YYYY-MM-DD HH:MM]。
+    TDD [Bug #5 / Bug #9] 回归用例:
+    验证 assemble_messages 仅针对 role == 'user' 前置精简时序标尺 [YYYY-MM-DD HH:MM]，
+    绝不对 assistant 对白前置时间戳，保持 <think> 开头。
     """
     from backend.services.context_manager import assemble_messages
     messages = [
         {"role": "user", "content": "早上讨论的那个问题", "timestamp": "2026-07-05 08:30:00"},
-        {"role": "assistant", "content": "好呀，什么问题？", "timestamp": "2026-07-05 08:30:05"},
-        {"role": "user", "content": "就是关于GPIO的", "timestamp": "2026-07-05 10:00:00"}
+        {"role": "assistant", "content": "<think>\n1. User Intent...\n</think>\n*轻笑* 好呀，什么问题？<monologue>哼~</monologue>", "timestamp": "2026-07-05 08:30:05"},
+        {"role": "user", "content": "就是关于GPIO的", "timestamp": "2026-07-05 10:00:00"},
     ]
-    system_prompt = "你是导师媚吻锋"
-    
-    assembled = assemble_messages(messages, system_prompt)
-    
-    # 寻找所有的 user 和 assistant 消息
-    user_msgs = [m["content"] for m in assembled if m["role"] == "user"]
-    
-    # 验证历史 user 消息中是否成功前置了精简时间戳 [2026-07-05 08:30]
-    assert "[2026-07-05 08:30] 早上讨论的那个问题" in user_msgs[0]
-    # 验证最后一条 user 消息也前置了精简时间戳 [2026-07-05 10:00]
-    assert "[2026-07-05 10:00] 就是关于GPIO的" in user_msgs[1]
+    assembled = assemble_messages(messages, "你是导师媚吻锋")
 
+    user_msgs = [m["content"] for m in assembled if m["role"] == "user"]
+    assistant_msgs = [m["content"] for m in assembled if m["role"] == "assistant"]
+
+    assert "[2026-07-05 08:30] 早上讨论的那个问题" in user_msgs[0]
+    assert "[2026-07-05 10:00] 就是关于GPIO的" in user_msgs[1]
+    for amsg in assistant_msgs:
+        assert not amsg.startswith("[2026-07-05"), f"Assistant message should not start with timestamp: {amsg}"
+        assert amsg.startswith("<think>"), f"Assistant message must cleanly start with <think>: {amsg}"
 
 def test_assemble_messages_filters_system_info_bug_6():
     """
@@ -138,80 +129,33 @@ def test_assemble_messages_ignores_empty_assistant_placeholder_bug_7():
     assert len(assistant_msgs) == 0, f"Expected 0 assistant messages, got {len(assistant_msgs)}: {assistant_msgs}"
 
 
-def test_assemble_messages_only_injects_timestamp_to_user_messages_bug_9():
-    """
-    TDD [Bug #9] RED step:
-    验证 assemble_messages 只针对 role == 'user' 的消息前置精简时间戳 [YYYY-MM-DD HH:MM]，
-    对于 role == 'assistant' 的对白绝不能前置时间戳，保证其内容能够干净地以 <think> 开头，
-    避免 AI 在上下文学习中误认为 assistant 回复也需要输出时间戳，并修复不同回合 assistant 消息格式不一致问题。
-    """
-    from backend.services.context_manager import assemble_messages
-    messages = [
-        {"role": "user", "content": "早上讨论的那个问题", "timestamp": "2026-07-05 08:30:00"},
-        {"role": "assistant", "content": "<think>\n1. User Intent...\n</think>\n*轻笑* 好呀，什么问题？<monologue>哼~</monologue>", "timestamp": "2026-07-05 08:30:05"},
-        {"role": "user", "content": "就是关于GPIO的", "timestamp": "2026-07-05 10:00:00"}
-    ]
-    assembled = assemble_messages(messages, "你是导师")
-    
-    user_msgs = [m["content"] for m in assembled if m["role"] == "user"]
-    assistant_msgs = [m["content"] for m in assembled if m["role"] == "assistant"]
-    
-    # 验证 user 消息带时间戳
-    assert "[2026-07-05 08:30] 早上讨论的那个问题" in user_msgs[0]
-    assert "[2026-07-05 10:00] 就是关于GPIO的" in user_msgs[1]
-    
-    # 验证 assistant 消息决不能带时间戳前缀，必须纯净地以 <think> 开头
-    for amsg in assistant_msgs:
-        assert not amsg.startswith("[2026-07-05"), f"Assistant message should not start with timestamp: {amsg}"
-        assert amsg.startswith("<think>"), f"Assistant message must cleanly start with <think>: {amsg}"
-
-
-def test_assemble_messages_prevents_visual_tearing_on_assistant_end_bug_12():
-    """
-    TDD [Bug #12] RED step:
-    当传入的消息列表以 role == 'assistant' 结尾时（即回合完结后的预览状态），
-    assemble_messages 绝不能盲目倒序将尾部夹层强塞入上一轮历史 user 消息中，
-    必须保持历史 user 与 assistant 对白紧密相连无割裂，
-    而将尾部夹层独立放置在末尾的待机容器或仅挂载于最新一轮有效提问上。
-    """
-    from backend.services.context_manager import assemble_messages
-    messages = [
-        {"role": "user", "content": "问题1"},
-        {"role": "assistant", "content": "回答1"}
-    ]
-    assembled = assemble_messages(messages, "你是导师")
-    
-    # 历史 user 消息不应当被插入 <system_injection> 夹层
-    user_1 = [m for m in assembled if "问题1" in m["content"]][0]
-    assert "<system_injection>" not in user_1["content"], "Historical user message should not contain system_injection when turn ended with assistant!"
-
-
 def test_assemble_messages_o1_tail_injection_no_reverse_scanning_bug_12():
     """
-    TDD [Bug #12 / ISSUE-11] RED step:
-    验证 O(1) 尾部夹层重构要求：彻底废除对历史 user 消息的倒序扫描。
-    如果物理消息列表最后一项不是 user（例如末尾为合法的 system 通知或待机状态），
-    绝不能向后反向扫描去污染前期的 user 提问。
-    只有当末尾最后一项恰好是 user 时追加于最末尾；否则必须独立生成干净的 [下一轮提问等待中] user 容器。
+    TDD [Bug #12 / ISSUE-11]:
+    验证尾部夹层在末尾非 user（无论是 assistant 还是 system）时绝不倒序污染历史 user 提问，
+    而是独立挂载到末尾 [下一轮提问等待中] 容器。
     """
     from backend.services.context_manager import assemble_messages
-    messages = [
+
+    assembled_asst_end = assemble_messages([
+        {"role": "user", "content": "问题1"},
+        {"role": "assistant", "content": "回答1"},
+    ], "你是导师")
+    user_1 = [m for m in assembled_asst_end if "问题1" in m["content"]][0]
+    assert "<system_injection>" not in user_1["content"], "Historical user message should not contain system_injection when turn ended with assistant!"
+
+    assembled_sys_end = assemble_messages([
         {"role": "user", "content": "前期历史提问"},
         {"role": "assistant", "content": "前期历史回答"},
-        {"role": "system", "content": "动态环境参数变更与通知"}
-    ]
-    assembled = assemble_messages(messages, "你是导师")
-    
-    # 验证前期历史 user 提问绝对没有被倒序扫描污染
-    user_msg = [m for m in assembled if "前期历史提问" in m["content"]][0]
+        {"role": "system", "content": "动态环境参数变更与通知"},
+    ], "你是导师")
+    user_msg = [m for m in assembled_sys_end if "前期历史提问" in m["content"]][0]
     assert "<system_injection>" not in user_msg["content"], "Historical user message must NEVER be polluted by reverse scanning!"
-    
-    # 验证因为最末项 role != user，系统必须在最末尾 append 一个新的待机容器承载 <system_injection>
-    last_msg = assembled[-1]
+
+    last_msg = assembled_sys_end[-1]
     assert last_msg["role"] == "user", "When last physical message is not user, should append a user container for injection"
     assert "[下一轮提问等待中 / Waiting for next prompt]" in last_msg["content"], "Should contain waiting prompt container"
     assert "<system_injection>" in last_msg["content"], "New container should carry system_injection"
-
 
 def test_assemble_messages_injects_openclaw_gateway_status():
     """
@@ -231,41 +175,11 @@ def test_assemble_messages_injects_openclaw_gateway_status():
         assert "ONLINE (WSL OpenClaw Gateway ready)" in last_content
 
 
-def test_assemble_messages_tail_injection_inversion_issue_19():
-    """
-    TDD [ISSUE-19]:
-    Verify that in assemble_messages, when injecting dynamic tail data into the last user message,
-    the tail_injection comes BEFORE the original user instruction so that the user's latest
-    instruction sits at the physical end of the message (maximizing recency attention).
-    """
-    from backend.services.context_manager import assemble_messages
-    user_prompt = "请执行方案B修复小模型注意力注意力衰减的问题"
-    messages = [{"role": "user", "content": user_prompt}]
-
-    assembled = assemble_messages(messages, "你是导师")
-    last_msg = assembled[-1]
-    assert last_msg["role"] == "user"
-    content = last_msg["content"]
-
-    # Verify both parts exist
-    assert "<system_injection>" in content
-    assert user_prompt in content
-
-    # Verify ordering: <system_injection> must appear BEFORE user_prompt
-    idx_injection = content.find("<system_injection>")
-    idx_user_prompt = content.find(user_prompt)
-    assert idx_injection < idx_user_prompt, (
-        f"tail_injection (idx={idx_injection}) must precede user instruction (idx={idx_user_prompt})"
-    )
-    assert content.strip().endswith("</current_user_instruction>")
-    assert user_prompt in content
-
-
 def test_assemble_messages_context_pipeline_transition_directive_issue_20():
     """
-    TDD [ISSUE-20]:
-    Verify that assemble_messages injects canonical transition directive between dynamic tail
-    injection and user's prompt per docs/GLOSSARY.md ubiquitous language.
+    TDD [ISSUE-19 / ISSUE-20]:
+    Verify assemble_messages places tail_injection + transition directive BEFORE user instruction
+    ending cleanly with </current_user_instruction>.
     """
     from backend.services.context_manager import assemble_messages
     user_prompt = "请回答关于白提子辈分的问题"
@@ -273,6 +187,7 @@ def test_assemble_messages_context_pipeline_transition_directive_issue_20():
 
     assembled = assemble_messages(messages, "你是导师")
     last_msg = assembled[-1]
+    assert last_msg["role"] == "user"
     content = last_msg["content"]
 
     directive = (
@@ -281,16 +196,16 @@ def test_assemble_messages_context_pipeline_transition_directive_issue_20():
     )
     assert directive in content
 
-    # Verify exact ordering: <system_injection> -> directive -> user_prompt -> </current_user_instruction>
     idx_injection = content.find("<system_injection>")
     idx_directive = content.find(directive)
     idx_prompt = content.find(user_prompt)
     idx_end_tag = content.find("</current_user_instruction>")
 
+    assert -1 not in (idx_injection, idx_directive, idx_prompt, idx_end_tag)
     assert idx_injection < idx_directive < idx_prompt < idx_end_tag, (
         f"Order must be <system_injection> ({idx_injection}) -> directive ({idx_directive}) -> user_prompt ({idx_prompt}) -> </current_user_instruction> ({idx_end_tag})"
     )
-
+    assert content.strip().endswith("</current_user_instruction>")
 
 def test_assemble_messages_dynamic_one_shot_preserves_actual_greeting():
     """

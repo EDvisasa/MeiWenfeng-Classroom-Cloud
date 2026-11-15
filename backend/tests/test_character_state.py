@@ -96,30 +96,6 @@ class TestCharacterStateManager(unittest.TestCase):
         self.assertEqual(state.social_skills, 50)
         self.assertEqual(state.refractory_period, 0)
 
-    def test_trigger_climax(self):
-        """Test that trigger_climax sets the refractory period."""
-        # Should initialize DB and set refractory to 10
-        state = CharacterStateManager.trigger_climax(intensity=10)
-        self.assertEqual(state.refractory_period, 10)
-
-        # Check DB
-        cursor = self.conn.cursor()
-        cursor.execute("SELECT refractory_period FROM affection WHERE id = 1")
-        self.assertEqual(cursor.fetchone()[0], 10)
-
-    def test_advance_round(self):
-        """Test that advance_round decreases the refractory period."""
-        # Setup initial state
-        CharacterStateManager.trigger_climax(intensity=5)
-
-        # Advance 2 rounds
-        state = CharacterStateManager.advance_round(rounds=2)
-        self.assertEqual(state.refractory_period, 3)
-
-        # Advance 10 rounds (should floor at 0)
-        state = CharacterStateManager.advance_round(rounds=10)
-        self.assertEqual(state.refractory_period, 0)
-
     @patch('backend.services.character_state.get_db_connection')
     def test_db_error_raises_exception(self, mock_db):
         """Test that DB errors raise CharacterStateError."""

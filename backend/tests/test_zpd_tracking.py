@@ -135,42 +135,33 @@ def test_lesson_response_contains_zpd_coefficient(course_db, monkeypatch):
 
 
 def test_lesson_continue_records_quiz_result(course_db, monkeypatch):
-    """提交 <submit_quiz_result> 后，course_progress 的连对计数必须 +1。"""
+    """提交 <submit_quiz_result> 正反两类作答后，正确递增连对/连错计数并将反向计数清零。"""
     captured = {}
     _mock_llm_stream(monkeypatch, captured)
 
     payload = SimpleNamespace(current_file_path=None, persona_type="simplified")
-    quiz_msg = '我选了：选项B\n<submit_quiz_result is_correct="true" selected="选项B" />'
+    correct_msg = '我选了：选项B\n<submit_quiz_result is_correct="true" selected="选项B" />'
     handle_slash_command(
-        "/lesson_continue", payload, quiz_msg,
-        [{"role": "user", "content": quiz_msg}],
+        "/lesson_continue", payload, correct_msg,
+        [{"role": "user", "content": correct_msg}],
     )
-
     row = _read_zpd_row(course_db, ZPD_ACTIVE_TOPIC)
     assert row is not None
     assert row["consecutive_correct"] == 1
     assert row["consecutive_wrong"] == 0
 
-
-def test_lesson_continue_records_wrong_answer(course_db, monkeypatch):
-    """提交错误答案后，连错计数 +1 且连对计数清零。"""
-    captured = {}
-    _mock_llm_stream(monkeypatch, captured)
-
-    payload = SimpleNamespace(current_file_path=None, persona_type="simplified")
-    quiz_msg = '我选了：选项A\n<submit_quiz_result is_correct="false" selected="选项A" />'
+    wrong_msg = '我选了：选项A\n<submit_quiz_result is_correct="false" selected="选项A" />'
     handle_slash_command(
-        "/lesson_continue", payload, quiz_msg,
-        [{"role": "user", "content": quiz_msg}],
+        "/lesson_continue", payload, wrong_msg,
+        [{"role": "user", "content": wrong_msg}],
     )
-
     row = _read_zpd_row(course_db, ZPD_ACTIVE_TOPIC)
     assert row["consecutive_wrong"] == 1
     assert row["consecutive_correct"] == 0
 
 
-def test_quiz_wrong_under_three_times_does_not_penalize_affection(course_db, monkeypatch):
-    """答错 1~2 次时仅记录连错，不应扣除好感度。"""
+def test_quiz_wrong_three_times_triggers_affection_penalty_and_warning(course_db, monkeypatch):
+    """答错 1~2 次不扣好感；连续答错达到 3 次时好感度原子扣减 2 点并注入 <slacking_warning>。"""
     from backend.services.character_state import CharacterStateManager
     captured = {}
     _mock_llm_stream(monkeypatch, captured)
@@ -179,31 +170,15 @@ def test_quiz_wrong_under_three_times_does_not_penalize_affection(course_db, mon
     quiz_msg = '我选了：选项A\n<submit_quiz_result is_correct="false" selected="选项A" />'
 
     initial_aff = CharacterStateManager.get_state().affection
+    # 前 2 次答错不应触发扣分与警告
     handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
     handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
-
-    current_aff = CharacterStateManager.get_state().affection
-    assert current_aff == initial_aff
+    assert CharacterStateManager.get_state().affection == initial_aff
     assert "<slacking_warning>" not in captured.get("injection", "")
 
-
-def test_quiz_wrong_three_times_triggers_affection_penalty_and_warning(course_db, monkeypatch):
-    """连续答错达到 3 次时，好感度原子扣减 2 点，且注入 <slacking_warning> 警告。"""
-    from backend.services.character_state import CharacterStateManager
-    captured = {}
-    _mock_llm_stream(monkeypatch, captured)
-
-    payload = SimpleNamespace(current_file_path=None, persona_type="simplified")
-    quiz_msg = '我选了：选项A\n<submit_quiz_result is_correct="false" selected="选项A" />'
-
-    initial_aff = CharacterStateManager.get_state().affection
-    # 连续答错 3 次
+    # 第 3 次答错触发惩罚与警示
     handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
-    handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
-    handle_slash_command("/lesson_continue", payload, quiz_msg, [{"role": "user", "content": quiz_msg}])
-
-    current_aff = CharacterStateManager.get_state().affection
-    assert current_aff == initial_aff - 2
+    assert CharacterStateManager.get_state().affection == initial_aff - 2
     assert "<slacking_warning>" in captured.get("injection", "")
     assert "有人故意瞎捣乱" in captured.get("injection", "")
 

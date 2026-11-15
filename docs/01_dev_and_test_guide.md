@@ -39,9 +39,11 @@ domain: core-architecture
 
 ### 后端 (Python/pytest) - 集中式管理
 
-所有的测试文件（`test_*.py`）及集成验证脚本（如 `verify_*.py`）都被统一归纳并维护在 **`backend/tests/`** 目录中。项目根目录下已配置 `pytest.ini`（指定 `pythonpath = .`），路径解析极致丝滑。
+所有可由 `pytest` 自动发现并独立隔离运行的自动化测试（`test_*.py`）统一维护在 **`backend/tests/`** 目录中；任何需要连接本地运行中服务、发送真实外部请求或执行手工运维清理的独立验证脚本（如 `test_api.py`、`verify_response_pipeline.py`）则统一存放在 **`backend/scripts/`** 目录中，避免被 `pytest` 收集触发。项目根目录下已配置 [`pytest.ini`](file:///d:/MeiWenfeng-Classroom/pytest.ini)（指定 `pythonpath = .`、`testpaths = backend/tests` 与 `slow` marker）。
 
-**如何运行**：只需在项目根目录（`MeiWenfeng-Classroom`）打开终端，执行 `pytest` 即可自动发现并运行所有测试。
+**如何运行**：在项目根目录（`MeiWenfeng-Classroom`）打开终端：
+*   **日常开发快速回归**：`python -m pytest backend/tests -m "not slow" -q`（跳过标注 `@pytest.mark.slow` 的子进程拉起与重依赖导入测试）
+*   **提交前全量验收**：`python -m pytest backend/tests -q`
 
 > 💡 **特别提醒 (Agent 读写能力测试)**：在对大模型的底层工具链或安全沙盒（Sandbox）逻辑进行任何修改后，**必须强制执行 `pytest backend/tests/test_agent_tools.py`**。此测试用例专门用于验证 `replace_file_content` 等工具的精确读写能力，并确保其不会越过 `data/materials/Sandbox/` 的安全边界。
 
@@ -67,6 +69,31 @@ domain: core-architecture
 > * **自动化单测回归凭证**：修改响应管线与长程记忆防护逻辑后，必须执行 `pytest backend/tests/test_response_pipeline_guard.py backend/tests/test_chroma_isolation.py` 验证防污染守卫绿灯。
 
 > 🌐 **网络层工具单测拦截规则 (Network Mock Safety)**：对于 `WebSearchTool`、`ReadUrlContentTool` 等联网工具的单元测试，**严禁在自动化测试（pytest）中直连外部真实网络！** 必须通过 `unittest.mock` 拦截 `DDGS` 及 `httpx.Client`，防止因限流或弱网导致 CI 流水线随机性失败。临时探路验证请存放在 `backend/scripts/` 中并及时清理。
+
+#### ⏱️ 测试性能与防退化编写规范 (Test Speed & Hygiene Guidelines)
+
+为防止测试套件因重复建库、隐式网络探测、权重加载或用例膨胀导致整体执行耗时再次恶化，后续新增或修改后端测试时**必须遵守以下六项硬性准则**：
+
+1. **复用会话级 DB 快照，严禁在用例或局部 fixture 中重复调用 `init_db()`**：
+   * [`backend/tests/conftest.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/conftest.py) 的 `_template_db_path` 会在整个 pytest 会话启动时执行唯一一次 `init_db()`，各用例的 autouse `mock_db_path` 通过 `shutil.copy2` 复刻快照（约 1ms；单次完整 `init_db()` 约 160ms）。
+   * 若用例需要同步隔离 `backend.services.course_manager.DB_PATH`，直接在测试/夹具参数中注入 `mock_db_path` 并仅对其 `patch("backend.services.course_manager.DB_PATH", mock_db_path)`，**不要自建空白临时库再重复执行 `init_db()`**（除非用例本身专门测试首次建表或数据库迁移逻辑）。
+2. **拦截 `OpenAI` / `httpx.Client` 构造函数，而不仅是请求方法**：
+   * 在 Windows 环境下，每次构造真实 `OpenAI(...)` 或 `httpx.Client(...)` 都会触发 SSL/TLS 上下文初始化，单次阻塞约 **2.4s**；而 `/api/chat/switch_model`、`/api/chat/models/update` 等接口触发 `detect_and_update_max_tokens` 时还会向未启动的本地端口发起请求等待连接失败（4s~5s）。
+   * **正确 Mock 姿势**：
+     * 涉及 `OpenAILLMClient` 或 `stream_chat` 组装测试时，必须在实例化**之前** patch `backend.services.agent_executor.OpenAI` 或 `backend.services.model_router.OpenAILLMClient`（即使随后会替换为 `MagicMock()` 也不例外）。
+     * 涉及 `httpx.Client`（如 RAG 客户端、模型上下文探测）时，必须直接 patch **`httpx.Client`** 上下文管理器（或模块内的 `httpx.Client` 引用）；只 patch `httpx.Client.post` 仍会承担客户端构造开销。
+3. **非向量计算场景必须注入 `mock_rag_client`，并守卫测试态预加载**：
+   * 直接通过 `TestClient(app)` 调用依赖提示词/上下文组装的接口（如 `/api/chat/system_context`）时，若未请求 `mock_rag_client` fixture，会触发真实 ChromaDB 与本地嵌入模型权重加载（约 7s）。除专门测试真实向量检索或物理距离阈值的用例（如 `test_chroma_isolation.py`、`test_rag_retrieval.py`）外，涉及提示词/路由的测试统一注入 `mock_rag_client`。
+   * [`backend/main.py`](file:///d:/MeiWenfeng-Classroom/backend/main.py) 的 `lifespan` 已通过 `TESTING != "1"` 跳过测试态 ChromaDB 预加载，**禁止移除该环境变量守卫**。
+4. **严禁在 `backend/tests/` 放置可执行探针脚本与无意义 `sleep`**：
+   * `pytest` 在用例收集阶段会直接 import 测试模块。任何含模块顶层网络调用、`input()`、连接本地开发端口（`127.0.0.1:12701`）或无 `assert` 仅打印结果的脚本，**必须放入 `backend/scripts/`**。
+   * 禁止使用硬编码 `time.sleep(...)` 模拟时间流逝或超时：优先透传 `now` 参数（如 `evaluate_temporal_decay(now=...)`）、在测试对象上覆写极短超时（如 `tool.approval_timeout = 0.1`）或使用轻量同步原语。
+5. **用表驱动聚合替代“单变体拆函数”，避免测试数量膨胀**：
+   * 针对同一纯函数或规则映射的多组输入输出（如模型 `max_tokens` 匹配、不同阶段的保底阈值、正/反两类作答结果校验），禁止每新增一个入参分支就复制一条独立的 `def test_xxx()`。
+   * 注意：`@pytest.mark.parametrize` 仍会为每组参数独立执行一次全量 autouse fixture（`mock_db_path` + `isolate_chroma_db`）。对于不要求跨用例绝对隔离的多组输入映射，优先在同一个高内聚 `test_*` 函数内使用 **`cases = [...]` 表驱动循环**校验；新增回归测试前也应先检查已有文件中是否存在功能覆盖重叠的超集用例。
+6. **慢集成测试标记 `@pytest.mark.slow` 与耗时基线自查**：
+   * 凡涉及真实 `subprocess` 拉起 `uvicorn` 服务（如 `test_shutdown_behavior.py`）或导入重型全量代理依赖（如 `litellm.proxy.proxy_server`）的测试，必须标注 `@pytest.mark.slow`，确保日常快速套件 `-m "not slow"` 维持在十余秒内完成。
+   * 大批量新增或重构测试后，执行一次 `python -m pytest backend/tests --durations=20 -q`，确认未引入单条非 `slow` 用例或 fixture `setup` 耗时超过 **0.5s**。
 
 ### 前端 (React/Vitest) - 并置式管理 (Colocation)
 

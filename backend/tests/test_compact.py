@@ -5,20 +5,13 @@ from unittest.mock import patch, MagicMock
 from fastapi.testclient import TestClient
 
 from backend.main import app
-from backend.database import get_db_connection, init_db
+from backend.database import get_db_connection
 from backend.services.compact_service import (
     compact_conversation_messages,
     check_and_auto_compact,
     generate_compact_summary,
 )
 from backend.services.context_manager import ContextBundle, assemble_messages
-
-
-@pytest.fixture(autouse=True)
-def setup_test_db():
-    """Ensure database schema is initialized and up to date."""
-    init_db()
-    yield
 
 
 def test_database_schema_has_compact_columns():

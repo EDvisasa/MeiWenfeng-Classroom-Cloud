@@ -141,35 +141,20 @@ def test_replace_file_content_tool_success(tmp_path):
         if os.path.exists(test_file):
             os.remove(test_file)
 
-def test_replace_file_content_tool_blocks_outside_sandbox():
-    """Test that ReplaceFileContentTool blocks edits outside the data/materials/Sandbox directory."""
-    tool = ReplaceFileContentTool()
-    
-    # Try to edit a file outside sandbox, e.g., the test file itself
-    test_file = os.path.abspath(__file__)
-    
-    result = tool.execute({
-        "path": test_file,
-        "old_content": "def test_tool_registry",
-        "new_content": "def hacked_tool_registry"
-    })
-    
-    assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
-
-def test_replace_file_content_tool_blocks_directory_prefix_bypass():
-    """Test that ReplaceFileContentTool blocks directory prefix bypass (e.g., data/materials/Sandbox_hacked)."""
-    tool = ReplaceFileContentTool()
-    
+def test_sandbox_write_tools_block_outside_and_prefix_bypass():
+    """Verify ReplaceFileContentTool and CreateFileTool block writes outside Sandbox and prefix bypasses."""
+    from backend.services.agent_tools import CreateFileTool
     project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
     hacked_sandbox_dir = os.path.abspath(os.path.join(project_root, "data", "materials", "Sandbox_hacked"))
-    
-    result = tool.execute({
-        "path": os.path.join(hacked_sandbox_dir, "test.py"),
-        "old_content": "old",
-        "new_content": "new"
-    })
-    
-    assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
+
+    replace_tool = ReplaceFileContentTool()
+    for path in (os.path.abspath(__file__), os.path.join(hacked_sandbox_dir, "test.py")):
+        result = replace_tool.execute({"path": path, "old_content": "old", "new_content": "new"})
+        assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
+
+    create_tool = CreateFileTool()
+    hacked_file = os.path.join(project_root, "backend", "test_hacked_create.py")
+    assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in create_tool.execute({"path": hacked_file, "content": "hacked"})
 
 from backend.services.agent_tools import CreateFileTool
 
@@ -198,20 +183,6 @@ def test_create_file_tool_success(tmp_path):
     finally:
         if os.path.exists(test_file):
             os.remove(test_file)
-
-def test_create_file_tool_blocks_outside_sandbox():
-    """Test that CreateFileTool blocks file creation outside the sandbox."""
-    tool = CreateFileTool()
-    
-    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-    hacked_file = os.path.join(project_root, "backend", "test_hacked_create.py")
-    
-    result = tool.execute({
-        "path": hacked_file,
-        "content": "hacked"
-    })
-    
-    assert "GUARDRAIL BLOCKED: Sandbox boundary violation" in result
 
 def test_bash_tool_approval_timeout():
     """Test that BashTool times out after approval_timeout without user intervention and cleans up PENDING_APPROVALS."""

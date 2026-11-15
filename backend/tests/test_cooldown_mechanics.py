@@ -263,36 +263,15 @@ def test_slash_handler_dual_state_dialogue(mem_db):
 
 
 def test_property_update_handler_climax_accumulation(mem_db):
-    """验证 PropertyUpdateHandler 收到大模型 set_refractory='10' 时不暴力覆盖，而是自适应累加 10 -> 18 -> 24"""
+    """验证 PropertyUpdateHandler 收到 set_refractory='10' 或 climax='true' 时均自适应累加 10 -> 18 -> 24"""
     from backend.services.side_effects import PropertyUpdateHandler
     handler = PropertyUpdateHandler()
 
-    # 模拟第 1 轮高潮
-    handler.handle({"set_refractory": "10"}, "")
-    assert CharacterStateManager.get_state().refractory_period == 10
-
-    # 模拟第 2 轮连战高潮
-    handler.handle({"set_refractory": "10"}, "")
-    assert CharacterStateManager.get_state().refractory_period == 18
-
-    # 模拟第 3 轮连战高潮
-    handler.handle({"set_refractory": "10"}, "")
-    assert CharacterStateManager.get_state().refractory_period == 24
-
-
-def test_property_update_handler_climax_event_tag(mem_db):
-    """验证 PropertyUpdateHandler 识别纯语义事件标签 climax='true' 并自适应累加 10 -> 18 -> 24"""
-    from backend.services.side_effects import PropertyUpdateHandler
-    handler = PropertyUpdateHandler()
-
-    handler.handle({"climax": "true"}, "")
-    assert CharacterStateManager.get_state().refractory_period == 10
-
-    handler.handle({"climax": "true"}, "")
-    assert CharacterStateManager.get_state().refractory_period == 18
-
-    handler.handle({"climax": "true"}, "")
-    assert CharacterStateManager.get_state().refractory_period == 24
+    for tag_payload in ({"set_refractory": "10"}, {"climax": "true"}):
+        CharacterStateManager.modify_state(set_refractory=0)
+        for expected in (10, 18, 24):
+            handler.handle(tag_payload, "")
+            assert CharacterStateManager.get_state().refractory_period == expected
 
 
 def test_property_update_handler_is_cooldown_scheme_b(mem_db):

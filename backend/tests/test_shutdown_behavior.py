@@ -3,8 +3,10 @@ import time
 import os
 import signal
 import sys
+import pytest
 import requests
 
+@pytest.mark.slow
 def test_uvicorn_graceful_shutdown_on_windows():
     """
     TDD Test to verify that FastAPI exits gracefully on Windows when CTRL_BREAK_EVENT is sent,

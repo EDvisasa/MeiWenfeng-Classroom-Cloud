@@ -4,7 +4,7 @@ from backend.main import app
 
 client = TestClient(app)
 
-def test_system_context_endpoint():
+def test_system_context_endpoint(mock_rag_client):
     """Test the /api/chat/system_context endpoint calculates tokens properly."""
     payload = {
         "messages": [

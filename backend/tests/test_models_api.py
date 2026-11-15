@@ -1,8 +1,17 @@
+from unittest.mock import patch
+import httpx
 import pytest
 from fastapi.testclient import TestClient
 from backend.main import app
 
 client = TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def _mock_model_probe_http():
+    """Prevent real HTTP/SSL probe timeouts against localhost during model API tests."""
+    with patch("backend.routers.models.httpx.Client", side_effect=httpx.ConnectError("mocked offline")):
+        yield
 
 def test_get_models_includes_max_tokens():
     """Test the /api/chat/models endpoint returns max_context_tokens."""
