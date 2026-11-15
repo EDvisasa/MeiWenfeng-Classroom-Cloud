@@ -2071,6 +2071,11 @@ body {
   animation: pulse 1.5s infinite;
 }
 
+.claude-tool-status-dot.running.remembering {
+  background-color: #a855f7;
+  box-shadow: 0 0 8px rgba(168, 85, 247, 0.75);
+}
+
 @keyframes pulse {
   0% {
     opacity: 0.6;
@@ -2090,6 +2095,33 @@ body {
   font-size: 14px;
   color: var(--text-primary);
   text-transform: capitalize;
+}
+
+.claude-tool-step-count {
+  font-size: 12px;
+  color: var(--text-secondary);
+  opacity: 0.75;
+}
+
+.claude-tool-step-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed var(--border-color);
+}
+
+.claude-tool-step-group:last-child {
+  padding-bottom: 0;
+  border-bottom: none;
+}
+
+.claude-tool-step-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
 }
 
 .claude-tool-io {

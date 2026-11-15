@@ -1,6 +1,6 @@
 import time
 import json
-from typing import List, Dict, Any, Generator, Protocol
+from typing import List, Dict, Any, Generator, Optional, Protocol
 from openai import OpenAI
 import openai
 import httpx
@@ -116,7 +116,7 @@ class OpenAILLMClient:
 
 
 class AgentExecutor:
-    def __init__(self, llm_client: LLMClientProtocol, max_iterations: int = 5):
+    def __init__(self, llm_client: LLMClientProtocol, max_iterations: Optional[int] = None):
         self.llm_client = llm_client
         self.max_iterations = max_iterations
 
@@ -140,7 +140,7 @@ class AgentExecutor:
         iteration = 0
         controller = kwargs.get("stream_controller")
 
-        while iteration < self.max_iterations:
+        while self.max_iterations is None or self.max_iterations <= 0 or iteration < self.max_iterations:
             if controller and controller.is_aborted:
                 return
 

@@ -75,7 +75,7 @@ def stream_chat(
         safe_base_url = base_url.replace("://localhost:", "://127.0.0.1:")
 
         llm_client = OpenAILLMClient(api_key=api_key, base_url=safe_base_url, model_id=model_id_api)
-        executor = AgentExecutor(llm_client=llm_client, max_iterations=5)
+        executor = AgentExecutor(llm_client=llm_client)
 
         yield from executor.run(formatted_messages, max_tokens=max_tokens, stream_controller=stream_controller)
 

@@ -133,29 +133,76 @@ const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
   );
 };
 
+const MEMORY_TOOL_NAMES = new Set([
+  'search_memory',
+  'get_memory_timeline',
+  'get_memory_calendar',
+  'expand_memory',
+]);
+
+const TOOL_FRIENDLY_NAMES = {
+  execute_bash: 'Bash',
+  'default_api:run_command': 'Bash',
+  read_file: 'Read',
+  grep_search: 'Grep',
+  web_search: 'Web',
+  read_url_content: 'Browser',
+  call_openclaw_agent: 'OpenClaw',
+  Call_openclaw_agent: 'OpenClaw',
+  search_memory: 'Remembering...',
+  get_memory_timeline: 'Remembering...',
+  get_memory_calendar: 'Remembering...',
+  expand_memory: 'Remembering...',
+};
+
+const groupConsecutiveMemoryTools = (blocks) => {
+  const grouped = [];
+  for (const block of blocks || []) {
+    const prev = grouped[grouped.length - 1];
+    if (
+      block.type === 'tool' &&
+      MEMORY_TOOL_NAMES.has(block.tool_name) &&
+      prev &&
+      prev.type === 'tool' &&
+      MEMORY_TOOL_NAMES.has(prev.tool_name)
+    ) {
+      const steps = Array.isArray(prev.steps) ? [...prev.steps, block] : [prev, block];
+      grouped[grouped.length - 1] = {
+        type: 'tool',
+        tool_name: 'search_memory',
+        steps,
+        status: steps.some((s) => s.status === 'running') ? 'running' : 'done',
+      };
+    } else {
+      grouped.push(block);
+    }
+  }
+  return grouped;
+};
+
 const ToolBlock = ({ block, idx }) => {
-  const isRunning = block.status === 'running';
-  const friendlyName = block.tool_name === 'execute_bash' ? 'Bash'
-    : block.tool_name === 'read_file' ? 'Read'
-      : block.tool_name === 'grep_search' ? 'Grep'
-        : block.tool_name === 'web_search' ? 'Web'
-          : block.tool_name === 'read_url_content' ? 'Browser'
-            : block.tool_name === 'default_api:run_command' ? 'Bash'
-              : (block.tool_name === 'call_openclaw_agent' || block.tool_name === 'Call_openclaw_agent') ? 'OpenClaw'
-              : block.tool_name;
+  const steps = Array.isArray(block.steps) && block.steps.length > 0 ? block.steps : [block];
+  const isMultiStep = steps.length > 1;
+  const isRunning = steps.some((s) => s.status === 'running');
+  const isMemoryTool = MEMORY_TOOL_NAMES.has(block.tool_name);
+  const friendlyName = TOOL_FRIENDLY_NAMES[block.tool_name] || block.tool_name;
 
   const [isExpanded, setIsExpanded] = React.useState(false);
   const THRESHOLD = 30;
-  const hasLongOutput = block.output && block.output.length > THRESHOLD;
+  const hasExpandableDetails = isMultiStep || Boolean(steps[0].output && (steps[0].output.length > THRESHOLD || isMemoryTool));
+  const latestStep = steps[steps.length - 1];
 
   return (
     <div key={idx} className="claude-tool-block">
-      <div className="claude-tool-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: hasLongOutput ? 'pointer' : 'default' }} onClick={() => hasLongOutput && setIsExpanded(!isExpanded)}>
+      <div className="claude-tool-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', cursor: hasExpandableDetails ? 'pointer' : 'default' }} onClick={() => hasExpandableDetails && setIsExpanded(!isExpanded)}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div className={`claude-tool-status-dot ${isRunning ? 'running' : 'done'}`}></div>
+          <div className={`claude-tool-status-dot ${isRunning ? 'running' : 'done'}${isMemoryTool ? ' remembering' : ''}`}></div>
           <span className="claude-tool-name">{friendlyName}</span>
+          {isMultiStep && (
+            <span className="claude-tool-step-count">({steps.length} steps)</span>
+          )}
         </div>
-        {hasLongOutput && (
+        {hasExpandableDetails && (
           <div style={{ color: 'var(--text-secondary)', display: 'flex', alignItems: 'center' }}>
             {isExpanded ? (
               <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor"><path d="M14.7 10.3a1 1 0 01-1.4 1.4L8 6.42 2.7 11.7a1 1 0 01-1.4-1.4l6-6a1 1 0 011.4 0l6 6z" /></svg>
@@ -166,20 +213,34 @@ const ToolBlock = ({ block, idx }) => {
         )}
       </div>
       <div
-        className={`claude-tool-io ${hasLongOutput && !isExpanded ? 'collapsed' : ''} ${hasLongOutput ? 'clickable' : ''}`}
-        onClick={() => hasLongOutput && setIsExpanded(!isExpanded)}
+        className={`claude-tool-io ${hasExpandableDetails && !isExpanded ? 'collapsed' : ''} ${hasExpandableDetails ? 'clickable' : ''}`}
+        onClick={() => hasExpandableDetails && setIsExpanded(!isExpanded)}
       >
-        <div className="claude-tool-io-row">
-          <span className="claude-tool-io-label">IN</span>
-          <span className="claude-tool-io-content">{block.command}</span>
-        </div>
-        {block.output && (
+        {isMultiStep && !isExpanded ? (
           <div className="claude-tool-io-row">
-            <span className="claude-tool-io-label">OUT</span>
-            <span className="claude-tool-io-content" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
-              {block.output}
-            </span>
+            <span className="claude-tool-io-label">IN</span>
+            <span className="claude-tool-io-content">{latestStep.command}</span>
           </div>
+        ) : (
+          steps.map((step, stepIdx) => (
+            <div key={stepIdx} className={isMultiStep ? 'claude-tool-step-group' : undefined}>
+              {isMultiStep && (
+                <div className="claude-tool-step-label">Step {stepIdx + 1}</div>
+              )}
+              <div className="claude-tool-io-row">
+                <span className="claude-tool-io-label">IN</span>
+                <span className="claude-tool-io-content">{step.command}</span>
+              </div>
+              {step.output && (
+                <div className="claude-tool-io-row">
+                  <span className="claude-tool-io-label">OUT</span>
+                  <span className="claude-tool-io-content" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                    {step.output}
+                  </span>
+                </div>
+              )}
+            </div>
+          ))
         )}
       </div>
     </div>
@@ -712,7 +773,7 @@ export default function ChatPanel({
   };
 
   const renderNormalizedBlocks = (blocks) => {
-    return blocks.map((block, idx) => {
+    return groupConsecutiveMemoryTools(blocks).map((block, idx) => {
       if (block.type === 'thinking') {
         return <ThinkingBlock key={`thought_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'tool') {
@@ -1218,10 +1279,10 @@ export default function ChatPanel({
                       </div>
                     )}
                     {blocks && blocks.length > 0 ? (
-                      renderNormalizedBlocks(parseAndMergeBlocks(blocks).filter(b => b.type !== 'retry'))
+                      renderNormalizedBlocks(mergedBlocks.filter(b => b.type !== 'retry'))
                     ) : (
                       <div className="message-content">
-                        {renderNormalizedBlocks(parseAndMergeBlocks(msg.content))}
+                        {renderNormalizedBlocks(mergedBlocks)}
                       </div>
                     )}
                     {(isStreaming && msg.streaming && !pendingApproval) && <span className="typing-cursor" />}

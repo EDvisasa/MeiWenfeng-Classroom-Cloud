@@ -24,7 +24,7 @@ PENDING_APPROVALS = {}
 
 class BashTool(AgentTool):
     name = "execute_bash"
-    description = "Execute a local terminal command. Use this for running tests, managing files, and checking system state."
+    description = "[Workspace] Execute a local terminal command for tests, builds, or workspace files. Workspace/sandbox only; NEVER for past chats/diaries (use [Memory] tools)."
     is_safe = False
     parameters_schema = {
         "type": "object",
@@ -155,7 +155,7 @@ class BashTool(AgentTool):
 
 class ReadFileTool(AgentTool):
     name = "read_file"
-    description = "Read lines or pages from a file. Supports text, code, Markdown, PDF, and DOCX documents. For PDFs, you can specify 'page' or 'start_page' and 'end_page'."
+    description = "[Workspace] Read lines or pages from a local file (text, code, Markdown, PDF, DOCX; pass 'page' or 'start_page'/'end_page' for PDFs). Workspace/sandbox only; NEVER for past chats/diaries (use [Memory] tools)."
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -367,7 +367,7 @@ class ReadFileTool(AgentTool):
 
 class GrepSearchTool(AgentTool):
     name = "grep_search"
-    description = "Search for a query string in all text files within a directory."
+    description = "[Workspace] Search text inside workspace files in a directory. Workspace/sandbox only; NEVER for past chats/diaries (use [Memory] tools)."
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -438,7 +438,7 @@ def _get_active_sandbox_dir(course_id: Optional[str] = None) -> str:
 
 class ReplaceFileContentTool(AgentTool):
     name = "replace_file_content"
-    description = "Surgically replace a block of text in a specific file. Restricted to the active course Sandbox directory."
+    description = "[Workspace] Surgically replace a block of text in a Sandbox file. Workspace/sandbox only; NEVER for past chats/diaries."
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -511,7 +511,7 @@ class ReplaceFileContentTool(AgentTool):
 
 class CreateFileTool(AgentTool):
     name = "create_file"
-    description = "Create a completely new file with content. Restricted to the active course Sandbox directory."
+    description = "[Workspace] Create a new file in the active course Sandbox directory. Workspace/sandbox only; NEVER for past chats/diaries."
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -562,7 +562,7 @@ class CreateFileTool(AgentTool):
 
 class WebSearchTool(AgentTool):
     name = "web_search"
-    description = "Search the internet using DuckDuckGo to find information."
+    description = "[Web] Search the public internet using DuckDuckGo to find recent facts or information."
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -613,7 +613,7 @@ class WebSearchTool(AgentTool):
 
 class ReadUrlContentTool(AgentTool):
     name = "read_url_content"
-    description = "Read and extract clean markdown content from a specific URL. Useful for reading documentation or articles."
+    description = "[Web] Read and extract clean Markdown from a public URL (useful for documentation or articles)."
     parameters_schema = {
         "type": "object",
         "properties": {
@@ -713,7 +713,7 @@ class ReadUrlContentTool(AgentTool):
 
 class OpenClawAgentTool(AgentTool):
     name = "call_openclaw_agent"
-    description = "Delegate a task or instruction to the external WSL OpenClaw Gateway agent (BaiTizi). Automatically verifies online status before sending."
+    description = "[Collab] Delegate a task to the external WSL OpenClaw Gateway agent (BaiTizi). Verifies online status before sending."
     is_safe = True
     parameters_schema = {
         "type": "object",
@@ -801,6 +801,165 @@ class OpenClawAgentTool(AgentTool):
         return f"{header}\n{trace_line}\n\n{combined}"
 
 
+_MEMORY_SHARED_DATE_PROPS = {
+    "date_range": {
+        "type": "string",
+        "description": "Optional date filter: 'YYYY-MM-DD', 'YYYY-MM', 'recent_7d', or 'recent_30d'.",
+    },
+    "start_date": {
+        "type": "string",
+        "description": "Optional inclusive start date ('YYYY-MM-DD').",
+    },
+    "end_date": {
+        "type": "string",
+        "description": "Optional inclusive end date ('YYYY-MM-DD').",
+    },
+}
+
+_MEMORY_TARGET_PROP = {
+    "type": "string",
+    "enum": ["all", "journals", "conversations"],
+    "description": "Source filter: 'journals' (daily summaries), 'conversations' (past chat turns), or 'all'. Default is 'all'.",
+}
+
+_MEMORY_LIMIT_PROP = {
+    "type": "integer",
+    "description": "Maximum preview hits to return. Default 5, hard ceiling 15.",
+}
+
+
+class SearchMemoryTool(AgentTool):
+    name = "search_memory"
+    description = (
+        "[Memory] Recall past dialogues, shared promises, and diaries by keyword "
+        "(not stored on disk; ONLY tool category for chat/journal history). Returns concise previews and record IDs."
+    )
+    is_safe = True
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "query": {
+                "type": "string",
+                "description": "Keywords or exact phrase to search.",
+            },
+            "target": _MEMORY_TARGET_PROP,
+            **_MEMORY_SHARED_DATE_PROPS,
+            "limit": _MEMORY_LIMIT_PROP,
+        },
+        "required": ["query"],
+    }
+
+    def execute(self, params: dict) -> str:
+        from backend.services.memory_search_engine import MemorySearchEngine
+
+        p = params or {}
+        return MemorySearchEngine().search(
+            query=(p.get("query") or ""),
+            target=(p.get("target") or "all").strip().lower(),
+            date_range=p.get("date_range"),
+            start_date=p.get("start_date"),
+            end_date=p.get("end_date"),
+            limit=p.get("limit"),
+        )
+
+
+class GetMemoryTimelineTool(AgentTool):
+    name = "get_memory_timeline"
+    description = (
+        "[Memory] Browse past dialogues and diaries chronologically by date or date range "
+        "(not stored on disk). Returns concise previews with record IDs, or active dates if empty."
+    )
+    is_safe = True
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            **_MEMORY_SHARED_DATE_PROPS,
+            "target": _MEMORY_TARGET_PROP,
+            "limit": _MEMORY_LIMIT_PROP,
+        },
+    }
+
+    def execute(self, params: dict) -> str:
+        from backend.services.memory_search_engine import MemorySearchEngine
+
+        p = params or {}
+        return MemorySearchEngine().timeline(
+            date_range=p.get("date_range"),
+            start_date=p.get("start_date"),
+            end_date=p.get("end_date"),
+            target=(p.get("target") or "all").strip().lower(),
+            limit=p.get("limit"),
+        )
+
+
+class GetMemoryCalendarTool(AgentTool):
+    name = "get_memory_calendar"
+    description = (
+        "[Memory] List active dates in a date range with daily conversation segment counts, "
+        "session titles, and diary counts (not stored on disk). Use this to map a timeline first."
+    )
+    is_safe = True
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            **_MEMORY_SHARED_DATE_PROPS,
+            "limit": {
+                "type": "integer",
+                "description": "Maximum active dates to list. Default 15, hard ceiling 31.",
+            },
+        },
+    }
+
+    def execute(self, params: dict) -> str:
+        from backend.services.memory_search_engine import MemorySearchEngine
+
+        p = params or {}
+        return MemorySearchEngine().calendar(
+            start_date=p.get("start_date"),
+            end_date=p.get("end_date"),
+            date_range=p.get("date_range"),
+            limit=p.get("limit"),
+        )
+
+
+class ExpandMemoryTool(AgentTool):
+    name = "expand_memory"
+    description = (
+        "[Memory] Read full diary entry or surrounding conversation turns for a specific record_id "
+        "found by search_memory or get_memory_timeline (not stored on disk)."
+    )
+    is_safe = True
+    parameters_schema = {
+        "type": "object",
+        "properties": {
+            "source_type": {
+                "type": "string",
+                "enum": ["journal", "conversation"],
+                "description": "Record source type: 'journal' or 'conversation'.",
+            },
+            "record_id": {
+                "type": "integer",
+                "description": "Target record ID from search_memory or get_memory_timeline preview.",
+            },
+            "context_turns": {
+                "type": "integer",
+                "description": "For conversations: messages before and after record_id in the same session. Default 4, max 8.",
+            },
+        },
+        "required": ["source_type", "record_id"],
+    }
+
+    def execute(self, params: dict) -> str:
+        from backend.services.memory_search_engine import MemorySearchEngine
+
+        p = params or {}
+        return MemorySearchEngine().expand(
+            source_type=(p.get("source_type") or "").strip().lower(),
+            record_id=p.get("record_id"),
+            context_turns=p.get("context_turns"),
+        )
+
+
 # Register tools
 TOOL_REGISTRY = {
     "read_file": ReadFileTool(),
@@ -811,6 +970,10 @@ TOOL_REGISTRY = {
     "web_search": WebSearchTool(),
     "read_url_content": ReadUrlContentTool(),
     "call_openclaw_agent": OpenClawAgentTool(),
+    "search_memory": SearchMemoryTool(),
+    "get_memory_timeline": GetMemoryTimelineTool(),
+    "get_memory_calendar": GetMemoryCalendarTool(),
+    "expand_memory": ExpandMemoryTool(),
 }
 
 

@@ -28,8 +28,14 @@ class StreamParser:
     """Parses LLM stream chunks, yielding standard text and accumulating tool calls."""
     KNOWN_TOOL_NAMES = {
         "read_file", "grep_search", "execute_bash", "replace_file_content",
-        "create_file", "web_search", "read_url_content", "call_openclaw_agent"
+        "create_file", "web_search", "read_url_content", "call_openclaw_agent",
+        "search_memory", "get_memory_timeline", "get_memory_calendar", "expand_memory",
     }
+    _DIRECT_TOOL_REGEX = (
+        r"<(call_openclaw_agent|read_file|grep_search|execute_bash|"
+        r"replace_file_content|create_file|web_search|read_url_content|"
+        r"search_memory|get_memory_timeline|get_memory_calendar|expand_memory)>([\s\S]*?)</\1>"
+    )
 
     def __init__(self):
         self.tool_calls_accumulator: Dict[int, Dict[str, Any]] = {}
@@ -71,8 +77,7 @@ class StreamParser:
         if not self.full_content:
             return results
 
-        pattern_direct = r'<(call_openclaw_agent|read_file|grep_search|execute_bash|replace_file_content|create_file|web_search|read_url_content)>([\s\S]*?)</\1>'
-        for match in re.finditer(pattern_direct, self.full_content):
+        for match in re.finditer(self._DIRECT_TOOL_REGEX, self.full_content):
             tool_name = match.group(1)
             payload_str = match.group(2).strip()
             results.append(self._build_xml_tool_item(tool_name, payload_str))
@@ -95,6 +100,9 @@ class StreamParser:
                 "read_file": "file_path",
                 "execute_bash": "command",
                 "web_search": "query",
+                "search_memory": "query",
+                "get_memory_timeline": "date_range",
+                "get_memory_calendar": "date_range",
                 "read_url_content": "url",
             }
             key = param_map.get(tool_name, "content")
@@ -147,8 +155,7 @@ class StreamParser:
     def get_clean_content(self) -> str:
         """Return content with XML tool tags stripped out."""
         content = self.full_content
-        pattern_direct = r'<(call_openclaw_agent|read_file|grep_search|execute_bash|replace_file_content|create_file|web_search|read_url_content)>[\s\S]*?</\1>'
-        content = re.sub(pattern_direct, '', content)
+        content = re.sub(self._DIRECT_TOOL_REGEX, '', content)
         pattern_call_tool = r'<call_tool\s+name="[^"]+">[\s\S]*?</call_tool>'
         content = re.sub(pattern_call_tool, '', content)
         return content.strip()

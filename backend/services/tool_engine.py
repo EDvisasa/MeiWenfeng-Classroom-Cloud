@@ -31,6 +31,16 @@ class ToolExecutionEngine:
             return f"Browser: {url}"
         elif t_name == "execute_bash":
             return t_param.get("command", "")
+        elif t_name == "search_memory":
+            return f"Remembering: '{t_param.get('query', '')}'"
+        elif t_name in ("get_memory_timeline", "get_memory_calendar"):
+            sd = t_param.get("start_date")
+            ed = t_param.get("end_date")
+            scope = f"{sd or '...'}..{ed or '...'}" if (sd or ed) else (t_param.get("date_range") or "recent")
+            prefix = "Remembering calendar" if t_name == "get_memory_calendar" else "Remembering timeline"
+            return f"{prefix}: {scope}"
+        elif t_name == "expand_memory":
+            return f"Remembering detail: {t_param.get('source_type', '')}#{t_param.get('record_id', '')}"
         else:
             args = []
             for k, v in t_param.items():

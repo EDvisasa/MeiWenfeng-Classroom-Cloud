@@ -12,6 +12,14 @@ All notable changes to this project will be documented in this file.
 ## [Unreleased]
 
 ### Added
+- **记忆工具家族原子化拆分、`calendar` 日程目录、渐进式日期引导与四类正交高信噪比路由 (PLAN-03 v1.1 / ISSUE-66, ISSUE-67, ISSUE-68)**:
+  - **解除循环深度与步数上限 (`ISSUE-66`)**：移除 `AgentExecutor.MAX_MEMORY_SEARCH_STEPS = 3` 拦截及 `model_router.py` `max_iterations=5` 硬编码上限（改为默认 `max_iterations=None` 无上限探索，由 `_sanitize_tool_output` 与前端停止控制器保底）；
+  - **四原子工具拆分与渐进日期导航 (`ISSUE-67`)**：将原单一复合 `search_memory(mode=...)` 拆分为 4 个零 `mode`、带显式 `required` 约束的单职责工具（`search_memory`、`get_memory_timeline`、`get_memory_calendar`、`expand_memory`）；在 `MemorySearchEngine` 补齐 `start_date`/`end_date` 闭区间、`calendar` 每日会话段/标题/日记汇总统计及空日期渐进活跃索引（查天为空返回同月活跃日期及条数 -> 整月空返回同年活跃月份 -> 全年空返回有记录年份）；同步更新 `StreamParser`、`ToolExecutionEngine._format_command_str` 及前端 `ChatPanel.jsx`（`MEMORY_TOOL_NAMES` 使跨子工具连续调用收敛折叠为单张 `Remembering...` 多步卡片）；
+  - **四类正交工具标签与小模型高信噪比路由 (`ISSUE-68`)**：`TOOL_REGISTRY` 全量 12 工具 `description` 首词统一挂 `[Memory]` / `[Workspace]` / `[Web]` / `[Collab]` 标签，彻底移除 `SearchMemoryTool` 家族中的 `chat_messages`/`memory_logs` SQL 表名诱因并为 `[Workspace]` 工具注入负向排除后缀；将 `context_manager.py` `<environment_constraints>` 规则折叠为 4 行 `TOOL ROUTING` 对照表，消除 Step 2 句首 OpenClaw 全局先验偏置，并在 `<retrieved_past_memory_archives>` 与 `<recent_journal_summaries>` 末尾补充 1 句就地 `[Memory]` 指引（保持 `get_static_system_prompt()` 零改动）。
+- **智能体自主记忆检索工具 (`search_memory`) 与前端 `Remembering...` 多步折叠卡片 (PLAN-03 / ISSUE-52 & ISSUE-53)**:
+  - 新增 `backend/services/memory_search_engine.py`（`MemorySearchEngine`）并在 `backend/services/agent_tools.py` 注册安全工具 `SearchMemoryTool`，支持 `search` / `timeline` 短摘要浏览（~150 字，默认 5 条、上限 15 条，SQL LIKE 通配符转义与日期范围筛选）与 `expand` 完整日记/同会话上下文窗口展开（自动剥离历史 `<think>` / `<monologue>` / `<property_update>` 控制标签）；
+  - 在 `backend/services/agent_executor.py` 加入单轮记忆检索硬上限保护（`MAX_MEMORY_SEARCH_STEPS = 3`），超限后跳过查库直接返回纯客观收敛提示；同步完善 `stream_parser.py` 已知工具正则识别、`tool_engine.py` 可读命令格式化及 `context_manager.py` 动态尾部纯客观英文工具协议指引（零人设台词干预、不动 `static_system_prompt`）；
+  - 在 `frontend/src/components/ChatPanel.jsx`（`TOOL_FRIENDLY_NAMES` 与 `groupConsecutiveMemoryTools`）与 `frontend/src/index.css` 实现 `Remembering...` 状态卡片：支持紫色脉冲呼吸运行态、同轮连续 `search_memory` 调用收敛折叠为单张可展开多步卡片，并修正 `mergedBlocks` 传递 `msg.streaming` 以保证流式 `running` 态正确生效。
 - **全站 Markdown 数学公式 KaTeX 原生排版渲染与插件 SSOT (ISSUE-54 & Bug #40)**:
   - 引入 `remark-math`、`rehype-katex` 与自定义 `remarkDisplayMathFromDoubleDollar` 插件，将行间公式 `$$...$$` 与行内公式 `$...$` 转化为 KaTeX HTML 排版，杜绝裸美元符外露；
   - 提炼 `frontend/src/utils/markdownPlugins.js` 作为全库唯一的 Markdown 渲染插件单一点 (SSOT)，聊天气泡与知识档案预览弹窗统一复用；

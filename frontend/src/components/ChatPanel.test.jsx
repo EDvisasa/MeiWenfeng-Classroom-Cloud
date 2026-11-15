@@ -654,4 +654,217 @@ describe('ChatPanel Editing Behavior Tests', () => {
     fireEvent.click(btn);
     expect(onSwitchAtmosphere).toHaveBeenCalledWith('study');
   });
+
+  it('TDD 23 [ISSUE-53]: renders search_memory block as Remembering... with glow running dot and toggleable details', () => {
+    const runningProps = {
+      ...getBaseProps(),
+      isStreaming: true,
+      messages: [
+        {
+          role: 'assistant',
+          streaming: true,
+          content: '',
+          blocks: [
+            {
+              type: 'tool',
+              tool_name: 'search_memory',
+              command: "Remembering: '4.7k'",
+              output: '',
+              status: 'running'
+            }
+          ]
+        }
+      ]
+    };
+
+    const { container, rerender } = render(<ChatPanel {...runningProps} />);
+    expect(screen.getByText('Remembering...')).toBeInTheDocument();
+    expect(screen.queryByText('search_memory')).not.toBeInTheDocument();
+    expect(container.querySelector('.claude-tool-status-dot.running.remembering')).toBeInTheDocument();
+    expect(screen.getByText("Remembering: '4.7k'")).toBeInTheDocument();
+
+    const doneProps = {
+      ...getBaseProps(),
+      isStreaming: false,
+      messages: [
+        {
+          role: 'assistant',
+          streaming: false,
+          content: '找到了当时的约定。',
+          blocks: [
+            {
+              type: 'tool',
+              tool_name: 'search_memory',
+              command: "Remembering: '4.7k'",
+              output: '- [journal #10 | 2026-10-15] 4.7kΩ',
+              status: 'done'
+            }
+          ]
+        }
+      ]
+    };
+
+    rerender(<ChatPanel {...doneProps} />);
+    expect(container.querySelector('.claude-tool-status-dot.done')).toBeInTheDocument();
+    expect(container.querySelector('.claude-tool-status-dot.running')).not.toBeInTheDocument();
+
+    const ioBox = container.querySelector('.claude-tool-io');
+    expect(ioBox).toHaveClass('collapsed');
+    fireEvent.click(container.querySelector('.claude-tool-header'));
+    expect(ioBox).not.toHaveClass('collapsed');
+  });
+
+  it('TDD 24 [ISSUE-53]: groups consecutive search_memory calls into one expandable Remembering... card without merging other tools', () => {
+    const groupedRunningProps = {
+      ...getBaseProps(),
+      isStreaming: true,
+      messages: [
+        {
+          role: 'assistant',
+          streaming: true,
+          content: '',
+          blocks: [
+            {
+              type: 'tool',
+              tool_name: 'search_memory',
+              command: "Remembering: '4.7k'",
+              output: '- [journal #10] 4.7kΩ',
+              status: 'done'
+            },
+            {
+              type: 'tool',
+              tool_name: 'search_memory',
+              command: 'Remembering detail: journal#10',
+              output: '',
+              status: 'running'
+            },
+            {
+              type: 'tool',
+              tool_name: 'execute_bash',
+              command: 'echo ok',
+              output: 'ok',
+              status: 'done'
+            }
+          ]
+        }
+      ]
+    };
+
+    const { container, rerender } = render(<ChatPanel {...groupedRunningProps} />);
+    expect(screen.getAllByText('Remembering...')).toHaveLength(1);
+    expect(screen.getByText('Bash')).toBeInTheDocument();
+    expect(container.querySelector('.claude-tool-status-dot.running.remembering')).toBeInTheDocument();
+
+    const groupedDoneProps = {
+      ...getBaseProps(),
+      isStreaming: false,
+      messages: [
+        {
+          role: 'assistant',
+          streaming: false,
+          content: '找到了。',
+          blocks: [
+            {
+              type: 'tool',
+              tool_name: 'search_memory',
+              command: "Remembering: '4.7k'",
+              output: '- [journal #10] 4.7kΩ',
+              status: 'done'
+            },
+            {
+              type: 'tool',
+              tool_name: 'search_memory',
+              command: 'Remembering detail: journal#10',
+              output: '完整记录：4.7k 上拉电阻',
+              status: 'done'
+            },
+            {
+              type: 'tool',
+              tool_name: 'execute_bash',
+              command: 'echo ok',
+              output: 'ok',
+              status: 'done'
+            }
+          ]
+        }
+      ]
+    };
+
+    rerender(<ChatPanel {...groupedDoneProps} />);
+    expect(screen.getAllByText('Remembering...')).toHaveLength(1);
+    const memoryCard = screen.getByText('Remembering...').closest('.claude-tool-block');
+    expect(memoryCard.querySelector('.claude-tool-status-dot.done')).toBeInTheDocument();
+    expect(memoryCard.querySelector('.claude-tool-status-dot.running')).not.toBeInTheDocument();
+
+    // Collapsed by default: step-by-step full details stay folded until clicked
+    expect(screen.queryByText('完整记录：4.7k 上拉电阻')).not.toBeInTheDocument();
+    fireEvent.click(memoryCard.querySelector('.claude-tool-header'));
+    expect(screen.getByText("Remembering: '4.7k'")).toBeInTheDocument();
+    expect(screen.getByText('- [journal #10] 4.7kΩ')).toBeInTheDocument();
+    expect(screen.getByText('Remembering detail: journal#10')).toBeInTheDocument();
+    expect(screen.getByText('完整记录：4.7k 上拉电阻')).toBeInTheDocument();
+
+    // Collapses again on second click
+    fireEvent.click(memoryCard.querySelector('.claude-tool-header'));
+    expect(screen.queryByText('完整记录：4.7k 上拉电阻')).not.toBeInTheDocument();
+  });
+
+  it('TDD 25 [ISSUE-67]: groups adjacent heterogeneous [Memory] tools (calendar, timeline, search, expand) into a single Remembering... card', () => {
+    const crossToolProps = {
+      ...getBaseProps(),
+      isStreaming: false,
+      messages: [
+        {
+          role: 'assistant',
+          streaming: false,
+          content: '翻过日程和时间线找到了。',
+          blocks: [
+            {
+              type: 'tool',
+              tool_name: 'get_memory_calendar',
+              command: 'Remembering calendar: 2026-10',
+              output: '[Memory Calendar Overview] - [2026-10-15] 2 sessions',
+              status: 'done'
+            },
+            {
+              type: 'tool',
+              tool_name: 'get_memory_timeline',
+              command: 'Remembering timeline: 2026-10-15',
+              output: '- [journal #10 | 2026-10-15] I2C 上拉电阻...',
+              status: 'done'
+            },
+            {
+              type: 'tool',
+              tool_name: 'search_memory',
+              command: "Remembering: '4.7k'",
+              output: '- [conversation #102] 约定焊 4.7k',
+              status: 'done'
+            },
+            {
+              type: 'tool',
+              tool_name: 'expand_memory',
+              command: 'Remembering detail: journal#10',
+              output: '完整记录：标准模式采用 4.7kΩ',
+              status: 'done'
+            }
+          ]
+        }
+      ]
+    };
+
+    render(<ChatPanel {...crossToolProps} />);
+    expect(screen.getAllByText('Remembering...')).toHaveLength(1);
+    expect(screen.getByText('(4 steps)')).toBeInTheDocument();
+    expect(screen.queryByText('get_memory_calendar')).not.toBeInTheDocument();
+    expect(screen.queryByText('expand_memory')).not.toBeInTheDocument();
+
+    const memoryCard = screen.getByText('Remembering...').closest('.claude-tool-block');
+    expect(screen.queryByText('完整记录：标准模式采用 4.7kΩ')).not.toBeInTheDocument();
+    fireEvent.click(memoryCard.querySelector('.claude-tool-header'));
+    expect(screen.getByText('Remembering calendar: 2026-10')).toBeInTheDocument();
+    expect(screen.getByText('Remembering timeline: 2026-10-15')).toBeInTheDocument();
+    expect(screen.getByText("Remembering: '4.7k'")).toBeInTheDocument();
+    expect(screen.getByText('Remembering detail: journal#10')).toBeInTheDocument();
+    expect(screen.getByText('完整记录：标准模式采用 4.7kΩ')).toBeInTheDocument();
+  });
 });

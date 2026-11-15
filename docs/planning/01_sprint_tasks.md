@@ -985,51 +985,53 @@ domain: project-planning
   - [x] 全量 `test_context_manager.py` 测试全部绿灯。
 - **Verification Command**: `pytest backend/tests/test_context_manager.py`
 
-### <a id="issue-52"></a>[ISSUE-52] 智能体自主记忆探针与日记检索工具 (`search_memory`) 核心引擎与 SQLite 全文索引 (Active Memory Search Tool & SQLite Storage Engine)
-- **Status**: `TODO` (待做工单 / 需求规格已由 PRD `PLAN-03` 冻结)
+### <a id="issue-52"></a>[ISSUE-52] 智能体自主记忆探针与日记检索工具 (`search_memory`) 核心引擎与受限两跳检索 (Active Memory Search Tool & Bounded Two-Hop Engine)
+- **Status**: `DONE` (已完成 / 2026-11-15 经后端全量单测与架构回归双绿灯验证)
 - **Parent**: `PLAN-03`, `PLAN-02`
-- **User Story**: 作为大模型伴读导师，当预置向量召回的记忆信息密度不足、或需要回查数周前特定约定、精确代码或确切对白时，我希望在 `<think>` 推演阶段自主调用 `search_memory` 工具，按关键词与时间戳翻阅本地数据库（`memory_logs` 与 `chat_messages`），获取结构化记忆片段，彻底杜绝记忆时空幻觉与遗忘。
+- **User Story**: 作为大模型伴读导师，当记不太清或需要回查往昔聊天记录与日记本内容时，我希望在 `<think>` 推演阶段自主调用受限步数的两跳 `search_memory` 工具，先浏览短摘要索引/时间线，再按需展开具体日记或前后 `±2` 轮干净对话，在纯客观信息支撑下自然延续对话。
 - **What to build**:
-  1. **工具类与 Schema 注册**: 在 `backend/services/agent_tools.py` 中新设 `SearchMemoryTool(AgentTool)`，入参包含 `query` (关键词/短语)、`target` (`journals`/`conversations`/`all`)、`date_range` (时间过滤) 与 `limit` (默认 5，最大 15)，注册至 `TOOL_REGISTRY["search_memory"]`；
-  2. **检索深模块实现**: 新建 `backend/services/memory_search_engine.py`，实现针对 `classroom.db` 的参数化安全模糊查询与时间范围匹配，输出带时间戳与条目 ID 的 Markdown 格式记忆卡；
-  3. **流式调度与安全护栏**: 在 `stream_parser.py` 中将 `search_memory` 加入已知工具与 XML 过滤正则；在 `tool_engine.py` 中格式化命令字符串并受 `_sanitize_tool_output` 40000 字符全局上限防护；
-  4. **提示词引导**: 在 `backend/services/prompts.py` 的 `<environment_constraints>` 中注入纯英文引导，指示模型在历史细节缺失时主动调工具查验记忆；
-  5. **单测覆盖**: 编写包含 Schema 校验、精确检索、日期区间过滤与空结果兜底的完整单测集。
+  1. **两跳三模态工具契约与 Schema 注册**: 在 `backend/services/agent_tools.py` 中新设 `SearchMemoryTool(AgentTool)`（`is_safe = True`），支持 `mode="search" | "timeline" | "expand"`、`query`、`target` (`journals`/`conversations`/`all`)、`date_range`、`limit`（默认 5，上限 15）、`source_type`、`record_id` 与 `context_turns`，注册至 `TOOL_REGISTRY["search_memory"]`；
+  2. **检索与清洗深模块实现**: 新建 `backend/services/memory_search_engine.py`，针对 `memory_logs` 与 `chat_messages` 执行参数化查询与日期筛选，自动剥离 `<think>`/`<monologue>`/`<property_update>` 控制标签；`search`/`timeline` 返回 ~150 字短摘要目录（含 ID），`expand` 返回完整日记或同会话上下文窗口；空结果返回纯客观事实提示，严禁注入任何情绪或台词引导；
+  3. **探索步数硬边界保护**: 在 `backend/services/agent_executor.py` 中对单轮 `search_memory` 调用设置上限（`MAX_MEMORY_SEARCH_STEPS = 3`），超限后跳过查库直接返回客观收敛提示；
+  4. **流式调度与安全护栏**: 在 `stream_parser.py` 中将 `search_memory` 加入 `KNOWN_TOOL_NAMES` 与伪 XML 过滤正则；在 `tool_engine.py` 中按 `mode` 格式化可读命令字符串并受 `_sanitize_tool_output` 40,000 字符全局上限防护；
+  5. **纯客观工具协议注入**: 在 `backend/services/context_manager.py` 的 `get_cross_reference_protocol()`（`<environment_constraints>` 与 `<execution_framework>` Step 2 `Tool Selection`，挂在动态尾部，不动 `static_system_prompt`）中补充纯英文客观指南，明确 `search_memory` 仅查历史对话与日记（不与 `grep_search`/`read_file` 混用）、两跳用法与最多 2–3 次探索上限（零人设台词脚本）；
+  6. **单测覆盖**: 新增 `backend/tests/test_memory_search_tool.py`，覆盖 Schema 校验、`search`/`timeline` 预览与标签清洗、`expand` 完整日记与会话边界窗口、日期过滤、空结果与步数硬上限拦截。
 - **Affected Files**:
   - [`backend/services/agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py)
   - [`backend/services/memory_search_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py)
+  - [`backend/services/agent_executor.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_executor.py)
   - [`backend/services/stream_parser.py`](file:///d:/MeiWenfeng-Classroom/backend/services/stream_parser.py)
   - [`backend/services/tool_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/tool_engine.py)
-  - [`backend/services/prompts.py`](file:///d:/MeiWenfeng-Classroom/backend/services/prompts.py)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
   - [`backend/tests/test_memory_search_tool.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py)
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
 - **Acceptance Criteria**:
-  - [ ] `search_memory` 在 `TOOL_REGISTRY` 中成功注册并暴露合法的 OpenAI Tool Schema；
-  - [ ] 针对 `memory_logs` 与 `chat_messages` 能够以 < 50ms 响应时间精准召回匹配关键词的记录；
-  - [ ] 支持日期范围（如 `2026-10`、`2026-10-15`）过滤；
-  - [ ] 输出受字符安全上限与数量上限（max 15）截断保护；
-  - [ ] 后端单元测试 100% 绿灯通过。
-- **Verification Command**: `pytest backend/tests/test_memory_search_tool.py`
+  - [x] `search_memory` 在 `TOOL_REGISTRY` 中成功注册并暴露合法的 OpenAI Tool Schema（支持 `search` / `timeline` / `expand`）；
+  - [x] `search`/`timeline` 能按关键词或日期范围（`2026-10`、`2026-10-15`、`recent_7d`）召回清洗后的 ~150 字短摘要及 ID，单次默认 5 条、上限 15 条；
+  - [x] `expand` 能展开完整日记或同会话 `record_id` 前后对话窗口（绝不跨 `session_id` 越界，剥离 `<think>`）；
+  - [x] 单轮 `search_memory` 超过 3 次调用时由 `AgentExecutor` 硬性兜底收敛，且所有工具提示/返回体均不含任何表演台词脚本；
+  - [x] 后端单元测试 100% 绿灯通过。
+- **Verification Command**: `.venv\Scripts\python.exe -m pytest backend/tests/test_memory_search_tool.py backend/tests/test_agent_executor.py backend/tests/test_agent_tools.py backend/tests/test_context_manager.py`
 
-### <a id="issue-53"></a>[ISSUE-53] 前端 `Remembering...` 记忆回想动效卡片与打字机流式交互 (Frontend Remembering... UI Card & Stream Lifecycle)
-- **Status**: `TODO` (待做工单 / 需求规格已由 PRD `PLAN-03` 冻结)
+### <a id="issue-53"></a>[ISSUE-53] 前端 `Remembering...` 记忆回想动效卡片与连续检索收敛折叠 (Frontend Remembering... UI Card & Grouped Stream Trace)
+- **Status**: `DONE` (已完成 / 2026-11-15 经前端 Vitest 与生产构建双绿灯验证)
 - **Parent**: `PLAN-03`, `ISSUE-52`
-- **User Story**: 作为前端学习者，当 AI 导师在后台调用 `search_memory` 回溯过往记忆时，我希望在聊天流中看到一个呈现浅紫色呼吸灯脉冲点的 `Remembering...` 状态卡片，展示检索的关键词并支持折叠展开查看回溯到的日记切片，获得栩栩如生的“沉思回忆”伴读质感。
+- **User Story**: 作为前端学习者，当 AI 导师在后台翻阅往昔聊天记录与日记本时，我希望聊天流中呈现一张带柔和呼吸脉冲点的 `Remembering...` 状态卡片（多步连续翻找自动收敛为单张卡片不刷屏），并支持点击展开查看每一步检索的关键词与翻出的档案内容。
 - **What to build**:
   1. **Friendly Name 与卡片映射**: 在 `frontend/src/components/ChatPanel.jsx` 的 `ToolBlock` 中，将 `block.tool_name === 'search_memory'` 映射为友好名称 `Remembering...`；
-  2. **视觉状态呼吸灯**: 为 `search_memory` 定制运行态视觉样式，采用区别于执行命令的浅紫色/粉色星光脉冲点（`running` 状态呼吸灯），完成时转为优雅的深绿色；
-  3. **输入输出折叠面板**: 在 `IN` 字段呈现搜索词与目标范围，在 `OUT` 字段呈现提取到的日记与对话片段，支持点击头部无缝展开/收起；
-  4. **组件单元测试**: 编写 Vitest 自动化测试，断言 `search_memory` 块正确渲染 `Remembering...` 标题、输入参数与输出内容。
+  2. **连续检索收敛分组**: 将同一条回答中相邻的连续 `search_memory` tool block（例如先 `search` 后 `expand`）在渲染层合并为单张 `Remembering...` 多步卡片，避免多跳检索在对话气泡上方刷屏；
+  3. **视觉状态呼吸灯与折叠面板**: 运行态显示柔和脉冲呼吸指示，全部完成后转为平静完成态；默认折叠，点击展开后按步序呈现各跳的 `IN`（检索参数/目标）与 `OUT`（结构化记忆摘录）；
+  4. **组件单元测试**: 编写 Vitest 自动化测试，断言 `search_memory` 渲染为 `Remembering...`，以及连续多次 `search_memory` 块正确折叠合并与展开。
 - **Affected Files**:
   - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
   - [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css)
   - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
 - **Acceptance Criteria**:
-  - [ ] 前端聊天流接收到 `search_memory` 工具调用时，卡片标题显示为 `Remembering...`；
-  - [ ] 运行态拥有明确的脉冲呼吸灯动效，完成态显示正常输出；
-  - [ ] 支持点击头部自由折叠与展开详情；
-  - [ ] 前端测试用例 100% 绿灯。
+  - [x] 前端聊天流接收到 `search_memory` 工具调用时，卡片标题显示为 `Remembering...`；
+  - [x] 同一轮连续多次 `search_memory` 调用收敛展示为单张 `Remembering...` 卡片（单次调用体验保持兼容）；
+  - [x] 运行态拥有明确的脉冲呼吸灯动效，完成态默认收起，支持点击头部展开查看各步 `IN`/`OUT`；
+  - [x] 前端测试用例 100% 绿灯。
 - **Verification Command**: `npm --prefix frontend test -- --run`
 
 
@@ -1378,6 +1380,99 @@ domain: project-planning
 - **Blocked by**: ISSUE-61
 - **Verification Command**: `pytest backend/tests/test_rag_course_isolation.py`
 
+---
 
+### <a id="issue-66"></a>[ISSUE-66] 解除 `[Memory]` 单轮次数限制与推理循环深度适配 (Unbounded Memory Exploration & Adaptive Executor Budget)
+- **Status**: `DONE` (已完成 / 2026-11-15 经后端 251 项回归与 TDD 单测验证通过)
+- **Parent**: `PLAN-03, ISSUE-52`
+- **User Story**: 作为伴读导师智能体，在跨越多个日期、多段对话连续翻查与展开（`get_memory_calendar` -> `get_memory_timeline` / `search_memory` -> `expand_memory`）以核对历史细节时，当前单轮 3 次 `search_memory` 上限与 5 轮循环上限过紧，容易中途截断无法找全线索；我希望取消人为 3 次调用限制并放宽执行器循环深度，保证能够自然探索直到获取充分证据或主动停止。
+- **What to build**:
+  1. **移除记忆检索硬计数拦截（`agent_executor.py`）**：取消 `AgentExecutor` 中 `MAX_MEMORY_SEARCH_STEPS = 3` 的短路计数逻辑，对 `[Memory]` 系列工具（`search_memory` / `get_memory_timeline` / `get_memory_calendar` / `expand_memory`）均不再设置单轮硬性次数上限（由 `_sanitize_tool_output` 单次字符安全边界与前端 `stream_controller` 主动停止按钮承担安全保障）；
+  2. **放开模型执行器循环天花板（`model_router.py` & `agent_executor.py`）**：梳理当前 [`backend/services/model_router.py`](file:///d:/MeiWenfeng-Classroom/backend/services/model_router.py#L78) 硬编码的 `max_iterations=5` 及 `AgentExecutor` 循环退出行为，支持充分的多步工具探索（取消低轮次阻断，并在接近极端安全保护上限时平滑收口强制生成最终文本，避免吞字中断）；
+  3. **移除提示词中的次数限制约束（`context_manager.py`）**：移除 `<environment_constraints>` 中“最多只能搜索 2–3 次”的次数约束，改为指引模型在获取足够线索或确认无匹配时自行停止并回答；
+  4. **更新单测契约（`test_memory_search_tool.py`）**：更新原第 6 项预算拦截用例，验证允许连续超过 3 轮 `[Memory]` 工具调用后正常汇总生成回复。
+- **Affected Files**:
+  - [`backend/services/agent_executor.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_executor.py)
+  - [`backend/services/model_router.py`](file:///d:/MeiWenfeng-Classroom/backend/services/model_router.py)
+  - [`backend/services/tool_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/tool_engine.py)
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/tests/test_memory_search_tool.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] 单轮连续调用 4 次及以上 `[Memory]` 系列工具时均真实执行检索引擎，不再触发 `3/3` 短路拦截；
+  - [x] 真实对话链路（`model_router.py` -> `AgentExecutor`）不会在第 5 轮因 `max_iterations=5` 被提前切断；
+  - [x] `<environment_constraints>` 中不再向模型灌输“最多只能搜 2–3 次”的限制指令；
+  - [x] 后端全量单测绿灯通过。
+- **Verification Command**: `.venv\Scripts\python.exe -m pytest backend/tests/test_memory_search_tool.py backend/tests/test_agent_executor.py`
 
+---
+
+### <a id="issue-67"></a>[ISSUE-67] `[Memory]` 四原子工具拆分、渐进式日期引导与 `get_memory_calendar` 日程目录 (Atomic Memory Tools & Progressive Calendar/Timeline Retrieval)
+- **Status**: `DONE` (已完成 / 2026-11-15 经前后端全量测试绿灯验证)
+- **Parent**: `PLAN-03, ISSUE-52`
+- **User Story**: 作为伴读导师智能体（含本地小模型 Hermes），单一复合 `search_memory(mode=...)` 携带 8–10 个条件可选参数极易引发复合格式套用失败；同时按日期查无记录时只回一句“找不到”会造成盲猜空转。我希望把 `[Memory]` 彻底拆分为 **4 个无 `mode` 单职原子工具**，并在按天/按月查空时渐进提示活跃日期与月份，配合日程目录工具快速锁定时间线。
+- **What to build**:
+  1. **拆分为 4 个零 `mode` 单职原子工具（`agent_tools.py` & `TOOL_REGISTRY`）**：
+     - `search_memory`（关键字检索）：`query` **必填**，可选 `target` / `date_range` / `start_date` / `end_date` / `limit`；
+     - `get_memory_timeline`（时间线预览）：按 `date_range` 或 `start_date` / `end_date`（可选 `target` / `limit`）按时间列出简明摘要与 `#record_id`；
+     - `get_memory_calendar`（日程表统计）：按 `start_date` / `end_date` 或 `date_range` 按天聚合统计对话段数（`chat_sessions` 数与标题概要）、消息总数及日记数量；
+     - `expand_memory`（精确展开详情）：`source_type`（`journal`/`conversation`）与 `record_id`（int）**双必填**，可选 `context_turns`，返回完整日记或同会话上下文对白窗口；
+     - *(注：底层共享 [`MemorySearchEngine`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py) 深模块各方法，全部工具均为 `is_safe=True` 且均无 `mode` 条件枚举参数。)*
+  2. **空日期渐进式活跃索引提示与日期区间过滤（`memory_search_engine.py`）**：
+     - 支持 `start_date` + `end_date`（`YYYY-MM-DD` 闭区间）筛选；
+     - 查具体日期 `YYYY-MM-DD` 为空时，自动返回同月 `YYYY-MM` 中实际存在非归档记录的活跃日期列表及条数（若整月为空则退一级返回该年份 `YYYY` 活跃月份）；
+     - 查月份 `YYYY-MM` 为空时，自动返回同年 `YYYY`（若全年为空则返回全库有记录年份）的活跃月份列表及条数。
+  3. **流式解析、执行展示与前端连续卡片分组适配（`stream_parser.py` / `tool_engine.py` / `ChatPanel.jsx`）**：
+     - `stream_parser.py` 的 `KNOWN_TOOL_NAMES`、`_DIRECT_TOOL_REGEX` 与 XML 回退参数映射完整纳入 4 个 `[Memory]` 工具名；
+     - `tool_engine.py` 的 `_format_command_str` 为 4 个工具提供清晰可读的操作描述（如 `Remembering calendar:` / `Remembering timeline:` / `Remembering:` / `Remembering detail:`）；
+     - `frontend/src/components/ChatPanel.jsx` 将 `MEMORY_TOOL_NAMES`（包含全部 4 个 `[Memory]` 工具）统一映射为 `'Remembering...'`，使跨工具连续调用（例如先看日程 -> 再看时间线 -> 再展开）依然无缝折叠为单张多步 `Remembering...` 卡片。
+- **Affected Files**:
+  - [`backend/services/memory_search_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py)
+  - [`backend/services/agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py)
+  - [`backend/services/stream_parser.py`](file:///d:/MeiWenfeng-Classroom/backend/services/stream_parser.py)
+  - [`backend/services/tool_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/tool_engine.py)
+  - [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx)
+  - [`backend/tests/test_memory_search_tool.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py)
+  - [`frontend/src/components/ChatPanel.test.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+- **Acceptance Criteria**:
+  - [x] `TOOL_REGISTRY` 注册 `search_memory`、`get_memory_timeline`、`get_memory_calendar`、`expand_memory` 四个原子工具，每个 Schema 均无 `mode` 参数且关键字段显式列入 `required`；
+  - [x] 按具体某天或某月查询无结果时，客观返回同月活跃日期或同年活跃月份及条数；
+  - [x] 支持 `start_date` + `end_date` 闭区间查询，`get_memory_calendar` 正确汇总每日对话段数、会话标题概要与日记数量；
+  - [x] 前端同一轮连续调用不同 `[Memory]` 子工具时，正确收敛为单张 `Remembering...` 多步卡片并可展开查看每步轨迹；
+  - [x] 返回结构保持纯粹客观，无任何人物台词脚本，且受全局字数上限保护。
+- **Verification Command**: `.venv\Scripts\python.exe -m pytest backend/tests/test_memory_search_tool.py && npm --prefix frontend test -- --run`
+
+---
+
+### <a id="issue-68"></a>[ISSUE-68] 本地小模型（Hermes 等）四类工具正交标签与高信噪比路由重构 (High-SNR 4-Category Tool Routing)
+- **Status**: `DONE` (已完成 / 2026-11-15 经后端全量单测绿灯验证)
+- **Parent**: `PLAN-03, ISSUE-52` (`Blocked by: ISSUE-67`)
+- **User Story**: 作为提示词与工具调度工程师，在真实接入 Hermes 等本地小模型时，我发现冗余长句、散落的规则以及“数据库表名暗示”会干扰小模型注意力，使其凭代码助手先验优先调用 `execute_bash` / `read_file`；我希望通过“全量 12 工具四类正交前缀标签 + 4 行互斥路由表 + Step 2 先分类剪枝 + 潜意识区就地短指针”，让小模型在潜意识回忆不足时直选 `[Memory]` 类工具，彻底避开文件与终端工具误触。
+- **What to build**:
+  1. **全量 12 工具 `description` 统一打标四类前缀并清除反向诱因（`agent_tools.py`）**：
+     - 保留既定核心工具名称不变（不做增加推理轮次的两阶段元工具，亦保留预训练工具名先验），在 `TOOL_REGISTRY` 全部 12 个工具的 `description` 最前端注入高注意力类别前缀，使决策收敛为“先 4 选 1 定类别，再挑原子工具”：
+       - `[Memory]`（`search_memory`, `get_memory_timeline`, `get_memory_calendar`, `expand_memory`）：彻底移除 `description` 及 `parameters_schema.target.description` 中的 `chat_messages` / `memory_logs` 表名暗示，直白声明仅通过 `[Memory]` 工具回溯过往对话与日记（不存本地磁盘文件）；
+       - `[Workspace]`（`read_file`, `grep_search`, `replace_file_content`, `create_file`, `execute_bash`）：`description` 首词统一 `[Workspace]`，并在读/搜/执行核心工具末尾补充 <10 词互斥后缀：`Workspace/sandbox only; NEVER for past chats/diaries (use [Memory] tools).`；
+       - `[Web]`（`web_search`, `read_url_content`）：`description` 首词统一 `[Web]`；
+       - `[Collab]`（`call_openclaw_agent`）：`description` 首词统一 `[Collab]`。
+  2. **合并 `<environment_constraints>` 为四类互斥路由表，并修复 Step 2 OpenClaw 先验偏置（`context_manager.py`）**：
+     - 将分散的第 4、7、8、9 条合并收口为高密度 4 行 `TOOL ROUTING` 分类对照表，置顶对照 `[Memory]`（历史对话/约定/日记 -> 4 个 `[Memory]` 原子工具，严禁 `[Workspace]` 工具）与 `[Workspace]`（工作区代码/课程材料/沙盒/终端 -> 文件与 Bash 工具），紧接 `[Web]` 与 `[Collab]`；
+     - 重写 `[PHASE 1]` Step 2 `Tool Selection`：删除句首强迫全局核对的 `"First check <openclaw_gateway_status>..."`，改为先按 4 类定位意图（日常问答无需工具则直接回答；仅当确定路由到 `[Collab]` 时再校验 `<openclaw_gateway_status>`）。
+  3. **潜意识召回区极简就地指针（`context_manager.py` 第 205–219 行）**：
+     - 不新增 XML 标签，仅在 `<retrieved_past_memory_archives>` 与 `<recent_journal_summaries>` 既有 `[CRITICAL ... NOTICE]` 末尾各追加一句超短触发语（~12 tokens）：``Partial slices only — if missing details, use `[Memory]` tools (`search_memory`, etc.), not disk files.``。
+- **Affected Files**:
+  - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
+  - [`backend/services/agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py)
+  - [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py)
+  - [`backend/tests/test_memory_search_tool.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py)
+  - [`backend/tests/test_agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_tools.py)
+  - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
+  - [`docs/planning/03_prd_active_memory_search_tool.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/03_prd_active_memory_search_tool.md)
+- **Acceptance Criteria**:
+  - [x] `TOOL_REGISTRY` 中全部 12 个工具的 `description` 均以 `[Memory]` / `[Workspace]` / `[Web]` / `[Collab]` 开头；所有 `[Memory]` 工具（含参数说明）不含 `chat_messages`/`memory_logs` 表名，`[Workspace]` 工具明确排除过去聊天/日记；
+  - [x] `<environment_constraints>` 采用 4 类正交 `TOOL ROUTING` 表（较改前规则段净 Token 更省），且 Step 2 `Tool Selection` 先分类再选工具、不再以 `"First check <openclaw_gateway_status>"` 开头；
+  - [x] `<retrieved_past_memory_archives>` 与 `<recent_journal_summaries>` 各自仅以一句话就地指向 `[Memory]` 工具，`get_static_system_prompt()` 保持零污染；
+  - [x] 全部 `test_context_manager.py`、`test_memory_search_tool.py`、`test_agent_tools.py`、`test_openclaw_bridge.py` 单测通过。
+- **Verification Command**: `.venv\Scripts\python.exe -m pytest backend/tests/test_context_manager.py backend/tests/test_memory_search_tool.py backend/tests/test_agent_tools.py backend/tests/test_openclaw_bridge.py`
 
