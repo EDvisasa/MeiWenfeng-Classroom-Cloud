@@ -14,7 +14,7 @@ All notable changes to this project will be documented in this file.
 ### Added
 - **记忆工具家族原子化拆分、`calendar` 日程目录、渐进式日期引导与四类正交高信噪比路由 (PLAN-03 v1.1 / ISSUE-66, ISSUE-67, ISSUE-68)**:
   - **解除循环深度与步数上限 (`ISSUE-66`)**：移除 `AgentExecutor.MAX_MEMORY_SEARCH_STEPS = 3` 拦截及 `model_router.py` `max_iterations=5` 硬编码上限（改为默认 `max_iterations=None` 无上限探索，由 `_sanitize_tool_output` 与前端停止控制器保底）；
-  - **四原子工具拆分与渐进日期导航 (`ISSUE-67`)**：将原单一复合 `search_memory(mode=...)` 拆分为 4 个零 `mode`、带显式 `required` 约束的单职责工具（`search_memory`、`get_memory_timeline`、`get_memory_calendar`、`expand_memory`）；在 `MemorySearchEngine` 补齐 `start_date`/`end_date` 闭区间、`calendar` 每日会话段/标题/日记汇总统计及空日期渐进活跃索引（查天为空返回同月活跃日期及条数 -> 整月空返回同年活跃月份 -> 全年空返回有记录年份）；同步更新 `StreamParser`、`ToolExecutionEngine._format_command_str` 及前端 `ChatPanel.jsx`（`MEMORY_TOOL_NAMES` 使跨子工具连续调用收敛折叠为单张 `Remembering...` 多步卡片）；
+  - **四原子工具拆分与渐进日期导航 (`ISSUE-67`)**：将原单一复合 `search_memory(mode=...)` 拆分为 4 个零 `mode`、带显式 `required` 约束的单职责工具（按渐进漏斗顺序：`get_memory_calendar`、`get_memory_timeline`、`search_memory`、`expand_memory`）；在 `MemorySearchEngine` 补齐 `'YYYY'` / `'all'` 范围、`start_date`/`end_date` 闭区间、`order` (`newest`/`oldest`) 方向控制与截断时的 `earliest_active_day` 锚点、`calendar`（支持 `target`/`order`/`limit`）每日会话段/标题/日记汇总统计及空日期渐进活跃索引（查天为空返回同月活跃日期及条数 -> 整月空返回同年活跃月份 -> 全年空返回有记录年份）；同步更新 `StreamParser`、`ToolExecutionEngine._format_command_str` 及前端 `ChatPanel.jsx`（`MEMORY_TOOL_NAMES` 使跨子工具连续调用收敛折叠为单张 `Remembering...` 多步卡片）；
   - **四类正交工具标签与小模型高信噪比路由 (`ISSUE-68`)**：`TOOL_REGISTRY` 全量 12 工具 `description` 首词统一挂 `[Memory]` / `[Workspace]` / `[Web]` / `[Collab]` 标签，彻底移除 `SearchMemoryTool` 家族中的 `chat_messages`/`memory_logs` SQL 表名诱因并为 `[Workspace]` 工具注入负向排除后缀；将 `context_manager.py` `<environment_constraints>` 规则折叠为 4 行 `TOOL ROUTING` 对照表，消除 Step 2 句首 OpenClaw 全局先验偏置，并在 `<retrieved_past_memory_archives>` 与 `<recent_journal_summaries>` 末尾补充 1 句就地 `[Memory]` 指引（保持 `get_static_system_prompt()` 零改动）。
 - **智能体自主记忆检索工具 (`search_memory`) 与前端 `Remembering...` 多步折叠卡片 (PLAN-03 / ISSUE-52 & ISSUE-53)**:
   - 新增 `backend/services/memory_search_engine.py`（`MemorySearchEngine`）并在 `backend/services/agent_tools.py` 注册安全工具 `SearchMemoryTool`，支持 `search` / `timeline` 短摘要浏览（~150 字，默认 5 条、上限 15 条，SQL LIKE 通配符转义与日期范围筛选）与 `expand` 完整日记/同会话上下文窗口展开（自动剥离历史 `<think>` / `<monologue>` / `<property_update>` 控制标签）；
@@ -33,6 +33,9 @@ All notable changes to this project will be documented in this file.
   - `ChatRequest` 增加 `atmosphere_mode` 参数，并在 `context_manager` 运行时尾部注入生效标签，保持静态 System Prompt 的 KV-Cache 命中率。
 
 ### Fixed
+- **`[Memory]` 多词空格检索、跨源空结果提示与已回滚日记隔离 (Bug #49)**:
+  - 在 `backend/services/memory_search_engine.py` 提取 `JOURNAL_VISIBLE_SQL = "COALESCE(status, 'active') NOT IN ('archived', 'rolled_back')"` 统一剔除已归档与已回滚日记；为 `search_memory` 补齐空格分词、SQL `LIKE` 通配符转义及多关键词打分排序；当单侧 `target`（`journals` / `conversations`）查询为空且对端表存在记录时附加跨源提示，并在 `backend/services/tool_engine.py`（`_format_command_str`）显式展示非默认 `target`；
+  - 将 `backend/services/response_pipeline.py`（`clean_memory_text`）与 `backend/services/compact_service.py`（`call_llm_for_summary`）的内联推理/状态/工具标签剥离统一收口至 `memory_search_engine.strip_internal_tags` SSOT，并同步更新 `ADR-014` 架构决策。
 - **OpenAI 标准 Tool Calls 字符串协议恢复与离线截断单测重构 (Bug #48)**:
   - 废止原 `ISSUE-50` 为迁就旧模板将 `tool_calls` 强转为 Python `dict` 及附加顶层 `arguments` 的临时适配，恢复 `backend/services/agent_executor.py` 为标准 OpenAI Chat Completions JSON 字符串契约（`function.arguments` 恒定输出 `str`，移除顶层 `arguments`），解决第三方 OpenAI 兼容网关在多轮工具回调时返回 HTTP 400 `invalid_json` 的问题；
   - 更新 `backend/tests/test_agent_executor.py` 断言并补充 `dict` 参数归一化回归测试；将 `backend/tests/test_simulation_and_truncation.py` 中早年未 Mock 的 `test_truncation_logic` 改为纯本地 `OpenAILLMClient` Mock 离线验证。

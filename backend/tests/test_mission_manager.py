@@ -1,8 +1,6 @@
 import os
 import pytest
 from backend.services.mission_manager import MissionManager
-from backend.database import init_db
-import backend.database as db_module
 
 @pytest.fixture(autouse=True)
 def setup_test_environment(mock_db_path, monkeypatch, tmp_path):

@@ -57,6 +57,9 @@
                 <li><strong>多模态严格先图后文 (<code>image_url</code> before <code>text</code>)</strong>：通过 <code>chat.py</code> 的 <code>_order_multimodal_images_first</code> 与 <code>context_manager.py</code> 的 <code>_order_images_first</code> / <code>_merge_message_contents</code>，强制保证所有多模态消息（含合并轮次与末尾包裹轮次）内图片块恒定排在文本块之前。</li>
                 <li><strong><code>@file</code> 正文前置归档边界</strong>：<code>chat.py</code> 的 <code>_attach_file_into_last_user_msg</code> 统一收口 <code>@current_file</code> 与 <code>@path</code> 展开，<code>ContextManager._extract_file_contents</code> 将 <code>&lt;file_content&gt;</code> 提取并锚定至 <code>&lt;/current_session_history&gt;</code> 之前，确保动态尾部稳定收敛在 8192 Token 预算内。</li>
             </ul>
+            <p class="mt-2 pt-2 border-t border-amber-200/70">
+                <strong>演进说明 (2026-11-16 · <a href="ADR-014_双层记忆主动召回漏斗与四类正交工具路由架构决策.html" class="underline font-bold text-amber-900">ADR-014</a>)</strong>：在保持 <code>get_static_system_prompt()</code> 字节级零改动的前提下，<code>get_cross_reference_protocol()</code> 将工具选型规则收敛为 <code>[Memory]/[Workspace]/[Web]/[Collab]</code> 四类正交 <code>TOOL ROUTING</code> 对照表，<code>build_base_system_prompt()</code> 为被动 RAG 记忆块与近期日记注入就地指针 <code>_memory_recall_pointer</code> 并通过 <code>strip_tool_xml_tags</code> 剔除残留 <code>&lt;tool_batch&gt;</code> 空壳。
+            </p>
         </div>
         
         <!-- Badge Row Extensions -->
@@ -65,6 +68,7 @@
             <span class="badge bg-amber-50 text-amber-700 border border-amber-200">✨ Roleplay-Immersion (酒馆式角色扮演沉浸)</span>
             <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">⚡ O(1)-Complexity-Engine (O(1) 极速上下文追加)</span>
             <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by Bug #47 (KV-Cache 分层与图文/@file 边界)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by ADR-014 (四类正交路由与记忆指针)</span>
         </div>
     </header>
 

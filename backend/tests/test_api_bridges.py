@@ -3,8 +3,6 @@ import pytest
 from fastapi.testclient import TestClient
 from fastapi import FastAPI
 from backend.routers.course import router as course_router
-from backend.database import init_db
-import backend.database as db_module
 
 # 构造极简的隔离 FastAPI 实例，避免拉起主项目时加载 ChromaDB
 app = FastAPI()

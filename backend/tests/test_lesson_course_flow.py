@@ -4,7 +4,7 @@ import os
 import json
 from unittest.mock import patch, MagicMock
 
-from backend.database import init_db, get_db_connection
+from backend.database import get_db_connection
 from backend.services.course_manager import (
     get_active_course_id,
     set_active_course_id,

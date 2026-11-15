@@ -52,12 +52,16 @@
             <p class="mt-2 pt-2 border-t border-amber-200/70">
                 <strong>演进说明 (2026-11-13 · Bug #46 / ChromaDB 测试隔离)</strong>：<code>chroma_client.py</code> 引入动态目录解析 <code>get_chroma_persist_dir()</code>（支持 <code>CHROMA_PERSIST_DIR</code> 环境变量重定向）与写保护守卫 <code>_check_mutation_safety()</code>，在 pytest 测试态下硬阻断任何针对生产目录 <code>DEFAULT_CHROMA_DIR</code> 的增删改操作；配合 <code>backend/tests/conftest.py</code> 的 <code>isolate_chroma_db</code>（自动隔离）与 <code>mock_rag_client</code>，实现测试与生产记忆向量库的物理隔离。
             </p>
+            <p class="mt-2 pt-2 border-t border-amber-200/70">
+                <strong>演进说明 (2026-11-16 · <a href="ADR-014_双层记忆主动召回漏斗与四类正交工具路由架构决策.html" class="underline font-bold text-amber-900">ADR-014</a> / Bug #49)</strong>：原 ChromaDB <code>Memory_Knowledge</code> / <code>Classroom_Knowledge</code> 被动向量注入降档对齐为 <strong>Layer 1 预召回</strong>，并在 <strong>ADR-014</strong> 中补充基于 SQLite <code>MemorySearchEngine</code> 的 <strong>Layer 2 四阶主动召回漏斗</strong>；同时 <code>memory_decay.py</code>（含压缩前 <code>strip_tool_xml_tags</code> 清洗）与检索层统一遵守 <code>JOURNAL_VISIBLE_SQL</code>，严格排除 <code>archived</code> 与 <code>rolled_back</code> 状态日记。
+            </p>
         </div>
         
         <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
             <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">RAG-Vector-Indexed (知识库卡片向量化索引)</span>
             <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by ADR-013 (多课题向量过滤)</span>
             <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by Bug #46 (ChromaDB 测试物理隔离锁)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Amended by ADR-014 (双层主动召回与 rolled_back 过滤)</span>
         </div>
     </header>
 

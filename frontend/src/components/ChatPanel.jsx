@@ -134,9 +134,9 @@ const BashApprovalCard = ({ pendingApproval, onApprove, onReject }) => {
 };
 
 const MEMORY_TOOL_NAMES = new Set([
-  'search_memory',
-  'get_memory_timeline',
   'get_memory_calendar',
+  'get_memory_timeline',
+  'search_memory',
   'expand_memory',
 ]);
 
@@ -149,9 +149,9 @@ const TOOL_FRIENDLY_NAMES = {
   read_url_content: 'Browser',
   call_openclaw_agent: 'OpenClaw',
   Call_openclaw_agent: 'OpenClaw',
-  search_memory: 'Remembering...',
-  get_memory_timeline: 'Remembering...',
   get_memory_calendar: 'Remembering...',
+  get_memory_timeline: 'Remembering...',
+  search_memory: 'Remembering...',
   expand_memory: 'Remembering...',
 };
 

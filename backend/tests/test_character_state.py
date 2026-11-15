@@ -133,5 +133,12 @@ class TestCharacterStateManager(unittest.TestCase):
         final_state = CharacterStateManager.get_state()
         self.assertEqual(final_state.affection, 100)
 
+    def test_trigger_climax_custom_intensity_and_advance_round(self):
+        """Test custom trigger_climax intensity and round decay clamping at 0."""
+        state = CharacterStateManager.trigger_climax(intensity=5)
+        self.assertEqual(state.refractory_period, 5)
+        self.assertEqual(CharacterStateManager.advance_round(rounds=2).refractory_period, 3)
+        self.assertEqual(CharacterStateManager.advance_round(rounds=10).refractory_period, 0)
+
 if __name__ == '__main__':
     unittest.main()

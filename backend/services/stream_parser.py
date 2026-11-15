@@ -3,26 +3,6 @@ import uuid
 import re
 from typing import Dict, Any, List, Optional
 
-class ToolFormatter:
-    """Formats raw tool calls into pseudo-XML for the frontend rendering"""
-    @staticmethod
-    def generate_fake_xml(tools_to_run: List[Dict[str, Any]]) -> str:
-        if not tools_to_run:
-            return ""
-            
-        # We wrap it in <tool_batch> to trigger the frontend parser
-        xml_blocks = ["\n<tool_batch>\n"]
-        for tc in tools_to_run:
-            func_name = tc.get("name", "")
-            params = tc.get("param", {})
-            fake_xml = f'<call_tool name="{func_name}">\n'
-            for k, v in params.items():
-                fake_xml += f'<{k}>{v}</{k}>\n'
-            fake_xml += "</call_tool>\n"
-            xml_blocks.append(fake_xml)
-        xml_blocks.append("</tool_batch>\n")
-        
-        return "".join(xml_blocks)
 
 class StreamParser:
     """Parses LLM stream chunks, yielding standard text and accumulating tool calls."""

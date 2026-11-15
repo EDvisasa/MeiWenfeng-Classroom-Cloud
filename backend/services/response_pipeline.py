@@ -17,17 +17,9 @@ def clean_memory_text(text: str) -> str:
     """清理长程记忆：剔除所有心理活动、思考标签与工具封装空壳，节约上下文Token"""
     if not text:
         return text
-    from backend.services.memory_search_engine import strip_tool_xml_tags
+    from backend.services.memory_search_engine import strip_internal_tags
 
-    tags = ["think", "thought", "inner_thought", "monologue", "property_update"]
-    memory_clean_text = strip_tool_xml_tags(text)
-    for tag in tags:
-        # Match self-closing tags first, e.g. <property_update ... />
-        memory_clean_text = re.sub(rf'<{tag}\b[^>]*/>', '', memory_clean_text, flags=re.IGNORECASE)
-        # Match open tags and their content, up to the closing tag or end of string.
-        # (?<!/) ensures we don't match self-closing tags here.
-        memory_clean_text = re.sub(rf'<{tag}\b[^>]*(?<!/)>[\s\S]*?(?:</{tag}>|$)', '', memory_clean_text, flags=re.IGNORECASE)
-    return strip_tool_xml_tags(memory_clean_text)
+    return strip_internal_tags(text)
 
 class TagStreamInterceptor:
     """

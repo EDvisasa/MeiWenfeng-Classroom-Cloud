@@ -27,7 +27,6 @@ async def lifespan(app: FastAPI):
     init_db()
 
     # 2.5 预加载 ChromaDB (避免初次检索时卡顿和防止“加载”)
-    import os
     if os.getenv("TESTING") != "1":
         try:
             from backend.services.chroma_client import chroma_rag_client

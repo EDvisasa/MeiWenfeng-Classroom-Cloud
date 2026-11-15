@@ -507,7 +507,7 @@ domain: project-planning
 - **现象描述**：在排查 `Strata-llama-main` 调用 `[Memory]` 工具寻找早期记忆的 QA 会话（`2026-11-16 01:26`）时发现三处联锁缺陷：
   1. `search_memory` 传入空格分隔的多关键词 `'初次见面 第一天 醉仙楼 相遇 试探 猎物'` 后直接返回 `[No memory records found]`（库内实际有 13 条含 `醉仙楼` 记录）；
   2. `get_memory_timeline` 在传入 `target="conversations"` 查询 `2026-06-01..2026-07-15` 时，只返回 `chat_messages` 的活跃月份 `2026-08/10/11`，既未提示同期 `journals`（`memory_logs`）尚存 519 条记录，前端工具卡片 `Remembering timeline: ...` 也未显式展示非默认 `target`；
-  3. 此前已被撤回回滚的测试对话（`status='rolled_back'`，`#2171`–`#2181`）在 Chroma 已被清理，但仍可通过 `search_memory` / `get_memory_timeline` / `get_memory_calendar` / `expand_memory` 被搜出并污染上下文。
+  3. 此前已被撤回回滚的测试记忆日志（`memory_logs` 中 `status='rolled_back'`，`#2171`–`#2181`）在 Chroma 已被清理，但仍可通过 `search_memory` / `get_memory_timeline` / `get_memory_calendar` / `expand_memory` 被搜出并污染上下文。
 - **解决路线**：
   1. **统一剔除 `rolled_back` 状态日记**：在 [memory_search_engine.py](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py) 提取公共 SQL 过滤条件 `JOURNAL_VISIBLE_SQL = "COALESCE(status, 'active') NOT IN ('archived', 'rolled_back')"`，统一收口 `calendar`、`expand`、`_fetch_target_hits` 与 `_collect_bucket_counts`，保留 `active` 与历史 `compressed` 日记并严格排除 `archived` 与 `rolled_back`；
   2. **多关键词分词检索与相关度排序**：在 `_tokenize_search_terms` 与 `_build_term_sql_parts` 中对空格分隔多词拆词、防 `LIKE` 通配符注入（保留字面 `_`/`%`）并按 SQL `match_score` 与去内部标签（`<think>`/`<tool_batch>`）后的精确命中词数 + 时序排序；抽取共享表检索器 `_fetch_target_hits` 统一 `journals` 与 `conversations` 的查询、洗净与打分；

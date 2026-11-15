@@ -1413,9 +1413,9 @@ domain: project-planning
 - **User Story**: 作为伴读导师智能体（含本地小模型 Hermes），单一复合 `search_memory(mode=...)` 携带 8–10 个条件可选参数极易引发复合格式套用失败；同时按日期查无记录时只回一句“找不到”会造成盲猜空转。我希望把 `[Memory]` 彻底拆分为 **4 个无 `mode` 单职原子工具**，并在按天/按月查空时渐进提示活跃日期与月份，配合日程目录工具快速锁定时间线。
 - **What to build**:
   1. **拆分为 4 个零 `mode` 单职原子工具（`agent_tools.py` & `TOOL_REGISTRY`）**：
-     - `search_memory`（关键字检索）：`query` **必填**，可选 `target` / `date_range` / `start_date` / `end_date` / `limit`；
-     - `get_memory_timeline`（时间线预览）：按 `date_range` 或 `start_date` / `end_date`（可选 `target` / `limit`）按时间列出简明摘要与 `#record_id`；
-     - `get_memory_calendar`（日程表统计）：按 `start_date` / `end_date` 或 `date_range` 按天聚合统计对话段数（`chat_sessions` 数与标题概要）、消息总数及日记数量；
+     - `search_memory`（关键字检索）：`query` **必填**，可选 `target` / `date_range`（支持 `'YYYY-MM-DD'` / `'YYYY-MM'` / `'YYYY'` / `'recent_7d'` / `'recent_30d'` / `'all'`） / `start_date` / `end_date` / `limit`；
+     - `get_memory_timeline`（时间线预览）：按 `date_range` 或 `start_date` / `end_date`（可选 `target` / `order` [`newest`|`oldest`] / `limit`）按时间列出简明摘要与 `#record_id`；截断时透出 `earliest_active_day` 与 `order="oldest"` 步进锚点；
+     - `get_memory_calendar`（日程表统计）：按 `start_date` / `end_date` 或 `date_range`（可选 `target` / `order` [`newest`|`oldest`] / `limit`）按天聚合统计对话段数（`chat_sessions` 数与标题概要）、消息总数及日记数量；截断时透出 `earliest_active_day` 并引导用 `order="oldest"` 溯源，空结果时附加渐进活跃日期索引与跨源（`journals`/`conversations`）提示；
      - `expand_memory`（精确展开详情）：`source_type`（`journal`/`conversation`）与 `record_id`（int）**双必填**，可选 `context_turns`，返回完整日记或同会话上下文对白窗口；
      - *(注：底层共享 [`MemorySearchEngine`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py) 深模块各方法，全部工具均为 `is_safe=True` 且均无 `mode` 条件枚举参数。)*
   2. **空日期渐进式活跃索引提示与日期区间过滤（`memory_search_engine.py`）**：
@@ -1460,7 +1460,7 @@ domain: project-planning
      - 将分散的第 4、7、8、9 条合并收口为高密度 4 行 `TOOL ROUTING` 分类对照表，置顶对照 `[Memory]`（历史对话/约定/日记 -> 4 个 `[Memory]` 原子工具，严禁 `[Workspace]` 工具）与 `[Workspace]`（工作区代码/课程材料/沙盒/终端 -> 文件与 Bash 工具），紧接 `[Web]` 与 `[Collab]`；
      - 重写 `[PHASE 1]` Step 2 `Tool Selection`：删除句首强迫全局核对的 `"First check <openclaw_gateway_status>..."`，改为先按 4 类定位意图（日常问答无需工具则直接回答；仅当确定路由到 `[Collab]` 时再校验 `<openclaw_gateway_status>`）。
   3. **潜意识召回区极简就地指针（`context_manager.py` 第 205–219 行）**：
-     - 不新增 XML 标签，仅在 `<retrieved_past_memory_archives>` 与 `<recent_journal_summaries>` 既有 `[CRITICAL ... NOTICE]` 末尾各追加一句超短触发语（~12 tokens）：``Partial slices only — if missing details, use `[Memory]` tools (`search_memory`, etc.), not disk files.``。
+     - 不新增 XML 标签，仅在 `<retrieved_past_memory_archives>` 与 `<recent_journal_summaries>` 既有 `[CRITICAL ... NOTICE]` 末尾各追加一句超短触发语（~15 tokens）：``Partial slices only — if missing details, use `[Memory]` tools (`get_memory_calendar`, `get_memory_timeline`, `search_memory`, etc.), not disk files.``。
 - **Affected Files**:
   - [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py)
   - [`backend/services/agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/services/agent_tools.py)
@@ -1468,7 +1468,7 @@ domain: project-planning
   - [`backend/tests/test_memory_search_tool.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py)
   - [`backend/tests/test_agent_tools.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_agent_tools.py)
   - [`docs/planning/01_sprint_tasks.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/01_sprint_tasks.md)
-  - [`docs/planning/03_prd_active_memory_search_tool.md`](file:///d:/MeiWenfeng-Classroom/docs/planning/03_prd_active_memory_search_tool.md)
+  - [`docs/architecture/ADR-014_双层记忆主动召回漏斗与四类正交工具路由架构决策.html`](file:///d:/MeiWenfeng-Classroom/docs/architecture/ADR-014_双层记忆主动召回漏斗与四类正交工具路由架构决策.html)
 - **Acceptance Criteria**:
   - [x] `TOOL_REGISTRY` 中全部 12 个工具的 `description` 均以 `[Memory]` / `[Workspace]` / `[Web]` / `[Collab]` 开头；所有 `[Memory]` 工具（含参数说明）不含 `chat_messages`/`memory_logs` 表名，`[Workspace]` 工具明确排除过去聊天/日记；
   - [x] `<environment_constraints>` 采用 4 类正交 `TOOL ROUTING` 表（较改前规则段净 Token 更省），且 Step 2 `Tool Selection` 先分类再选工具、不再以 `"First check <openclaw_gateway_status>"` 开头；

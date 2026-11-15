@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-width=1.0">
+    <title>ADR-014: 双层记忆主动召回漏斗与四类正交工具路由架构决策</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script type="module">
+        import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
+        mermaid.initialize({ startOnLoad: true, theme: 'neutral', securityLevel: 'loose' });
+    </script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+        .card { transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1); }
+        .card:hover { transform: translateY(-3px); box-shadow: 0 12px 24px -10px rgba(0, 0, 0, 0.08); }
+        .badge { display: inline-flex; align-items: center; font-weight: 600; font-size: 0.75rem; padding: 0.25rem 0.75rem; border-radius: 9999px; }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 p-6 md:p-12 leading-relaxed">
+
+<div class="max-w-5xl mx-auto">
+    <!-- Header -->
+    <header class="mb-10 bg-white rounded-2xl p-8 border border-slate-200/80 shadow-sm">
+        <div class="flex flex-wrap items-center justify-between gap-4 mb-4">
+            <div class="flex items-center gap-3">
+                <span class="px-3.5 py-1.5 rounded-full text-sm font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 flex items-center gap-1.5">
+                    <svg class="w-4 h-4 text-emerald-600" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+                    Adopted (已落地列装)
+                </span>
+                <span class="text-sm font-mono text-slate-500 bg-slate-100 px-3 py-1 rounded-md">编号: ADR-014</span>
+            </div>
+            <div class="text-sm text-slate-500 font-medium">
+                决策时间：2026-11-16 | 决策方：媚吻锋架构审查团队 / Antigravity
+            </div>
+        </div>
+        <h1 class="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight mb-4">
+            双层记忆主动召回漏斗与四类正交工具路由架构决策
+        </h1>
+        <p class="text-base text-slate-600 mb-6 leading-normal">
+            承接并固化 <code>PLAN-03</code>（<code>ISSUE-52</code> / <code>ISSUE-53</code> / <code>ISSUE-66</code> / <code>ISSUE-67</code> / <code>ISSUE-68</code>）与 <code>Bug #49</code> 演进成果。将单层被动向量检索升级为“<strong>Layer 1 被动向量预召回 + Layer 2 SQLite 四阶原子漏斗主动探索</strong>”双层记忆架构，构建全量 12 工具的 <code>[Memory]/[Workspace]/[Web]/[Collab]</code> 四类正交路由表，放开多轮探索深度并打通可见性过滤、多词相关度排序与全链路工具标签清洗。
+        </p>
+
+        <div class="flex flex-wrap gap-2 pt-4 border-t border-slate-100">
+            <span class="badge bg-indigo-50 text-indigo-700 border border-indigo-200">RAG-Vector-Indexed (Layer-1 预召回 + _memory_recall_pointer)</span>
+            <span class="badge bg-purple-50 text-purple-700 border border-purple-200">Active-Memory-Funnel (Layer-2 四阶 [Memory] 漏斗)</span>
+            <span class="badge bg-blue-50 text-blue-700 border border-blue-200">Orthogonal-Tool-Routing (四类正交工具路由)</span>
+            <span class="badge bg-emerald-50 text-emerald-700 border border-emerald-200">DB-Transaction (SQLite 只读查询与 rolled_back 过滤)</span>
+            <span class="badge bg-amber-50 text-amber-700 border border-amber-200">Bug #49 (多词分词排序与 &lt;tool_batch&gt; 净化)</span>
+        </div>
+    </header>
+
+    <!-- Section 1: Context & Challenges -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-red-100 flex items-center justify-center text-red-600 font-bold text-lg">1</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">背景与技术挑战 (Context & Challenges)</h2>
+                <p class="text-sm text-slate-500">被动检索盲区、工具分类混淆与小模型记忆检索偏航</p>
+            </div>
+        </div>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div class="bg-red-50/60 rounded-xl p-6 border border-red-100">
+                <h3 class="text-base font-bold text-red-900 mb-2">挑战一：单一被动 RAG 的时间盲区与语境断层</h3>
+                <p class="text-sm text-red-800/80 leading-relaxed">
+                    原有记忆召回仅依赖 <code>context_manager.py</code> 在发包前静默注入 ChromaDB 切片（<code>&lt;retrieved_past_memory_archives&gt;</code>）与近期日记（<code>&lt;recent_journal_summaries&gt;</code>）。当用户追问“哪个月开始聊”、“某天发生了什么”或某条日记前的原始对话细节时，向量 Top-K 既无法给出日历全局分布，也无法按 <code>session_id</code> 还原前后对话上下文。
+                </p>
+            </div>
+            <div class="bg-amber-50/60 rounded-xl p-6 border border-amber-100">
+                <h3 class="text-base font-bold text-amber-900 mb-2">挑战二：复合 <code>mode</code> 参数与工具排列序诱发盲搜</h3>
+                <p class="text-sm text-amber-800/80 leading-relaxed">
+                    初代自主检索仅设单一 <code>search_memory(mode=...)</code>，并将关键词搜索放在最前并附带总纲式描述。实际运行中端侧小模型频繁绕过日历总览、直接盲传多关键词短语触发精确子串 <code>LIKE</code>（任意一词不相邻即返回空，Bug #49），或混淆概念而误调用 <code>grep_search</code> / <code>read_file</code> 在磁盘目录翻找聊天记录。
+                </p>
+            </div>
+            <div class="bg-purple-50/60 rounded-xl p-6 border border-purple-100">
+                <h3 class="text-base font-bold text-purple-900 mb-2">挑战三：硬编码步数封顶与跨表视野遮蔽</h3>
+                <p class="text-sm text-purple-800/80 leading-relaxed">
+                    原 <code>AgentExecutor</code> 硬编码 <code>MAX_MEMORY_SEARCH_STEPS = 3</code> 且默认传入 <code>max_iterations=5</code>，复杂考据流程（查日历 -> 看早期时间线 -> 搜词 -> 展开对话）尚未收敛即被强制阻断；此外，历史海量 <code>journals</code> 易遮蔽较晚开始的 <code>conversations</code> 分布，而只查单一 <code>target</code> 为空时也缺乏跨表与全库最早日期锚点提示。
+                </p>
+            </div>
+            <div class="bg-blue-50/60 rounded-xl p-6 border border-blue-100">
+                <h3 class="text-base font-bold text-blue-900 mb-2">挑战四：已回滚记忆残留与 <code>&lt;tool_batch&gt;</code> 脏标签泄漏</h3>
+                <p class="text-sm text-blue-800/80 leading-relaxed">
+                    部分被撤回测试轮次写入的 <code>memory_logs(status='rolled_back')</code> 在 Chroma 已被清除，但 SQL 检索仍可搜出导致污染上下文；同时旧版对白与工具调用空壳（如 <code>&lt;tool_batch&gt;...&lt;/tool_batch&gt;</code>）在压缩纪要、记忆衰减与检索预览中未被剥离，挤压有效正文预算。
+                </p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 2: Decision & Solution -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 mb-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600 font-bold text-lg">2</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">决策方案与深模块解耦 (Decision & Solution)</h2>
+                <p class="text-sm text-slate-500">双层协同、四阶原子漏斗、正交分类路由与 SQLite 深模块硬化</p>
+            </div>
+        </div>
+        <div class="space-y-6 mb-8">
+            <div class="border-l-4 border-blue-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.1 双层记忆架构与四原子 <code>[Memory]</code> 漏斗注册顺序</h3>
+                <p class="text-sm text-slate-600 leading-relaxed mb-2">
+                    保留 <strong>Layer 1（ChromaDB 被动预召回）</strong> 作为零工具延迟首屏上下文，并在 <code>&lt;retrieved_past_memory_archives&gt;</code> 与 <code>&lt;recent_journal_summaries&gt;</code> 首行就地附加 <code>_memory_recall_pointer</code> 提示“仅为局部切片，缺细节时调用 <code>[Memory]</code> 工具”；<strong>Layer 2（<code>MemorySearchEngine</code> over SQLite）</strong> 在 <code>TOOL_REGISTRY</code> 中按从粗到细的严格漏斗顺序注册 4 个零 <code>mode</code>、单职责原子工具：
+                </p>
+                <ol class="text-xs text-slate-600 list-decimal pl-5 space-y-1">
+                    <li><code>get_memory_calendar</code>（默认 <code>15</code> 天，上限 <code>31</code> 天）：按天聚合 <code>memory_logs</code> 日记条数与 <code>chat_messages</code> 会话段数/消息数及每日最多 4 个 <code>chat_sessions.title</code>，作为全史宏观测绘首站；</li>
+                    <li><code>get_memory_timeline</code>（默认 <code>5</code> 条，上限 <code>15</code> 条）：按时间顺序列出清洗后的 ~150 字短摘要（<code>PREVIEW_CHARS = 150</code>）与记录 ID；</li>
+                    <li><code>search_memory</code>（默认 <code>5</code> 条，上限 <code>15</code> 条）：按关键词定位具体日记或对话预览，工具描述显式引导宏观日期跨度先走 <code>get_memory_calendar</code> / <code>get_memory_timeline</code>；</li>
+                    <li><code>expand_memory</code>（<code>source_type</code> + <code>record_id</code>，<code>DEFAULT_CONTEXT_TURNS = 4</code>，<code>MAX_CONTEXT_TURNS = 8</code>）：展开完整日记正文或同一 <code>session_id</code> 边界内前后对话窗口，绝不跨会话越界。</li>
+                </ol>
+            </div>
+
+            <div class="border-l-4 border-emerald-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.2 宏观时间尺度、双向锚点与三级渐进空日期引导</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    在 <code>backend/services/memory_search_engine.py</code> 的 <code>_build_date_clauses</code> 中，<code>date_range</code> 支持 <code>'YYYY-MM-DD'</code>、<code>'YYYY-MM'</code>、<code>'YYYY'</code>（如 <code>'2026'</code>）、<code>'recent_7d'</code>、<code>'recent_30d'</code> 与 <code>'all'</code>（省略所有日期参数即扫描全库），并辅以闭区间 <code>start_date</code>/<code>end_date</code>。<code>calendar</code> 与 <code>timeline</code> 同时支持 <code>target</code>（<code>all</code> / <code>journals</code> / <code>conversations</code>）与 <code>order</code>（<code>newest</code> / <code>oldest</code>）：发生截断时，返回头尾显式输出 <code>earliest_active_day</code>、<code>total_active_days</code> / <code>total_matching</code> 及可执行的下一步参数建议；查询落空时，<code>_build_empty_notice</code> 依次按“同月活跃日 -> 同年活跃月份 -> 全库活跃年份”渐进退回提示，<code>_build_peer_target_hint</code> 在单侧 <code>target</code> 为空而对侧有记录时客观提示切回 <code>target='all'</code> 或对侧类别（严格零台词诱导）。
+                </p>
+            </div>
+
+            <div class="border-l-4 border-purple-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.3 多关键词分词打分、<code>rolled_back</code> 剔除与全链路标签清洗 (Bug #49)</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    提取常量 <code>JOURNAL_VISIBLE_SQL = "COALESCE(status, 'active') NOT IN ('archived', 'rolled_back')"</code> 收口 <code>calendar</code>、<code>expand</code>、<code>_fetch_target_hits</code> 与 <code>_collect_bucket_counts</code>，保留 <code>active</code> 与历史 <code>compressed</code> 日记同时彻底隔离已归档和已回滚测试记录。检索关键词经 <code>_tokenize_search_terms</code> 去重拆分与 <code>_escape_like</code> 转义 <code>\</code>/<code>%</code>/<code>_</code> 后，由 <code>_build_term_sql_parts</code> 组装参数化 SQL，并依据命中词数、完整短语命中与时间戳排序。将 <code>strip_tool_xml_tags</code> 与 <code>strip_internal_tags</code> 确立为全库唯一清洗权威（SSOT）：<code>compact_service.py</code>（<code>call_llm_for_summary</code>）与 <code>response_pipeline.py</code>（<code>clean_memory_text</code>）统一收口调用 <code>strip_internal_tags</code>，<code>memory_decay.py</code> 与 <code>context_manager.py</code> 复用 <code>strip_tool_xml_tags</code>，统一剥离 <code>&lt;think&gt;</code>、<code>&lt;thought&gt;</code>、<code>&lt;inner_thought&gt;</code>、<code>&lt;monologue&gt;</code>、<code>&lt;property_update&gt;</code> 及 <code>&lt;tool_batch&gt;</code> 等伪 XML 残片。
+                </p>
+            </div>
+
+            <div class="border-l-4 border-amber-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.4 四类正交工具路由与无硬限安全探索循环</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    <code>TOOL_REGISTRY</code> 全部 12 个工具的 <code>description</code> 首词强制前缀为 <code>[Memory]</code>、<code>[Workspace]</code>、<code>[Web]</code>、<code>[Collab]</code> 四大正交标签，<code>[Workspace]</code> 工具明确追加禁止翻找聊天/日记的负向后缀。<code>context_manager.py</code> 在动态尾部协议 <code>get_cross_reference_protocol()</code> 的 <code>&lt;environment_constraints&gt;</code> 内写入 4 行精炼 <code>TOOL ROUTING</code> 对照表（零改动 <code>get_static_system_prompt()</code> 以保全 KV-Cache 静态前缀）。同时移除 <code>MAX_MEMORY_SEARCH_STEPS</code> 硬计数器，将 <code>AgentExecutor(..., max_iterations=None)</code> 默认改为不设人为固定步数限制，由 <code>ToolExecutionEngine._sanitize_tool_output(max_chars=40000)</code> 与前端 <code>stream_controller</code> 承担运行时安全保护。
+                </p>
+            </div>
+
+            <div class="border-l-4 border-teal-500 pl-4 py-1">
+                <h3 class="text-lg font-bold text-slate-800 mb-1">2.5 前端 <code>Remembering...</code> 跨工具聚合同步</h3>
+                <p class="text-sm text-slate-600 leading-relaxed">
+                    后端 <code>ToolExecutionEngine._format_command_str</code> 显式呈现非默认 <code>target</code>（<code>journals</code>/<code>conversations</code>）与 <code>oldest</code> 排序标识；<code>StreamParser.KNOWN_TOOL_NAMES</code> 全量纳入 4 个工具并支持 XML 降级解析。前端 <code>ChatPanel.jsx</code> 通过 <code>MEMORY_TOOL_NAMES</code> 与 <code>groupConsecutiveMemoryTools</code> 将相邻的任意记忆子工具自动收敛合并为单张 <code>Remembering...</code> 多步卡片，运行态附带呼吸脉冲点，完成态默认折叠并支持展开逐跳查阅 <code>IN</code> / <code>OUT</code>。
+                </p>
+            </div>
+        </div>
+
+        <!-- Before vs After Topological Diagram -->
+        <div class="mt-8">
+            <h3 class="text-sm font-bold text-slate-700 uppercase tracking-wider mb-4 text-center">Before vs After 架构流程对比 (Topology Comparison)</h3>
+            <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <div class="bg-red-50/40 rounded-xl p-5 border border-red-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-red-100 text-red-800 font-bold text-sm">
+                        <span>旧架构：单层 RAG + 复合单工具盲搜与硬限截断</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-red-100/60 shadow-sm flex-grow items-center">
+                    %% DEPRECATED / HISTORICAL PATTERN (DO NOT USE)
+                    flowchart TD
+                        Q["用户追问早期细节或跨日事件"] --> R1["仅被动 ChromaDB Top-K 切片"]
+                        R1 --> Blind["缺少日期分布与同会话上下文"]
+                        Blind --> M1["无前缀工具路由: search_memory(mode=...) 排首位"]
+                        M1 -->|"误用 LIKE 全短语或 grep_search 查磁盘"| Empty["多词返回空 / 误搜沙盒目录"]
+                        M1 -->|"硬限制 MAX_MEMORY_SEARCH_STEPS = 3"| Cut["第 3 步被强行打断"]
+                        DB[(memory_logs)] -->|"未滤 rolled_back 且残留 tool_batch"| Pollute["测试回滚记忆与脏标签泄漏"]
+                        classDef leak stroke:#dc2626,stroke-width:2px,fill:#fef2f2;
+                        class Blind,Empty,Cut,Pollute leak;
+                    </div>
+                </div>
+                <div class="bg-emerald-50/40 rounded-xl p-5 border border-emerald-200 flex flex-col justify-between">
+                    <div class="flex items-center gap-2 mb-4 pb-2 border-b border-emerald-100 text-emerald-800 font-bold text-sm">
+                        <span>新架构：双层记忆四阶漏斗与正交路由 (ADR-014 现行标准)</span>
+                    </div>
+                    <div class="mermaid flex justify-center py-4 bg-white/80 rounded-lg border border-emerald-100/60 shadow-sm flex-grow items-center">
+                    %% ACTIVE / AUTHORITATIVE IMPLEMENTATION
+                    flowchart TD
+                        UQ["用户历史回溯请求"] --> L1["Layer 1: ChromaDB 预注入 + _memory_recall_pointer"]
+                        L1 -->|"需完整考据时"| Router["TOOL ROUTING 四类正交标签锁定 Memory 类别"]
+                        Router --> Cal["Step 1: get_memory_calendar 日历/年/all/oldest/target"]
+                        Cal -->|"锚定活跃日或空日期渐进提示"| TL["Step 2: get_memory_timeline 按日/顺序翻阅 ID"]
+                        Router -->|"已知确切词"| SM["Step 3: search_memory 分词评分 LIKE 预览"]
+                        TL --> Exp["Step 4: expand_memory 完整日记或同 session 上下文"]
+                        SM --> Exp
+                        SQL[(SQLite memory_logs / chat_messages)] -->|"JOURNAL_VISIBLE_SQL 剔除 archived 与 rolled_back + strip_internal_tags"| Cal
+                        SQL --> TL
+                        SQL --> SM
+                        SQL --> Exp
+                        Exp --> UI["ChatPanel.jsx 收敛展示 Remembering... 多步卡片"]
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Section 3: Consequences & Evaluation -->
+    <section class="bg-white rounded-2xl shadow-sm border border-slate-200/80 p-8 card">
+        <div class="flex items-center gap-3 mb-6 pb-4 border-b border-slate-100">
+            <div class="w-10 h-10 rounded-xl bg-emerald-100 flex items-center justify-center text-emerald-600 font-bold text-lg">3</div>
+            <div>
+                <h2 class="text-2xl font-bold text-slate-900">后果与架构评估 (Consequences & Evaluation)</h2>
+                <p class="text-sm text-slate-500">架构列装后的正向收益、KV-Cache 兼容性与边界约束</p>
+            </div>
+        </div>
+        <ul class="space-y-3 text-sm text-slate-600">
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>小模型漏斗导航零偏航</strong>：通过四类正交前缀（<code>[Memory]</code>/<code>[Workspace]</code>/<code>[Web]</code>/<code>[Collab]</code>）、<code>[Memory]</code> 工具顺位重构及空范围三级/跨表指引，端侧模型可自主按“日历定界 -> 时间线/分词搜索 -> 详情展开”闭环溯源。</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>零污染静态前缀与高信噪比上下文</strong>：所有路由说明与记忆指针全部落在 <code>ContextManager.assemble_messages</code> 动态尾部，<code>get_static_system_prompt()</code> 保持字节级不动，KV-Cache 前缀复用不受损；全链路 <code>strip_tool_xml_tags</code> 彻底消除 <code>&lt;tool_batch&gt;</code> 噪声。</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>数据库只读安全与回滚状态一致</strong>：<code>MemorySearchEngine</code> 全程采用参数化只读查询并严格执行 <code>JOURNAL_VISIBLE_SQL</code> 过滤，防止已撤回 <code>rolled_back</code> 测试日记回流污染问答；单轮输出受 40,000 字符安全截断与流中断控制器保护。</span>
+            </li>
+            <li class="flex items-start gap-2">
+                <span class="text-emerald-600 font-bold">✓</span>
+                <span><strong>高内聚可测试深模块</strong>：检索、清洗、日历聚合与空日期渐进回退逻辑全部收敛于 <code>MemorySearchEngine</code> 单一深模块内，前端通过 <code>MEMORY_TOOL_NAMES</code> 对四子工具无感聚合同步呈现，后续扩展新记忆源无需改动前后端粘合协议。</span>
+            </li>
+        </ul>
+    </section>
+</div>
+</body>
+</html>
