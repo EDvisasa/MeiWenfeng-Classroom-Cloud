@@ -372,6 +372,161 @@ const RetryBlock = ({ block, idx }) => {
   );
 };
 
+const SESSION_PAGE_SIZE = 8;
+
+const SessionListPopover = ({
+  sessions,
+  activeSessionId,
+  onSwitchSession,
+  onDeleteSession,
+  onClose,
+  anchorRef
+}) => {
+  const sortedSessions = React.useMemo(() => {
+    if (!Array.isArray(sessions)) return [];
+    return [...sessions].sort((a, b) =>
+      a.id === 'openclaw_trio_chat' ? -1 : b.id === 'openclaw_trio_chat' ? 1 : 0
+    );
+  }, [sessions]);
+
+  const [searchQuery, setSearchQuery] = React.useState('');
+  const [currentPage, setCurrentPage] = React.useState(() => {
+    const activeIdx = sortedSessions.findIndex((s) => s.id === activeSessionId);
+    return activeIdx >= 0 ? Math.floor(activeIdx / SESSION_PAGE_SIZE) + 1 : 1;
+  });
+
+  React.useEffect(() => {
+    const handleOutsideMouseDown = (event) => {
+      if (anchorRef?.current && !anchorRef.current.contains(event.target)) {
+        onClose?.();
+      }
+    };
+    const handleEscapeKey = (event) => {
+      if (event.key === 'Escape') {
+        onClose?.();
+      }
+    };
+    document.addEventListener('mousedown', handleOutsideMouseDown);
+    document.addEventListener('keydown', handleEscapeKey);
+    return () => {
+      document.removeEventListener('mousedown', handleOutsideMouseDown);
+      document.removeEventListener('keydown', handleEscapeKey);
+    };
+  }, [anchorRef, onClose]);
+
+  const normalizedQuery = searchQuery.trim().toLowerCase();
+  const filteredSessions = React.useMemo(() => {
+    if (!normalizedQuery) return sortedSessions;
+    return sortedSessions.filter((s) =>
+      String(s.title || '').toLowerCase().includes(normalizedQuery)
+    );
+  }, [sortedSessions, normalizedQuery]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredSessions.length / SESSION_PAGE_SIZE));
+  const safePage = Math.min(Math.max(1, currentPage), totalPages);
+  const startIdx = (safePage - 1) * SESSION_PAGE_SIZE;
+  const pagedSessions = filteredSessions.slice(startIdx, startIdx + SESSION_PAGE_SIZE);
+
+  return (
+    <div className="session-list-popover">
+      <div className="session-list-header">
+        <span>历史对话</span>
+        <span className="session-list-count">{filteredSessions.length}</span>
+      </div>
+      <div className="session-list-search">
+        <input
+          type="text"
+          className="session-list-search-input"
+          aria-label="搜索历史对话"
+          placeholder="搜索历史对话..."
+          value={searchQuery}
+          onChange={(e) => {
+            setSearchQuery(e.target.value);
+            setCurrentPage(1);
+          }}
+        />
+        {searchQuery && (
+          <button
+            type="button"
+            className="session-list-search-clear"
+            aria-label="清空搜索"
+            onClick={() => {
+              setSearchQuery('');
+              setCurrentPage(1);
+            }}
+          >
+            ×
+          </button>
+        )}
+      </div>
+      <div className="session-list-body">
+        {pagedSessions.length === 0 ? (
+          <div className="session-list-empty">未找到匹配的历史对话</div>
+        ) : (
+          pagedSessions.map((s) => {
+            const isTrio = s.id === 'openclaw_trio_chat';
+            return (
+              <div
+                key={s.id}
+                className={`session-item ${s.id === activeSessionId ? 'active' : ''}`}
+                onClick={() => {
+                  onSwitchSession?.(s.id);
+                  onClose?.();
+                }}
+                style={isTrio ? {
+                  background: s.id === activeSessionId ? 'rgba(234, 179, 8, 0.2)' : 'rgba(234, 179, 8, 0.08)',
+                  border: '1px solid rgba(234, 179, 8, 0.35)',
+                  color: 'var(--text-primary)',
+                  fontWeight: 600,
+                } : {}}
+              >
+                <span className="session-title" style={isTrio ? { color: '#eab308' } : {}}>
+                  {isTrio ? '🍵 ' + s.title : s.title}
+                </span>
+                {!isTrio && (
+                  <button
+                    className="session-delete-btn"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDeleteSession?.(s.id, e);
+                    }}
+                    title="删除"
+                  >
+                    <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                      <path d="M2 4h12v1H2V4zm2-2h8v1H4V2zm1 4h1v7H5V6zm4 0h1v7H9V6zM3 5h10l-1 10H4L3 5z" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            );
+          })
+        )}
+      </div>
+      {totalPages > 1 && (
+        <div className="session-list-footer">
+          <button
+            type="button"
+            className="session-page-btn"
+            disabled={safePage <= 1}
+            onClick={() => setCurrentPage((p) => Math.max(1, Math.min(p, totalPages) - 1))}
+          >
+            上一页
+          </button>
+          <span className="session-page-indicator">{safePage} / {totalPages}</span>
+          <button
+            type="button"
+            className="session-page-btn"
+            disabled={safePage >= totalPages}
+            onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+          >
+            下一页
+          </button>
+        </div>
+      )}
+    </div>
+  );
+};
+
 export default function ChatPanel({
   theme,
   cursorLine,
@@ -432,6 +587,7 @@ export default function ChatPanel({
   const [visionToast, setVisionToast] = React.useState(null);
   const visionToastTimeoutRef = React.useRef(null);
   const chatFileInputRef = React.useRef(null);
+  const sessionDropdownRef = React.useRef(null);
 
   const showVisionWarningToast = (msg = "当前模型不支持识图，请先在右上角切换至支持视觉的模型") => {
     if (visionToastTimeoutRef.current) clearTimeout(visionToastTimeoutRef.current);
@@ -815,10 +971,10 @@ export default function ChatPanel({
         <div style={{ display: 'flex', alignItems: 'center', gap: '2px', marginLeft: '6px' }}>
 
           {/* 历史对话 - 时钟图标 */}
-          <div style={{ position: 'relative' }}>
+          <div ref={sessionDropdownRef} style={{ position: 'relative' }}>
             <button
               className={`cc-icon-btn ${showSessionList ? 'active' : ''}`}
-              onClick={() => setShowSessionList(v => !v)}
+              onClick={() => setShowSessionList?.(v => !v)}
               title="历史对话"
               style={{ width: '24px', height: '24px' }}
             >
@@ -827,40 +983,14 @@ export default function ChatPanel({
               </svg>
             </button>
             {showSessionList && (
-              <div className="session-list-popover">
-                <div className="session-list-header">历史对话</div>
-                {sessions && [...sessions].sort((a, b) => (a.id === 'openclaw_trio_chat' ? -1 : b.id === 'openclaw_trio_chat' ? 1 : 0)).map(s => {
-                  const isTrio = s.id === 'openclaw_trio_chat';
-                  return (
-                    <div
-                      key={s.id}
-                      className={`session-item ${s.id === activeSessionId ? 'active' : ''}`}
-                      onClick={() => { onSwitchSession(s.id); setShowSessionList(false); }}
-                      style={isTrio ? {
-                        background: s.id === activeSessionId ? 'rgba(234, 179, 8, 0.2)' : 'rgba(234, 179, 8, 0.08)',
-                        border: '1px solid rgba(234, 179, 8, 0.35)',
-                        color: 'var(--text-primary)',
-                        fontWeight: 600,
-                      } : {}}
-                    >
-                      <span className="session-title" style={isTrio ? { color: '#eab308' } : {}}>
-                        {isTrio ? '🍵 ' + s.title : s.title}
-                      </span>
-                      {!isTrio && (
-                        <button
-                          className="session-delete-btn"
-                          onClick={(e) => onDeleteSession(s.id, e)}
-                          title="删除"
-                        >
-                          <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
-                            <path d="M2 4h12v1H2V4zm2-2h8v1H4V2zm1 4h1v7H5V6zm4 0h1v7H9V6zM3 5h10l-1 10H4L3 5z" />
-                          </svg>
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
+              <SessionListPopover
+                sessions={sessions}
+                activeSessionId={activeSessionId}
+                onSwitchSession={onSwitchSession}
+                onDeleteSession={onDeleteSession}
+                onClose={() => setShowSessionList?.(false)}
+                anchorRef={sessionDropdownRef}
+              />
             )}
           </div>
 

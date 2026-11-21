@@ -904,4 +904,112 @@ describe('ChatPanel Editing Behavior Tests', () => {
       '<glossary term="Looped Transformer">'
     );
   });
+
+  it('TDD 26 [Bug #51]: paginates long session list popover (8 per page) instead of overflowing screen', () => {
+    const manySessions = [
+      { id: 'openclaw_trio_chat', title: '小白有话说...', messages: [] },
+      ...Array.from({ length: 19 }, (_, idx) => ({
+        id: `s-${idx + 1}`,
+        title: `历史会话 ${idx + 1}`,
+        messages: [],
+      })),
+    ];
+
+    const props = {
+      ...getBaseProps(),
+      sessions: manySessions,
+      activeSessionId: 's-1',
+      showSessionList: true,
+      setShowSessionList: vi.fn(),
+      onSwitchSession: vi.fn(),
+      onDeleteSession: vi.fn(),
+    };
+
+    const { container } = render(<ChatPanel {...props} />);
+    const popover = container.querySelector('.session-list-popover');
+    expect(popover).toBeInTheDocument();
+
+    // Page 1 shows at most 8 items: trio + 历史会话 1..7
+    expect(container.querySelectorAll('.session-item')).toHaveLength(8);
+    expect(screen.getByText(/小白有话说/)).toBeInTheDocument();
+    expect(screen.getByText('历史会话 7')).toBeInTheDocument();
+    expect(screen.queryByText('历史会话 8')).not.toBeInTheDocument();
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '上一页' })).toBeDisabled();
+
+    // Next page -> Page 2 (历史会话 8..15)
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
+    expect(container.querySelectorAll('.session-item')).toHaveLength(8);
+    expect(screen.getByText('历史会话 8')).toBeInTheDocument();
+    expect(screen.getByText('历史会话 15')).toBeInTheDocument();
+    expect(screen.queryByText('历史会话 7')).not.toBeInTheDocument();
+
+    // Next page -> Page 3 (历史会话 16..19)
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(screen.getByText('3 / 3')).toBeInTheDocument();
+    expect(container.querySelectorAll('.session-item')).toHaveLength(4);
+    expect(screen.getByText('历史会话 19')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: '下一页' })).toBeDisabled();
+  });
+
+  it('TDD 27 [Bug #51]: locates active session page, filters by search, and closes on outside click or Escape', () => {
+    const manySessions = Array.from({ length: 18 }, (_, idx) => ({
+      id: `s-${idx + 1}`,
+      title: `调试会话 ${idx + 1}`,
+      messages: [],
+    }));
+    const setShowSessionList = vi.fn();
+
+    const { container, rerender } = render(
+      <ChatPanel
+        {...getBaseProps()}
+        sessions={manySessions}
+        activeSessionId="s-12"
+        showSessionList={true}
+        setShowSessionList={setShowSessionList}
+        onSwitchSession={vi.fn()}
+        onDeleteSession={vi.fn()}
+      />
+    );
+
+    // s-12 is at index 11 -> automatically opens Page 2 (items 9..16)
+    expect(screen.getByText('2 / 3')).toBeInTheDocument();
+    expect(container.querySelector('.session-list-body .session-item.active')).toHaveTextContent('调试会话 12');
+
+    // Filter by keyword
+    const searchInput = screen.getByLabelText('搜索历史对话');
+    fireEvent.change(searchInput, { target: { value: '18' } });
+    expect(container.querySelectorAll('.session-item')).toHaveLength(1);
+    expect(screen.getByText('调试会话 18')).toBeInTheDocument();
+
+    // Clear search -> returns to Page 1 cleanly
+    fireEvent.change(searchInput, { target: { value: '' } });
+    expect(screen.getByText('1 / 3')).toBeInTheDocument();
+
+    // Outside click & Escape dismiss popover
+    fireEvent.mouseDown(document.body);
+    expect(setShowSessionList).toHaveBeenCalledWith(false);
+
+    setShowSessionList.mockClear();
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(setShowSessionList).toHaveBeenCalledWith(false);
+
+    // Shrinking sessions list clamps page cleanly when on last page
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    fireEvent.click(screen.getByRole('button', { name: '下一页' }));
+    expect(screen.getByText('3 / 3')).toBeInTheDocument();
+    rerender(
+      <ChatPanel
+        {...getBaseProps()}
+        sessions={manySessions.slice(0, 10)}
+        activeSessionId="s-1"
+        showSessionList={true}
+        setShowSessionList={setShowSessionList}
+        onSwitchSession={vi.fn()}
+        onDeleteSession={vi.fn()}
+      />
+    );
+    expect(screen.getByText('2 / 2')).toBeInTheDocument();
+  });
 });

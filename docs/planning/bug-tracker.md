@@ -522,3 +522,14 @@ domain: project-planning
   2. **普通正文内嵌保真 ([blockParser.js](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js))**：修正 `parseBodyCards` 对外层 `**` 的清洗仅匹配成对的 `**<glossary>...</glossary>**`（防止只剥掉后半个 `**` 导致前文未闭合加粗），且仅对独占整行的 `<glossary>` 拆分为顶层块级 `GlossaryBlock`，若处于行内/括号/列表中则保留在 `text` 内交由 `remarkGlossaryTags` 原位渲染；
   3. **亮暗双主题行内样式 ([index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css))**：补充 `.glossary-inline`、`.glossary-inline-badge`、`.glossary-inline-def` 与 `.glossary-card-inline`（使用 `font-weight: 400` 复位外层粗体继承与 `box-decoration-break: clone` 跨行高亮）；
   4. **TDD 回归闭环**：在 [markdownPlugins.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.test.jsx)、[blockParser.test.js](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js)、[ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 与 [PreviewEditModal.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/PreviewEditModal.test.jsx) 新增覆盖用例；前端 10 个测试文件 97 项单测全部通过，Vite 生产构建成功。
+
+### 51. [已解决 / 历史对话弹出层限高与分页] 历史对话列表弹出框缺失最大高度与分页机制，会话较多时向下撑破屏幕底边
+- **现象描述**：
+  点击聊天面板顶栏时钟图标展开历史对话列表（`.session-list-popover`）时，弹出框随会话数无上限拉长，超过 20 条记录后会直接撑破 `100vh` 屏幕底端露出灰色溢出带，尾部对话被截断且缺少翻页或搜索定位入口。
+- **解决路线（方案 A）**：
+  1. **独立子组件 `SessionListPopover` 与分页检索 ([ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx))**：
+     - 提炼 `SessionListPopover`（每页固定 `SESSION_PAGE_SIZE = 8` 条），保留 `openclaw_trio_chat` 在首页首位，支持自动定位当前激活会话所在页、标题关键词实时过滤、页码自动越界夹紧（删除最后一条时自动回退前一页）及 `上一页 / X / N / 下一页` 翻页栏；
+     - 为弹窗整体挂载锚点容器 `sessionDropdownRef`，支持点击外部区域与按 `Escape` 键自动关闭，并为删除按钮补全 `e.stopPropagation()` 防误切换。
+  2. **视口安全限高与弹性内部滚动 ([index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css))**：
+     - 将 `.session-list-popover` 升级为 `display: flex; flex-direction: column; max-width: min(300px, calc(100vw - 24px)); max-height: min(440px, calc(100vh - 96px));`，固定头部的标题总数徽章与搜索栏、中间 `.session-list-body` 独立 `flex: 1; min-height: 0; overflow-y: auto;`，彻底杜绝撑破任何桌面或窄屏视口；
+  3. **TDD 回归闭环**：在 [ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 新增 `TDD 26` 与 `TDD 27` 验证 8 条分页、激活页自动聚焦、搜索过滤、外部点击/`Esc` 关闭及删除后页码夹紧；前端 10 个测试文件 99 项单测全部通过，Vite 构建成功。

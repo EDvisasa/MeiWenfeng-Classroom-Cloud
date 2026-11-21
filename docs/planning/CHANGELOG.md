@@ -33,6 +33,9 @@ All notable changes to this project will be documented in this file.
   - `ChatRequest` 增加 `atmosphere_mode` 参数，并在 `context_manager` 运行时尾部注入生效标签，保持静态 System Prompt 的 KV-Cache 命中率。
 
 ### Fixed
+- **历史对话弹出框视口限高、搜索与分页修复 (Bug #51)**:
+  - 在 [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) 提取 `SessionListPopover` 组件，引入每页 8 条分页、`openclaw_trio_chat` 首页置顶、自动跳转当前活跃会话页、标题关键词搜索、页码越界自动夹紧以及点击外部 / `Escape` 键自动关闭；
+  - 在 [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 为 `.session-list-popover` 增加 `max-height: min(440px, calc(100vh - 96px))`、`max-width: min(300px, calc(100vw - 24px))` 与 `.session-list-body` 内部独立纵向滚动区，避免会话较多时撑破屏幕底边。
 - **全站 Markdown `<glossary>` 行内术语微卡渲染修复 (Bug #50)**:
   - 在全站渲染 SSOT [`frontend/src/utils/markdownPlugins.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.js) 新增纯 mdast 插件 `remarkGlossaryTags`，不启用 `rehype-raw` 即可把 `<explainer>` 讲义卡、列表加粗句内与档案预览弹窗中的 `<glossary term="...">...</glossary>`（含流式未闭合与内嵌 KaTeX 公式）安全渲染为 `.glossary-inline-badge` 术语徽标 + `.glossary-inline-def`（自动复位粗体继承）；
   - 修正 [`frontend/src/utils/blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js) 仅对独占整行的 `<glossary>` 拆分顶层 `GlossaryBlock` 卡片并对 `**<glossary>...</glossary>**` 执行成对剥离，避免破坏行内/列表 Markdown 排版，同步补充 [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 亮暗双主题样式。
