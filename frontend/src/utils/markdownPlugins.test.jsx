@@ -74,3 +74,61 @@ describe('markdownPlugins math rendering (ISSUE-54)', () => {
     expect(container.textContent).toContain('今天的天气很适合读书。');
   });
 });
+
+describe('markdownPlugins inline <glossary> rendering (Bug #50)', () => {
+  it('将加粗列表括号内的 <glossary> 渲染为行内术语徽标与定义而不破坏列表结构', () => {
+    const { container } = renderMarkdown(
+      '- **巧思机制（<glossary term="Looped Transformer">循环层架构：将中间若干层神经网络的权重重复运行多次，用较小的磁盘体积换取更深的等效推理深度。</glossary>）**：物理上只有 24 层。'
+    );
+
+    expect(container.querySelectorAll('li')).toHaveLength(1);
+    expect(container.querySelector('.glossary-inline')).toBeInTheDocument();
+    expect(container.querySelector('.glossary-inline-badge')).toHaveTextContent('Looped Transformer');
+    expect(container.querySelector('.glossary-inline-def')).toHaveTextContent('循环层架构：将中间若干层神经网络的权重重复运行多次');
+    expect(container.textContent).not.toContain('<glossary');
+    expect(container.textContent).not.toContain('</glossary>');
+    expect(container.textContent).toContain('物理上只有 24 层');
+  });
+
+  it('行内 <glossary> 内部包含 KaTeX 公式与同段多个词条时全部正常渲染', () => {
+    const { container } = renderMarkdown(
+      '对比 <glossary term="Attention">注意力机制 $Q K^T$</glossary> 与 <glossary term="MoE">混合专家架构</glossary>。'
+    );
+
+    const badges = container.querySelectorAll('.glossary-inline-badge');
+    expect(badges).toHaveLength(2);
+    expect(badges[0]).toHaveTextContent('Attention');
+    expect(badges[1]).toHaveTextContent('MoE');
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+    expect(container.textContent).not.toContain('<glossary');
+  });
+
+  it('流式输出尚未闭合 <glossary> 时不外泄裸标签', () => {
+    const { container } = renderMarkdown(
+      '- **巧思机制（<glossary term="StreamTerm">正在流式生成的术语定义'
+    );
+
+    expect(container.querySelector('.glossary-inline-badge')).toHaveTextContent('StreamTerm');
+    expect(container.querySelector('.glossary-inline-def')).toHaveTextContent('正在流式生成的术语定义');
+    expect(container.textContent).not.toContain('<glossary');
+  });
+
+  it('反引号行内代码中的 <glossary> 原样作为代码保留，不被误转换', () => {
+    const { container } = renderMarkdown('语法示例：`<glossary term="Literal">示例</glossary>`。');
+
+    expect(container.querySelector('.glossary-inline')).not.toBeInTheDocument();
+    expect(container.querySelector('code')).toHaveTextContent('<glossary term="Literal">示例</glossary>');
+  });
+
+  it('档案预览等独立块级 <glossary> 自动渲染为术语卡片并解析内部 Markdown 与公式', () => {
+    const { container } = renderMarkdown(
+      '<glossary term="MoE">\n**混合专家** 激活公式 $y=W x$\n</glossary>'
+    );
+
+    expect(container.querySelector('.glossary-card-inline')).toBeInTheDocument();
+    expect(container.querySelector('.glossary-inline-badge')).toHaveTextContent('MoE');
+    expect(container.querySelector('.katex')).toBeInTheDocument();
+    expect(container.textContent).toContain('混合专家');
+    expect(container.textContent).not.toContain('<glossary');
+  });
+});

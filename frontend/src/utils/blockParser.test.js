@@ -261,4 +261,16 @@ Glossary text.
       }
     ]);
   });
+
+  // Behavior 14: Bug #50 (keep inline <glossary> inside Markdown bold/list intact for inline rendering)
+  it('should keep inline <glossary> embedded inside bold/list lines inside the text block without breaking Markdown', () => {
+    const input = '- **巧思机制（<glossary term="Looped Transformer">循环层架构说明</glossary>）**：物理上只有 24 层。\n- **术语前缀：<glossary term="MoE">混合专家</glossary>**：继续讲解。';
+
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toHaveLength(1);
+    expect(result[0].type).toBe('text');
+    expect(result[0].text).toContain('<glossary term="Looped Transformer">循环层架构说明</glossary>');
+    expect(result[0].text).toContain('**术语前缀：<glossary term="MoE">混合专家</glossary>**');
+  });
 });

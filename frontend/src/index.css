@@ -4314,3 +4314,76 @@ body {
     font-size: 17px;
   }
 }
+
+/* ==========================================================================
+   Inline Glossary Micro-Cards (Bug #50 - SSOT shared across Explainer / Chat / Preview)
+   ========================================================================== */
+
+.glossary-inline {
+  display: inline;
+}
+
+.glossary-inline-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 7px;
+  margin: 0 5px 0 2px;
+  border-radius: 999px;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(16, 185, 129, 0.34);
+  color: #047857;
+  font-size: 0.85em;
+  font-weight: 600;
+  line-height: 1.5;
+  vertical-align: baseline;
+}
+
+.glossary-inline-def {
+  font-weight: 400;
+  font-style: normal;
+  color: inherit;
+  background: rgba(16, 185, 129, 0.06);
+  border-bottom: 1px dashed rgba(16, 185, 129, 0.42);
+  border-radius: 4px;
+  padding: 1px 4px;
+  box-decoration-break: clone;
+  -webkit-box-decoration-break: clone;
+}
+
+.glossary-card-inline {
+  margin: 12px 0;
+  padding: 10px 14px;
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+}
+
+.glossary-card-inline .glossary-inline-badge {
+  margin-left: 0;
+}
+
+.glossary-card-inline .glossary-inline-def {
+  background: transparent;
+  border-bottom: none;
+  padding: 0;
+}
+
+.theme-dark .glossary-inline-badge {
+  background: rgba(16, 185, 129, 0.16);
+  border-color: rgba(52, 211, 153, 0.36);
+  color: #34d399;
+}
+
+.theme-dark .glossary-inline-def {
+  background: rgba(16, 185, 129, 0.08);
+  border-bottom-color: rgba(52, 211, 153, 0.42);
+}
+
+.theme-dark .glossary-card-inline .glossary-inline-def {
+  background: transparent;
+  border-bottom: none;
+}

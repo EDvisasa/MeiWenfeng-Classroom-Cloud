@@ -33,6 +33,9 @@ All notable changes to this project will be documented in this file.
   - `ChatRequest` 增加 `atmosphere_mode` 参数，并在 `context_manager` 运行时尾部注入生效标签，保持静态 System Prompt 的 KV-Cache 命中率。
 
 ### Fixed
+- **全站 Markdown `<glossary>` 行内术语微卡渲染修复 (Bug #50)**:
+  - 在全站渲染 SSOT [`frontend/src/utils/markdownPlugins.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.js) 新增纯 mdast 插件 `remarkGlossaryTags`，不启用 `rehype-raw` 即可把 `<explainer>` 讲义卡、列表加粗句内与档案预览弹窗中的 `<glossary term="...">...</glossary>`（含流式未闭合与内嵌 KaTeX 公式）安全渲染为 `.glossary-inline-badge` 术语徽标 + `.glossary-inline-def`（自动复位粗体继承）；
+  - 修正 [`frontend/src/utils/blockParser.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js) 仅对独占整行的 `<glossary>` 拆分顶层 `GlossaryBlock` 卡片并对 `**<glossary>...</glossary>**` 执行成对剥离，避免破坏行内/列表 Markdown 排版，同步补充 [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 亮暗双主题样式。
 - **`search_memory` 关键词检索时间戳决胜排序加固 (ISSUE-69)**:
   - 加固 [`backend/services/memory_search_engine.py`](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py) `_fetch_target_hits` 的关键词查询排序键，统一在 `id DESC` 之前优先使用标准化时间戳 `_sql_norm_ts() DESC`，避免主键非严格递增或同分场景下早年记录顶替近期记忆。
 - **`[Memory]` 多词空格检索、跨源空结果提示与已回滚日记隔离 (Bug #49)**:

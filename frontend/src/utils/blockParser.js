@@ -17,10 +17,10 @@ function parseBodyCards(bodyText) {
   if (!bodyText) return [];
   let text = bodyText;
 
-  // Strip markdown bold markers that the AI might incorrectly place around our custom block tags
-  text = text.replace(/\*\*\s*<glossary/gi, '<glossary').replace(/<\/glossary>\s*\*\*/gi, '</glossary>');
-  text = text.replace(/\*\*\s*<explainer/gi, '<explainer').replace(/<\/explainer>\s*\*\*/gi, '</explainer>');
-  text = text.replace(/\*\*\s*<quiz/gi, '<quiz').replace(/<\/quiz>\s*\*\*/gi, '</quiz>');
+  // Strip markdown bold markers that the AI might incorrectly wrap around custom block tags (matched pairs only)
+  text = text.replace(/\*\*\s*(<glossary\b[\s\S]*?<\/glossary>)\s*\*\*/gi, '$1');
+  text = text.replace(/\*\*\s*(<explainer\b[\s\S]*?<\/explainer>)\s*\*\*/gi, '$1');
+  text = text.replace(/\*\*\s*(<quiz\b[\s\S]*?<\/quiz>)\s*\*\*/gi, '$1');
 
   // Force "盘古之白" (spaces) around inline bold markdown to prevent CommonMark parsing failures with Chinese punctuation
   text = text.replace(/\*\*([^\n]+?)\*\*/g, ' **$1** ');
@@ -110,6 +110,14 @@ function parseBodyCards(bodyText) {
     let lastGlosIndex = 0;
     let glosMatch;
     while ((glosMatch = glossaryRegex.exec(subText)) !== null) {
+      const prevNl = glosMatch.index > 0 ? subText.lastIndexOf('\n', glosMatch.index - 1) : -1;
+      const lineBefore = subText.slice(prevNl + 1, glosMatch.index);
+      const nextNl = subText.indexOf('\n', glossaryRegex.lastIndex);
+      const lineAfter = subText.slice(glossaryRegex.lastIndex, nextNl === -1 ? subText.length : nextNl);
+      const isStandaloneLine = lineBefore.trim() === '' && lineAfter.trim() === '';
+      if (!isStandaloneLine) {
+        continue;
+      }
       if (glosMatch.index > lastGlosIndex) {
         glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: subText.substring(lastGlosIndex, glosMatch.index) });
       }

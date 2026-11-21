@@ -105,4 +105,17 @@ describe('PreviewEditModal Component Tests (TDD)', () => {
     expect(screen.getByText('冯杰龙')).toBeInTheDocument();
     expect(screen.getByText('男命')).toBeInTheDocument();
   });
+
+  it('TDD 6 [Bug #50]: 预览讲义中的 <glossary> 标签渲染为行内术语样式而不外泄源码', () => {
+    const glossaryDoc = {
+      path: 'References/LoopedTransformer.md',
+      content: '- **巧思机制（<glossary term="Looped Transformer">循环层架构：将中间若干层神经网络的权重重复运行多次。</glossary>）**：物理上只有 24 层。'
+    };
+    const { container } = render(<PreviewEditModal {...defaultProps} fileData={glossaryDoc} />);
+
+    expect(container.querySelector('.glossary-inline-badge')).toHaveTextContent('Looped Transformer');
+    expect(container.querySelector('.glossary-inline-def')).toHaveTextContent('循环层架构：将中间若干层神经网络的权重重复运行多次。');
+    expect(container.textContent).not.toContain('<glossary');
+    expect(container.textContent).not.toContain('</glossary>');
+  });
 });

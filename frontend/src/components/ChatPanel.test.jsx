@@ -16,7 +16,14 @@ vi.mock('./QuizBlock', () => ({
 }));
 
 vi.mock('react-markdown', () => ({
-  default: ({ children }) => <div data-testid="react-markdown">{children}</div>
+  default: ({ children, remarkPlugins: plugins }) => (
+    <div
+      data-testid="react-markdown"
+      data-has-glossary-plugin={String(Array.isArray(plugins) && plugins.some((p) => p?.name === 'remarkGlossaryTags'))}
+    >
+      {children}
+    </div>
+  )
 }));
 
 vi.mock('react-syntax-highlighter', () => ({
@@ -866,5 +873,35 @@ describe('ChatPanel Editing Behavior Tests', () => {
     expect(screen.getByText("Remembering: '4.7k'")).toBeInTheDocument();
     expect(screen.getByText('Remembering detail: journal#10')).toBeInTheDocument();
     expect(screen.getByText('完整记录：标准模式采用 4.7kΩ')).toBeInTheDocument();
+  });
+
+  it('renders nested <glossary> inside <explainer> card and bold bullets inline with glossary plugin wired (Bug #50)', () => {
+    const explainerProps = {
+      ...getBaseProps(),
+      messages: [
+        {
+          role: 'assistant',
+          content: `普通说明：
+- **前置要点（<glossary term="KV-Cache">键值缓存机制</glossary>）**：普通段内术语。
+<explainer title="小模型架构解析">
+> **📚 课程归属**：模型架构
+
+### 一、它到底“小”在哪儿？
+- **巧思机制（<glossary term="Looped Transformer">循环层架构：将中间若干层神经网络权重重复运行多次。</glossary>）**：物理上只有 24 层。
+</explainer>`,
+        },
+      ],
+    };
+
+    const { container } = render(<ChatPanel {...explainerProps} />);
+    expect(screen.getByText('小模型架构解析')).toBeInTheDocument();
+    const mdNodes = screen.getAllByTestId('react-markdown');
+    expect(mdNodes.length).toBeGreaterThanOrEqual(2);
+    expect(mdNodes.every((el) => el.getAttribute('data-has-glossary-plugin') === 'true')).toBe(true);
+    // Inline <glossary> must NOT split text/explainer into standalone block GlossaryBlock elements
+    expect(mdNodes[0]).toHaveTextContent('<glossary term="KV-Cache">键值缓存机制</glossary>');
+    expect(container.querySelector('.explainer-content-wrapper [data-testid="react-markdown"]')).toHaveTextContent(
+      '<glossary term="Looped Transformer">'
+    );
   });
 });
