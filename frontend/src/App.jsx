@@ -10,7 +10,7 @@ import DatabaseViewer from './components/DatabaseViewer';
 import PreviewEditModal from './components/PreviewEditModal';
 import KnowledgeLibraryModal from './components/KnowledgeLibraryModal';
 
-import { COMMANDS } from './constants/commands';
+import { COMMANDS, isTeachingStudyCommand } from './constants/commands';
 
 const _getNowStr = () => {
   const now = new Date();
@@ -448,6 +448,7 @@ export default function App() {
   
   // BashTool HITL state
   const [pendingApproval, setPendingApproval] = React.useState(null);
+  const [pendingAtmospherePrompt, setPendingAtmospherePrompt] = useState(null);
   const [selectedFileContent, setSelectedFileContent] = useState('');
 
   // 斜杠命令自动补全
@@ -1149,6 +1150,9 @@ export default function App() {
       } else if (e.key === 'Escape') {
         setShowCommandList(false);
       }
+    } else if (e.key === 'Escape' && pendingAtmospherePrompt) {
+      e.preventDefault();
+      handleCancelAtmospherePrompt();
     } else {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
@@ -1176,7 +1180,7 @@ export default function App() {
   };
 
   // 发送对话消息
-  const sendMessage = async (customMessage) => {
+  const sendMessage = async (customMessage, sendOptions = {}) => {
     const isCustomString = typeof customMessage === 'string';
     const isCustomObject = customMessage && typeof customMessage === 'object' && !customMessage.nativeEvent;
     
@@ -1192,9 +1196,20 @@ export default function App() {
 
     if ((!textToSend && imagesToSend.length === 0) || isStreaming) return;
 
-    if (!isCustomString) {
+    if (!isCustomString && !sendOptions.keepInput) {
       setInputText('');
       setShowCommandList(false);
+    }
+
+    const effectiveAtmosphereMode = sendOptions.atmosphereMode ?? atmosphereMode;
+    if (!sendOptions.skipAtmosphereCheck && effectiveAtmosphereMode === 'daily' && isTeachingStudyCommand(textToSend)) {
+      const cmdToken = textToSend.trim().split(/\s+/)[0];
+      setPendingAtmospherePrompt({
+        text: textToSend,
+        images: imagesToSend,
+        cmdToken,
+      });
+      return;
     }
 
     if (textToSend && imagesToSend.length === 0) {
@@ -1218,17 +1233,44 @@ export default function App() {
       userMsg.images = imagesToSend;
     }
 
-    const nextMessages = [...messages, userMsg];
-    if (textToSend.trim().startsWith('/lesson') && atmosphereMode === 'daily') {
-      nextMessages.push({
-        role: 'system_info',
-        type: 'atmosphere_suggestion',
-        content: '当前正在进行微课授课且处于【生活模式】，点击一键切换为【研学模式】以启用高校水准精确推导'
-      });
-    }
+    const nextMessages = Array.isArray(sendOptions.preludeMessages)
+      ? [...messages, ...sendOptions.preludeMessages, userMsg]
+      : [...messages, userMsg];
     setMessages(nextMessages);
     triggerScrollToBottom();
-    await triggerAIResponse(nextMessages);
+    await triggerAIResponse(nextMessages, { atmosphereMode: effectiveAtmosphereMode });
+  };
+
+  const handleConfirmAtmospherePrompt = async (targetMode) => {
+    const queued = pendingAtmospherePrompt;
+    setPendingAtmospherePrompt(null);
+    if (!queued) return;
+
+    let preludeMessages = [];
+    if (targetMode === 'study' && atmosphereMode !== 'study') {
+      setAtmosphereMode('study');
+      localStorage.setItem('atmosphere_mode', 'study');
+      preludeMessages = [
+        { role: 'system_info', content: '[模式切换] 已切换氛围模式为：研学模式' }
+      ];
+    }
+
+    await sendMessage(
+      { text: queued.text, images: queued.images },
+      {
+        skipAtmosphereCheck: true,
+        atmosphereMode: targetMode,
+        preludeMessages,
+      }
+    );
+  };
+
+  const handleCancelAtmospherePrompt = () => {
+    if (pendingAtmospherePrompt?.text && !inputText.trim()) {
+      setInputText(pendingAtmospherePrompt.text);
+    }
+    setPendingAtmospherePrompt(null);
+    inputRef.current?.focus();
   };
 
   // 停止对话生成
@@ -1249,7 +1291,8 @@ export default function App() {
   };
 
   // 请求 API 获取流式回复
-  const triggerAIResponse = async (history) => {
+  const triggerAIResponse = async (history, options = {}) => {
+    const effectiveAtmosphereMode = options.atmosphereMode ?? atmosphereMode;
     setIsStreaming(true);
     abortControllerRef.current = new AbortController();
     const apiPayload = history.filter(m => m.role === 'user' || m.role === 'assistant');
@@ -1263,7 +1306,7 @@ export default function App() {
           session_id: activeSessionId,
           messages: apiPayload,
           persona_type: personaType,
-          atmosphere_mode: atmosphereMode,
+          atmosphere_mode: effectiveAtmosphereMode,
           current_file_path: selectedFilePath,
           cursor_line: cursorLine,
           selection_start_line: selectionStartLine,
@@ -1753,6 +1796,9 @@ export default function App() {
             atmosphereMode={atmosphereMode}
             personaType={personaType}
             onSwitchAtmosphere={handleAtmosphereModeChange}
+            pendingAtmospherePrompt={pendingAtmospherePrompt}
+            onConfirmAtmospherePrompt={handleConfirmAtmospherePrompt}
+            onCancelAtmospherePrompt={handleCancelAtmospherePrompt}
           />
 
           {/* 右侧面板：导师人设与课程大纲 */}

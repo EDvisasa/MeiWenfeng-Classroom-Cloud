@@ -597,3 +597,17 @@ domain: project-planning
      - 在 [`KnowledgeLibraryModal.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/KnowledgeLibraryModal.jsx) 与 [`index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 顶栏下拉框保留顶部 `全局日常记录文件（通用）`（`default`）+ 各专属课程供配套档案管理，加宽 `.kl-course-selector-wrapper` 至 `560px` 并为 `课程课题:` 与 `+ 新建课题` 补齐 `white-space: nowrap; flex-shrink: 0;` 防双行折行、`select` 上限 `340px` 省略防挤压；打开弹窗时按 `isInLesson ? (activeCourseId || 'default') : 'default'` 同步：未上课一律默认打开 `全局日常记录文件（通用）`，仅 `/lesson` 上课期间对应展示当前上课课题，弹窗内手动切换不影响外层课程状态；在弹窗新建课题同步刷新外层列表。
   4. **TDD 回归闭环**：
      - 新增/完善 [test_course_isolation_db.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_course_isolation_db.py)、[test_lesson_course_flow.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_lesson_course_flow.py)、[test_routers_chat.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_routers_chat.py)、[StatusPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.test.jsx)、[KnowledgeLibraryModal.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/KnowledgeLibraryModal.test.jsx) 与 [App.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.test.jsx) 全链路测试；实测前端 11 个测试文件 113 项单测全部通过、Vite 生产构建成功（447ms），后端 `pytest -m "not slow"` 249 项通过（2 项慢测跳过）。
+
+### 56. [已解决 / 教学指令拦截确认与下课指令 UI] `/lesson` 等教学指令生活模式下先询问切研学再回复，并补全 `/end_lesson` UI 辅助输入
+- **现象描述**：
+  1. 在【生活模式】触发 `/lesson` 时虽会插入 `atmosphere_suggestion` 提示卡片，但请求同步按旧 `daily` 模式直接发给后端开讲，切换按钮无法作用于当次回复；且 `/plan`、`/submit`、`/set_mission` 完全没有切研学提醒；
+  2. 后端虽注册了 `/end_lesson`（[`EndLessonCommandStrategy`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py)），但前端全局指令单 [`commands.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/constants/commands.js) 未收录 `/end_lesson`，导致输入 `/` 联想浮层与 ⚡ 快捷指令菜单均找不到下课入口。
+- **解决路线（`/grill-me` 规格闭环）**：
+  1. **全站指令表 SSOT 补全 ([commands.js](file:///d:/MeiWenfeng-Classroom/frontend/src/constants/commands.js) / [slash_handler.py](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py))**：
+     - 在 `COMMANDS` 紧随 `/lesson` 后注册 `/end_lesson`（文案与 `全局日常记录文件` 对齐），输入 `/` 联想与 ⚡ 快捷指令菜单同步展示；同步更新后端 `EndLessonCommandStrategy` 系统提示语中的归档描述；
+     - 抽出 `TEACHING_STUDY_COMMANDS` 与 `isTeachingStudyCommand`（按首词精准匹配 `/lesson`、`/plan`、`/submit`、`/set_mission`，排除 `/lesson_continue` 与 `/end_lesson` 等内部/下课命令）。
+  2. **阻塞式研学确认卡片与同步模式覆盖 ([App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) / [ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) / [index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css))**：
+     - 在生活模式下执行上述 4 条教学/规划/立项命令时，先通过 `pendingAtmospherePrompt` 拦截发送，在输入区上方弹出零 Emoji 的确认微卡（`.atmosphere-confirm-card`），提供 **「切换为研学并执行」**、**「保持生活继续」** 与 **「取消」**（支持 `Esc` 键关闭并恢复输入内容）；
+     - 选择 **「切换为研学并执行」** 时同步更新开关、`localStorage` 与系统提示，并通过显式 `atmosphereMode` 覆盖绕过 React 异步状态延迟，确保当次 `/api/chat/send` 请求立即按 `study` 模式生成回复；选择 **「保持生活继续」** 则按 `daily` 直接继续。
+  3. **TDD 回归闭环**：
+     - 扩展 [ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 与 [App.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.test.jsx) 覆盖 `/end_lesson` 联想选择、4 条教学指令拦截、`/lesson_continue` 不误拦、取消回填与即时 `study`/`daily` 发包断言；实测前端 `11` 个测试文件 `116` 项用例全部通过（`4.78s`）、Vite 生产构建通过（`441ms`），后端 `pytest -m "not slow"` `249` 项通过（`2` 项慢测跳过）。

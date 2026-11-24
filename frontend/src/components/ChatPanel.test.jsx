@@ -3,7 +3,7 @@ import { render, screen, fireEvent, act, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import ChatPanel from './ChatPanel';
-import { COMMANDS } from '../constants/commands';
+import { COMMANDS, isTeachingStudyCommand } from '../constants/commands';
 
 // Mock heavy child components and utilities to isolate ChatPanel behavior
 
@@ -673,6 +673,50 @@ describe('ChatPanel Editing Behavior Tests', () => {
     expect(btn).toBeInTheDocument();
     fireEvent.click(btn);
     expect(onSwitchAtmosphere).toHaveBeenCalledWith('study');
+  });
+
+  it('TDD 22b: /end_lesson is registered in COMMANDS SSOT and isTeachingStudyCommand guards teaching prefixes', () => {
+    const lessonIdx = COMMANDS.findIndex((c) => c.cmd === '/lesson');
+    const endLessonIdx = COMMANDS.findIndex((c) => c.cmd === '/end_lesson');
+    expect(lessonIdx).toBeGreaterThanOrEqual(0);
+    expect(endLessonIdx).toBe(lessonIdx + 1);
+    expect(COMMANDS[endLessonIdx].desc).toContain('全局日常记录文件');
+
+    expect(isTeachingStudyCommand('/lesson')).toBe(true);
+    expect(isTeachingStudyCommand('/lesson ditiansui_bazi')).toBe(true);
+    expect(isTeachingStudyCommand('/plan 第一章')).toBe(true);
+    expect(isTeachingStudyCommand('/submit')).toBe(true);
+    expect(isTeachingStudyCommand('/set_mission Python')).toBe(true);
+    expect(isTeachingStudyCommand('/lesson_continue')).toBe(false);
+    expect(isTeachingStudyCommand('/end_lesson')).toBe(false);
+    expect(isTeachingStudyCommand('普通对话 /lesson')).toBe(false);
+  });
+
+  it('TDD 22c: renders zero-emoji blocking atmosphere confirm card above input and fires confirm/cancel callbacks', () => {
+    const onConfirmAtmospherePrompt = vi.fn();
+    const onCancelAtmospherePrompt = vi.fn();
+    render(
+      <ChatPanel
+        {...getBaseProps()}
+        pendingAtmospherePrompt={{ text: '/lesson navier_stokes', images: [], cmdToken: '/lesson' }}
+        onConfirmAtmospherePrompt={onConfirmAtmospherePrompt}
+        onCancelAtmospherePrompt={onCancelAtmospherePrompt}
+      />
+    );
+
+    const dialog = screen.getByRole('dialog', { name: '教学指令氛围切换确认' });
+    expect(dialog).toBeInTheDocument();
+    expect(dialog.textContent).toContain('/lesson');
+    expect(/\p{Extended_Pictographic}/u.test(dialog.textContent)).toBe(false);
+
+    fireEvent.click(screen.getByRole('button', { name: '切换为研学并执行' }));
+    expect(onConfirmAtmospherePrompt).toHaveBeenCalledWith('study');
+
+    fireEvent.click(screen.getByRole('button', { name: '保持生活继续' }));
+    expect(onConfirmAtmospherePrompt).toHaveBeenCalledWith('daily');
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    expect(onCancelAtmospherePrompt).toHaveBeenCalledTimes(1);
   });
 
   it('TDD 23 [ISSUE-53]: renders search_memory block as Remembering... with glow running dot and toggleable details', () => {

@@ -347,10 +347,13 @@ describe('App Component Top-Level Integration (TDD)', () => {
     expect(selectCalls).toEqual(['ditiansui_bazi']);
     fireEvent.click(screen.getByRole('button', { name: '关闭' }));
 
-    // Start /lesson -> locks card & removes switch trigger while setting archive to ditiansui_bazi
+    // Start /lesson in daily mode -> blocks & prompts first; choosing 保持生活继续 sends /lesson and locks card
     const textarea = screen.getByPlaceholderText(/Chat with tutor/i);
     fireEvent.change(textarea, { target: { value: '/lesson' } });
     fireEvent.click(screen.getByTitle('发送消息'));
+
+    const confirmBtn = await screen.findByRole('button', { name: '保持生活继续' });
+    fireEvent.click(confirmBtn);
 
     await waitFor(() => {
       expect(screen.getByText('上课锁定中')).toBeInTheDocument();
@@ -383,6 +386,91 @@ describe('App Component Top-Level Integration (TDD)', () => {
     });
     expect(screen.getByRole('combobox', { name: '切换课程课题' })).toHaveValue('default');
     fireEvent.click(screen.getByRole('button', { name: '关闭' }));
+  });
+
+  it('intercepts teaching commands in daily mode until confirmed and provides /end_lesson autocomplete', async () => {
+    const encoder = new TextEncoder();
+    const baseFetch = global.fetch;
+    const sendPayloads = [];
+
+    global.fetch = vi.fn((url, options = {}) => {
+      const urlStr = String(url);
+      if (urlStr.includes('/api/chat/send')) {
+        sendPayloads.push(JSON.parse(options.body));
+        const sse = 'data: {"type": "text", "text": "收到，继续推进。"}\n\ndata: [DONE]\n\n';
+        return Promise.resolve({
+          ok: true,
+          body: new ReadableStream({
+            start(controller) {
+              controller.enqueue(encoder.encode(sse));
+              controller.close();
+            },
+          }),
+        });
+      }
+      return baseFetch(url, options);
+    });
+
+    render(<App />);
+    const modeBtn = await screen.findByTitle('点击切换氛围模式（粉色为研学，透明为生活）');
+    expect(modeBtn).toHaveTextContent('生活');
+
+    // 1. 输入 /end 弹出联想补全包含 /end_lesson 并支持点击填充
+    const textarea = screen.getByPlaceholderText(/Chat with tutor/i);
+    fireEvent.change(textarea, { target: { value: '/end' } });
+    const endOpt = await screen.findByText('/end_lesson');
+    fireEvent.click(endOpt);
+    expect(textarea).toHaveValue('/end_lesson ');
+
+    // 2. /plan 在生活模式下先阻断询问；点“取消”不发请求并恢复输入内容
+    fireEvent.change(textarea, { target: { value: '/plan 第一阶段' } });
+    fireEvent.click(screen.getByTitle('发送消息'));
+
+    const dialog = await screen.findByRole('dialog', { name: '教学指令氛围切换确认' });
+    expect(dialog.textContent).toContain('/plan');
+    expect(sendPayloads).toHaveLength(0);
+
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+    expect(screen.queryByRole('dialog', { name: '教学指令氛围切换确认' })).not.toBeInTheDocument();
+    expect(textarea).toHaveValue('/plan 第一阶段');
+    expect(sendPayloads).toHaveLength(0);
+
+    // 3. 再次发送并选“保持生活继续” -> 以 daily 模式发送
+    fireEvent.click(screen.getByTitle('发送消息'));
+    fireEvent.click(await screen.findByRole('button', { name: '保持生活继续' }));
+    await waitFor(() => {
+      expect(sendPayloads).toHaveLength(1);
+    });
+    expect(sendPayloads[0].atmosphere_mode).toBe('daily');
+    expect(modeBtn).toHaveTextContent('生活');
+
+    // 4. 发送 /set_mission 同样先阻断提示
+    fireEvent.change(textarea, { target: { value: '/set_mission 微积分' } });
+    fireEvent.click(screen.getByTitle('发送消息'));
+    expect((await screen.findByRole('dialog', { name: '教学指令氛围切换确认' })).textContent).toContain('/set_mission');
+    fireEvent.click(screen.getByRole('button', { name: '取消' }));
+
+    // 5. /lesson_continue 内部恢复命令不应被研学询问拦截
+    fireEvent.change(textarea, { target: { value: '/lesson_continue 正确' } });
+    fireEvent.click(screen.getByTitle('发送消息'));
+    expect(screen.queryByRole('dialog', { name: '教学指令氛围切换确认' })).not.toBeInTheDocument();
+    await waitFor(() => {
+      expect(sendPayloads).toHaveLength(2);
+    });
+
+    // 6. 发送 /submit 后点“切换为研学并执行” -> 同步切换模式且当次即按 study 发送
+    fireEvent.change(textarea, { target: { value: '/submit' } });
+    fireEvent.click(screen.getByTitle('发送消息'));
+    expect((await screen.findByRole('dialog', { name: '教学指令氛围切换确认' })).textContent).toContain('/submit');
+    fireEvent.click(screen.getByRole('button', { name: '切换为研学并执行' }));
+
+    await waitFor(() => {
+      expect(sendPayloads).toHaveLength(3);
+      expect(modeBtn).toHaveTextContent('研学');
+    });
+    expect(sendPayloads[2].atmosphere_mode).toBe('study');
+    expect(localStorage.getItem('atmosphere_mode')).toBe('study');
+    expect(screen.getByText('[模式切换] 已切换氛围模式为：研学模式')).toBeInTheDocument();
   });
 });
 

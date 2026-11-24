@@ -727,7 +727,10 @@ export default function ChatPanel({
   setSelectedImages: propSetSelectedImages,
   atmosphereMode,
   personaType,
-  onSwitchAtmosphere
+  onSwitchAtmosphere,
+  pendingAtmospherePrompt = null,
+  onConfirmAtmospherePrompt,
+  onCancelAtmospherePrompt
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
   const [showShortcuts, setShowShortcuts] = React.useState(false);
@@ -1624,7 +1627,7 @@ export default function ChatPanel({
 
       {/* 对话输入框 - Claude Code 风格双行卡片 */}
       <div className="input-area" style={{ position: 'relative' }}>
-        {showScrollBottom && !showCommandList && !pendingApproval && !pendingMission && (
+        {showScrollBottom && !showCommandList && !pendingApproval && !pendingMission && !pendingAtmospherePrompt && (
           <button
             type="button"
             className={`scroll-to-bottom-btn ${isStreaming ? 'streaming' : ''}`}
@@ -1730,6 +1733,47 @@ export default function ChatPanel({
               if (sendMessage) sendMessage(msg);
             }}
           />
+
+          {pendingAtmospherePrompt && (
+            <div className="atmosphere-confirm-card" role="dialog" aria-label="教学指令氛围切换确认">
+              <div className="atmosphere-confirm-header">
+                <div className="atmosphere-confirm-title-wrap">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z" />
+                    <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z" />
+                  </svg>
+                  <span className="atmosphere-confirm-title">进入教学模式前确认</span>
+                </div>
+                <span className="atmosphere-confirm-cmd">{pendingAtmospherePrompt.cmdToken}</span>
+              </div>
+              <p className="atmosphere-confirm-desc">
+                当前处于【生活模式】，建议先切换为【研学模式】以启用高校水准精确推导，再执行本次回复。
+              </p>
+              <div className="atmosphere-confirm-actions">
+                <button
+                  type="button"
+                  className="atmosphere-confirm-btn primary"
+                  onClick={() => onConfirmAtmospherePrompt && onConfirmAtmospherePrompt('study')}
+                >
+                  切换为研学并执行
+                </button>
+                <button
+                  type="button"
+                  className="atmosphere-confirm-btn secondary"
+                  onClick={() => onConfirmAtmospherePrompt && onConfirmAtmospherePrompt('daily')}
+                >
+                  保持生活继续
+                </button>
+                <button
+                  type="button"
+                  className="atmosphere-confirm-btn cancel"
+                  onClick={() => onCancelAtmospherePrompt && onCancelAtmospherePrompt()}
+                >
+                  取消
+                </button>
+              </div>
+            </div>
+          )}
 
           {/* 显示当前跟踪的激活文件 (给用户的视觉反馈) */}
           {isVsCode && selectedFilePath && (

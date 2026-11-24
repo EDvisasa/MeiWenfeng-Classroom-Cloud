@@ -382,7 +382,7 @@ class EndLessonCommandStrategy(CommandStrategy):
         exit_lesson_lock()
         prelude_hint = {
             "type": "system_hint",
-            "text": "已退出上课锁定，资料归档已切回全局基础档案 (default) 并切回生活模式。",
+            "text": "已退出上课锁定，资料归档已切回全局日常记录文件（通用）并切回生活模式。",
             "atmosphere": "daily",
             "in_lesson": False,
         }
