@@ -2,7 +2,7 @@ import React from 'react';
 import { encode } from 'gpt-tokenizer';
 import { API_BASE } from '../config';
 import { parseAndMergeBlocks } from '../utils/blockParser';
-import { remarkPlugins, rehypePlugins } from '../utils/markdownPlugins';
+import { remarkPlugins, userRemarkPlugins, rehypePlugins } from '../utils/markdownPlugins';
 import { AlertTriangle, Check, X, Image as ImageIcon } from 'lucide-react';
 import MissionProposalCard from './MissionProposalCard';
 import QuizBlock from './QuizBlock';
@@ -326,6 +326,50 @@ const GlossaryBlock = ({ block, idx }) => {
         <span style={{ fontWeight: 'bold', color: '#0d9488', marginRight: '8px', letterSpacing: '0.3px' }}>{block.term}</span>
         <span style={{ color: 'var(--text-primary)', lineHeight: '1.6' }}>{block.text}</span>
       </div>
+    </div>
+  );
+};
+
+const MissionFinalizedCard = ({ data = {} }) => {
+  const fields = [
+    { label: '每日投入', value: data.time },
+    { label: '当前基础', value: data.skill },
+    { label: '学习约束', value: data.constraints },
+  ].filter((item) => Boolean(item.value));
+
+  return (
+    <div className="mission-finalized-card">
+      <div className="mission-finalized-header">
+        <div className="mission-finalized-heading">
+          <span className="mission-finalized-icon" aria-hidden="true">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          </span>
+          <span className="mission-finalized-title">学习契约已立项</span>
+        </div>
+        <div className="mission-finalized-badges">
+          {data.course_id && (
+            <span className="mission-finalized-course-id">{data.course_id}</span>
+          )}
+          <span className="mission-finalized-badge">已归档</span>
+        </div>
+      </div>
+
+      {data.goal && (
+        <div className="mission-finalized-goal">{data.goal}</div>
+      )}
+
+      {fields.length > 0 && (
+        <div className="mission-finalized-meta">
+          {fields.map((item) => (
+            <div key={item.label} className="mission-finalized-meta-item">
+              <span className="mission-finalized-meta-label">{item.label}</span>
+              <span className="mission-finalized-meta-value">{item.value}</span>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };
@@ -1052,7 +1096,8 @@ export default function ChatPanel({
     )
   };
 
-  const renderNormalizedBlocks = (blocks) => {
+  const renderNormalizedBlocks = (blocks, { isUser = false } = {}) => {
+    const activeRemarkPlugins = isUser ? userRemarkPlugins : remarkPlugins;
     return groupConsecutiveMemoryTools(blocks).map((block, idx) => {
       if (block.type === 'thinking') {
         return <ThinkingBlock key={`thought_${idx}`} block={block} idx={idx} />;
@@ -1061,7 +1106,7 @@ export default function ChatPanel({
       } else if (block.type === 'retry') {
         return <RetryBlock key={`retry_${idx}`} block={block} idx={idx} />;
       } else if (block.type === 'text') {
-        return <div key={`text_${idx}`} className="text-block"><ReactMarkdown remarkPlugins={remarkPlugins} rehypePlugins={rehypePlugins} components={MarkdownComponents}>{block.text}</ReactMarkdown></div>;
+        return <div key={`text_${idx}`} className="text-block"><ReactMarkdown remarkPlugins={activeRemarkPlugins} rehypePlugins={rehypePlugins} components={MarkdownComponents}>{block.text}</ReactMarkdown></div>;
       } else if (block.type === 'quiz') {
         return <QuizBlock
           key={`quiz_${idx}`}
@@ -1078,6 +1123,8 @@ export default function ChatPanel({
         return <ExplainerBlock key={`exp_${idx}`} block={block} idx={idx} markdownComponents={MarkdownComponents} />;
       } else if (block.type === 'glossary') {
         return <GlossaryBlock key={`glos_${idx}`} block={block} idx={idx} />;
+      } else if (block.type === 'finalize_mission') {
+        return <MissionFinalizedCard key={`fin_${idx}`} data={block.data} />;
       }
       return null;
     });
@@ -1396,7 +1443,7 @@ export default function ChatPanel({
             }
           }
 
-          const mergedBlocks = parseAndMergeBlocks(blocks, msg.streaming);
+          const mergedBlocks = parseAndMergeBlocks(blocks, msg.streaming, { rawUserMessage: isUser });
 
           const handleStartEdit = () => {
             setEditingIndex(index);
@@ -1533,10 +1580,10 @@ export default function ChatPanel({
                       </div>
                     )}
                     {blocks && blocks.length > 0 ? (
-                      renderNormalizedBlocks(mergedBlocks.filter(b => b.type !== 'retry'))
+                      renderNormalizedBlocks(mergedBlocks.filter(b => b.type !== 'retry'), { isUser })
                     ) : (
                       <div className="message-content">
-                        {renderNormalizedBlocks(mergedBlocks)}
+                        {renderNormalizedBlocks(mergedBlocks, { isUser })}
                       </div>
                     )}
                     {(isStreaming && msg.streaming && !pendingApproval) && <span className="typing-cursor" />}
@@ -1668,7 +1715,8 @@ export default function ChatPanel({
             proposalData={pendingMission}
             onConfirm={(data) => {
               const escapeQuotes = (str) => (str || '').replace(/"/g, '&quot;');
-              const msg = `好的老婆，我确认学习目标！<finalize_mission goal="${escapeQuotes(data.goal)}" time="${escapeQuotes(data.time)}" constraints="${escapeQuotes(data.constraints)}" skill="${escapeQuotes(data.skill)}" />`;
+              const courseAttr = data.course_id ? ` course_id="${escapeQuotes(data.course_id)}"` : '';
+              const msg = `我已确定学习目标<finalize_mission goal="${escapeQuotes(data.goal)}" time="${escapeQuotes(data.time)}" constraints="${escapeQuotes(data.constraints)}" skill="${escapeQuotes(data.skill)}"${courseAttr} />`;
               if (sendMessage) sendMessage(msg);
             }}
             onReject={(feedback, data) => {

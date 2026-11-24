@@ -7,8 +7,8 @@ from backend.database import get_db_connection
 STRIP_INTERNAL_TAGS_RE = re.compile(
     r"<(?:think|thought|inner_thought|monologue)\b[^>]*/>"
     r"|<(think|thought|inner_thought|monologue)\b[^>]*(?<!/)>[\s\S]*?(?:</\1>|$)"
-    r"|<property_update\b[^>]*>(?:[\s\S]*?</property_update>)?"
-    r"|</(?:think|thought|inner_thought|monologue|property_update)\s*>",
+    r"|<(property_update|finalize_mission|new_course|memory_decay|system_pass)\b[^>]*>(?:[\s\S]*?</\2>)?"
+    r"|</(?:think|thought|inner_thought|monologue|property_update|finalize_mission|new_course|memory_decay|system_pass)\s*>",
     re.IGNORECASE,
 )
 
@@ -54,6 +54,14 @@ def strip_internal_tags(text: Optional[str]) -> str:
     cleaned = STRIP_INTERNAL_TAGS_RE.sub("", text)
     cleaned = TOOL_XML_TAGS_RE.sub("", cleaned)
     return _normalize_stripped_whitespace(cleaned)
+
+
+def format_message_for_memory(role: Optional[str], text: Optional[str]) -> str:
+    """Preserve user-authored messages verbatim while stripping internal tags from assistant outputs."""
+    raw = text or ""
+    if (role or "").lower() == "user":
+        return raw.strip()
+    return strip_internal_tags(raw)
 
 
 def _truncate_preview(text: str, max_chars: int = PREVIEW_CHARS) -> str:
@@ -537,7 +545,7 @@ class MemorySearchEngine:
             window_rows = before_rows + list(after_rows)
             lines = [f"[Memory Detail | conversation #{rec_id} | session:{session_id} | messages:{len(window_rows)}]"]
             for row in window_rows:
-                clean = strip_internal_tags(row["content"])
+                clean = format_message_for_memory(row["role"], row["content"])
                 marker = " *match*" if row["id"] == rec_id else ""
                 lines.append(f"- [conversation #{row['id']} | {row['timestamp']} | {row['role']}{marker}]\n  {clean}")
             return "\n".join(lines)
@@ -663,7 +671,7 @@ class MemorySearchEngine:
                 ).lower()
                 line = f"- [journal #{row['id']} | {row['timestamp']}] {_truncate_preview(preview)}"
             else:
-                preview = strip_internal_tags(row["content"])
+                preview = format_message_for_memory(row["role"], row["content"])
                 if not preview:
                     continue
                 searchable = preview.lower()

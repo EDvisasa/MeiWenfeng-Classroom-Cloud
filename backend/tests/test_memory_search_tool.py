@@ -695,6 +695,72 @@ def test_memory_search_strips_tool_batch_and_tool_xml_shells():
     assert "<function=" not in expand_conv
 
 
+def test_strip_internal_tags_removes_finalize_mission_and_state_tags():
+    from backend.services.memory_search_engine import strip_internal_tags
+    from backend.services.response_pipeline import clean_memory_text
+
+    raw = (
+        "我眼见你落笔应下这桩学契。\n\n"
+        '<finalize_mission goal="系统研读《滴天髓》" time="每日50分钟" constraints="精读" skill="零基础" course_id="ditiansui_bazi"\n/>\n\n'
+        '<new_course course_id="ditiansui_bazi" title="滴天髓" />\n'
+        '<memory_decay ids="[1,2]" />\n'
+        '<system_pass next_stage="1" />\n'
+        '<property_update mood="gentle" />\n'
+        "茶也温好了，输入 `/lesson` 即可开讲。"
+    )
+
+    for cleaner in (strip_internal_tags, clean_memory_text):
+        cleaned = cleaner(raw)
+        assert "我眼见你落笔应下这桩学契。" in cleaned
+        assert "茶也温好了，输入 `/lesson` 即可开讲。" in cleaned
+        for tag in ("<finalize_mission", "<new_course", "<memory_decay", "<system_pass", "<property_update"):
+            assert tag not in cleaned
+
+
+def test_memory_search_preserves_user_messages_raw_while_stripping_assistant():
+    from backend.services.agent_tools import TOOL_REGISTRY
+
+    conn = get_db_connection()
+    try:
+        conn.execute(
+            "INSERT INTO chat_sessions (id, title, updated_at) VALUES (?, ?, ?)",
+            ("sess-user-raw", "用户消息原样保留测试", "2026-11-24 22:30:00"),
+        )
+        conn.execute(
+            "INSERT INTO chat_messages (id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
+            (
+                301,
+                "sess-user-raw",
+                "user",
+                '为什么 <finalize_mission goal="研读原典" /> 和 <property_update mood="happy" /> 没有渲染？',
+                "2026-11-24 22:30:01",
+            ),
+        )
+        conn.execute(
+            "INSERT INTO chat_messages (id, session_id, role, content, timestamp) VALUES (?, ?, ?, ?, ?)",
+            (
+                302,
+                "sess-user-raw",
+                "assistant",
+                '<think>内部思考</think>回复你：<finalize_mission goal="研读原典" /> 已记录。',
+                "2026-11-24 22:30:02",
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    search_out = TOOL_REGISTRY["search_memory"].execute({"query": "property_update", "target": "conversations"})
+    assert '<property_update mood="happy" />' in search_out
+
+    expand_out = TOOL_REGISTRY["expand_memory"].execute({"source_type": "conversation", "record_id": 301})
+    assert '<finalize_mission goal="研读原典" />' in expand_out
+    assert '<property_update mood="happy" />' in expand_out
+    assert "<think>内部思考</think>" not in expand_out
+    assert "回复你：" in expand_out
+    assert '<finalize_mission goal="研读原典" /> 已记录。' not in expand_out
+
+
 def test_context_manager_strips_tool_batch_shells_from_history_and_archives(mock_rag_client):
     from backend.services.context_manager import build_base_system_prompt, assemble_messages
 

@@ -198,6 +198,8 @@ export function remarkGlossaryTags() {
  * 任何新增的 Markdown 渲染面（聊天气泡 / 讲义卡片 / 知识档案预览弹窗）
  * 都必须复用这里的插件数组，严禁各组件各自拼接插件清单。
  */
+export const userRemarkPlugins = [remarkGfm, remarkMath, remarkDisplayMathFromDoubleDollar];
+
 export const remarkPlugins = [remarkGfm, remarkGlossaryTags, remarkMath, remarkDisplayMathFromDoubleDollar];
 
 export const rehypePlugins = [rehypeKatex];

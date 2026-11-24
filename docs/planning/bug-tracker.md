@@ -11,8 +11,6 @@ domain: project-planning
 
 ## 🔴 当前处理中：待修复 Bug 与架构重构工单 (Active Issues & Refactorings)
 
-*(当前暂无活跃待办缺陷或未拆分重构工单，新增问题将登记在此处。)*
-
 ## 🟢 已闭环归档：Bug 与架构重构成果 (Resolved Archive)
 
 ### 1. [已解决 / 安全沙盒与持久化架构] 数据目录写入与存储机制异常
@@ -545,3 +543,20 @@ domain: project-planning
   3. **右下角圆形悬浮回底按钮 ([ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) / [index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css))**：
      - 离开底部超过 `SCROLL_BTN_THRESHOLD_PX = 120px` 时在聊天区域右下角、输入区上方悬浮渲染紧凑圆形向下箭头按钮 `.scroll-to-bottom-btn`（`34px × 34px`，生成中带右上角提示微点与 tooltip，并与指令/审批卡片互斥防重叠），不遮挡正文阅读区，点击平滑滚到底部；
   4. **TDD 回归闭环**：在 [ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 新增 `TDD 28` 与 `TDD 29` 覆盖流式上滑暂停、点击按钮恢复、手动滚回恢复、切换会话/新提问复位以及行内编辑历史消息不强制拉底；前端 10 个测试文件 101 项单测全部通过，Vite 生产构建成功。
+
+### 53. [已解决 / 目标立项契约渲染、用户发言原样保真与双系统隔离] `<finalize_mission ... />` 卡片渲染、`course_id` 透传与用户消息免清洗隔离
+- **现象描述**：
+  在 `/set_mission` 目标审问收尾阶段，用户在 `MissionProposalCard` 点击确认后，AI 依协议回显 `<finalize_mission goal="..." time="..." constraints="..." skill="..." course_id="..." />`（可能跨行带 `&quot;` 转义）。后端 `FinalizeMissionHandler` 已正常完成建课与结项，但前端未解析 `<finalize_mission>` 导致导师回复气泡裸露完整 XML 字符串，`<mission_proposal>` 缺少 `course_id` 透传；随后 QA 审查进一步指出：确认报文硬编码了角色扮演口癖“好的老婆”，且用户消息与助手共用全局控制标签清洗会导致用户自写或引用 XML/指令文本被误删，后端记忆搜索与压缩也未按角色区分用户发言。
+- **解决路线（方案 A + `/grill-me` 隔离规范闭环）**：
+  1. **导师回复契约卡解析 & 容器防泄漏 ([blockParser.js](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js))**：
+     - 提炼共享的 `decodeXmlAttr`、`parseMissionAttributes` 与 `splitSelfClosingCardSegments`（在 `<quiz>` / `<explainer>` / `<glossary>` 切分之后运行），支持单行、跨行 `/>`、单双引号与 `&quot;` 实体，同时抽取 `mission_proposal` 与 `finalize_mission` 的 `course_id` 字段；
+     - 仅在导师回复等非用户消息路径将 `<finalize_mission ... />` 解析为 `{ type: 'finalize_mission', data, status: 'done' }`，并在 `<explainer>` / `<glossary>` 内部剥离 stray 标签与保持 `<think>` 一级沙盒隔离。
+  2. **用户气泡“零清洗、零卡片拆分”与确认文案去人设化 ([blockParser.js](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.js) / [markdownPlugins.js](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/markdownPlugins.js) / [ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx))**：
+     - 在 `parseAndMergeBlocks` 支持 `{ rawUserMessage: isUser }`，对 `user` 消息直通原文本，不再执行 `stripControlTags` 或 AI 卡片切分，并通过 `userRemarkPlugins`（移除 `remarkGlossaryTags`）保留基础 Markdown/公式/代码与任何用户输入的指令或 XML 原文；
+     - 遵循 [GLOSSARY.md](file:///d:/MeiWenfeng-Classroom/docs/GLOSSARY.md) 双系统隔离铁律，将 `MissionProposalCard` 确认文案改为中性教学表述 `我已确定学习目标<finalize_mission ... />`（[MissionProposalCard.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/MissionProposalCard.jsx) 与 [ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) 保持 `course_id` 透传）；
+     - 新增只读 `MissionFinalizedCard` 组件（`.mission-finalized-card`）及 [index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 亮暗双主题样式。
+  3. **后端记忆检索与压缩按角色隔离 ([memory_search_engine.py](file:///d:/MeiWenfeng-Classroom/backend/services/memory_search_engine.py) / [compact_service.py](file:///d:/MeiWenfeng-Classroom/backend/services/compact_service.py))**：
+     - 保留 [response_pipeline.py](file:///d:/MeiWenfeng-Classroom/backend/services/response_pipeline.py) 的 SSE 透传契约，扩展 `STRIP_INTERNAL_TAGS_RE` 清理 `<finalize_mission>`、`<new_course>`、`<memory_decay>`、`<system_pass>` 与 `<property_update>`；
+     - 提取共享函数 `format_message_for_memory(role, text)`，统一应用于 `search_memory`、 `expand_memory` 与 `compact_service.call_llm_for_summary`，确保 `role == "user"` 的历史发言原样保留，仅对 `assistant` 对话与 `journals` 日记执行 `strip_internal_tags`。
+  4. **TDD 回归闭环**：
+     - 覆盖 [blockParser.test.js](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js)、[MissionProposalCard.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/MissionProposalCard.test.jsx)、[ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)、[test_memory_search_tool.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py) 与 [test_compact.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact.py)；实测前端 11 个测试文件 108 项全部通过、Vite 生产构建成功，后端 `pytest -m "not slow"` 244 项通过（2 项慢测跳过）。

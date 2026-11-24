@@ -7,7 +7,8 @@ const MissionProposalCard = ({ proposalData, onConfirm, onReject }) => {
     goal: '',
     time: '',
     constraints: '',
-    skill: ''
+    skill: '',
+    course_id: ''
   });
   const [feedback, setFeedback] = useState('');
 
@@ -18,7 +19,8 @@ const MissionProposalCard = ({ proposalData, onConfirm, onReject }) => {
         goal: proposalData.goal || '',
         time: proposalData.time || '',
         constraints: proposalData.constraints || '',
-        skill: proposalData.skill || ''
+        skill: proposalData.skill || '',
+        course_id: proposalData.course_id || ''
       });
       setFeedback('');
     }

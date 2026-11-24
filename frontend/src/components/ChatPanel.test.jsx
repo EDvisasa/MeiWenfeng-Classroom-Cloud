@@ -8,7 +8,20 @@ import { COMMANDS } from '../constants/commands';
 // Mock heavy child components and utilities to isolate ChatPanel behavior
 
 vi.mock('./MissionProposalCard', () => ({
-  default: () => <div data-testid="mission-card">Mission</div>
+  default: ({ proposalData, onConfirm }) => (
+    <div data-testid="mission-card">
+      Mission
+      {proposalData && (
+        <button
+          type="button"
+          data-testid="mission-confirm-mock"
+          onClick={() => onConfirm?.(proposalData)}
+        >
+          ConfirmMock
+        </button>
+      )}
+    </div>
+  )
 }));
 
 vi.mock('./QuizBlock', () => ({
@@ -1179,5 +1192,102 @@ describe('ChatPanel Editing Behavior Tests', () => {
     );
     expect(historyEl.scrollTop).toBe(900);
     expect(screen.queryByRole('button', { name: '回到底部' })).not.toBeInTheDocument();
+  });
+});
+
+describe('ChatPanel Finalize Mission Rendering Tests (Bug #53)', () => {
+  const makeBaseProps = (overrides = {}) => ({
+    theme: 'light',
+    messages: [],
+    models: [],
+    activeModel: 'DeepSeek',
+    onEditAndResend: vi.fn(),
+    onEditAiMessage: vi.fn(),
+    chatEndRef: { current: null },
+    inputRef: { current: document.createElement('textarea') },
+    inputText: '',
+    handleInputChange: vi.fn(),
+    handleKeyDown: vi.fn(),
+    sendMessage: vi.fn(),
+    stopGeneration: vi.fn(),
+    isStreaming: false,
+    sessions: [{ id: 's-1', title: '/set_mission' }],
+    activeSessionId: 's-1',
+    ...overrides,
+  });
+
+  it('renders assistant <finalize_mission /> as a finalized contract card while keeping user messages raw and roleplay-free', () => {
+    const assistantMsg = [
+      '我眼见你落笔应下这桩学契。',
+      '',
+      '<finalize_mission goal="系统研读《滴天髓》原典并结合名家批注解析入门" time="每日50分钟" constraints="结合网络名家批注解析资料" skill="零基础小白" course_id="ditiansui_bazi"',
+      '/>',
+      '',
+      '输入 /lesson 即可开讲第一课。',
+    ].join('\n');
+
+    const userMsg =
+      '我已确定学习目标<finalize_mission goal="系统研读《滴天髓》原典并结合名家批注解析入门" time="每日50分钟" constraints="结合网络名家批注解析资料" skill="零基础小白" course_id="ditiansui_bazi" /> 并咨询 <property_update mood="test" /> 与 <glossary term="术语">解释</glossary>';
+
+    const { container } = render(
+      <ChatPanel
+        {...makeBaseProps({
+          messages: [
+            { role: 'user', content: userMsg },
+            { role: 'assistant', content: assistantMsg },
+          ],
+        })}
+      />
+    );
+
+    const cards = container.querySelectorAll('.mission-finalized-card');
+    expect(cards).toHaveLength(1);
+    expect(cards[0]).toHaveTextContent('学习契约已立项');
+    expect(cards[0]).toHaveTextContent('已归档');
+    expect(cards[0]).toHaveTextContent('系统研读《滴天髓》原典并结合名家批注解析入门');
+    expect(cards[0]).toHaveTextContent('每日50分钟');
+    expect(cards[0]).toHaveTextContent('结合网络名家批注解析资料');
+    expect(cards[0]).toHaveTextContent('零基础小白');
+    expect(cards[0]).toHaveTextContent('ditiansui_bazi');
+
+    const markdownNodes = screen.getAllByTestId('react-markdown');
+    const userBubbleMd = markdownNodes.find((el) => el.textContent.includes('我已确定学习目标'));
+    expect(userBubbleMd).toBeTruthy();
+    expect(userBubbleMd).toHaveAttribute('data-has-glossary-plugin', 'false');
+    expect(userBubbleMd.textContent).toContain('<finalize_mission');
+    expect(userBubbleMd.textContent).toContain('<property_update mood="test" />');
+
+    const assistantBubble = container.querySelector('.assistant-msg .message-bubble');
+    expect(assistantBubble).toBeTruthy();
+    expect(assistantBubble.textContent).not.toContain('<finalize_mission');
+    expect(assistantBubble.textContent).toContain('我眼见你落笔应下这桩学契。');
+    expect(assistantBubble.textContent).toContain('输入 /lesson 即可开讲第一课。');
+  });
+
+  it('forwards course_id with neutral teaching confirmation phrasing when MissionProposalCard confirms', () => {
+    const sendMessage = vi.fn();
+    render(
+      <ChatPanel
+        {...makeBaseProps({
+          sendMessage,
+          messages: [
+            {
+              role: 'assistant',
+              content:
+                '<mission_proposal goal="系统研读《滴天髓》" time="每日50分钟" constraints="精读" skill="零基础" course_id="ditiansui_bazi" />',
+            },
+          ],
+        })}
+      />
+    );
+
+    fireEvent.click(screen.getByTestId('mission-confirm-mock'));
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    const sent = sendMessage.mock.calls[0][0];
+    expect(sent).toMatch(/^我已确定学习目标<finalize_mission /);
+    expect(sent).not.toContain('老婆');
+    expect(sent).toContain('goal="系统研读《滴天髓》"');
+    expect(sent).toContain('course_id="ditiansui_bazi"');
   });
 });

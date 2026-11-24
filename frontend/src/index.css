@@ -4540,3 +4540,134 @@ body {
   background: transparent;
   border-bottom: none;
 }
+
+/* ==========================================================================
+   Finalized Mission Contract Card (Bug #53)
+   ========================================================================== */
+.mission-finalized-card {
+  margin: 12px 0;
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: rgba(16, 185, 129, 0.06);
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mission-finalized-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.mission-finalized-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.mission-finalized-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 185, 129, 0.14);
+  color: #059669;
+  flex-shrink: 0;
+}
+
+.mission-finalized-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #047857;
+  letter-spacing: 0.2px;
+}
+
+.mission-finalized-badges {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.mission-finalized-course-id {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 11px;
+  color: var(--text-secondary);
+  background: var(--bg-panel);
+  border: 1px solid var(--border-color);
+  border-radius: 999px;
+  padding: 1px 8px;
+}
+
+.mission-finalized-badge {
+  font-size: 11px;
+  font-weight: 600;
+  color: #047857;
+  background: rgba(16, 185, 129, 0.14);
+  border-radius: 999px;
+  padding: 2px 8px;
+}
+
+.mission-finalized-goal {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  line-height: 1.5;
+  padding-top: 2px;
+}
+
+.mission-finalized-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(16, 185, 129, 0.18);
+}
+
+.mission-finalized-meta-item {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.mission-finalized-meta-label {
+  color: var(--text-secondary);
+  font-weight: 600;
+  flex-shrink: 0;
+  min-width: 56px;
+}
+
+.mission-finalized-meta-value {
+  color: var(--text-primary);
+  word-break: break-word;
+}
+
+.theme-dark .mission-finalized-card {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(52, 211, 153, 0.32);
+}
+
+.theme-dark .mission-finalized-icon {
+  background: rgba(16, 185, 129, 0.22);
+  color: #34d399;
+}
+
+.theme-dark .mission-finalized-title,
+.theme-dark .mission-finalized-badge {
+  color: #34d399;
+}
+
+.theme-dark .mission-finalized-badge {
+  background: rgba(16, 185, 129, 0.2);
+}
+
+.theme-dark .mission-finalized-meta {
+  border-top-color: rgba(52, 211, 153, 0.2);
+}

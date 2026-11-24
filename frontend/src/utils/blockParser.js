@@ -1,4 +1,54 @@
-function stripControlTags(text) {
+function decodeXmlAttr(value) {
+  if (!value) return '';
+  return value
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+function parseMissionAttributes(attrsStr) {
+  const data = { goal: '', time: '', constraints: '', skill: '', course_id: '' };
+  if (!attrsStr) return data;
+  const attrRegex = /\b(goal|time|constraints|skill|course_id)\s*=\s*(?:"([^"]*)"|'([^']*)')/gi;
+  let match;
+  while ((match = attrRegex.exec(attrsStr)) !== null) {
+    const key = match[1].toLowerCase();
+    const rawVal = match[2] ?? match[3] ?? '';
+    data[key] = decodeXmlAttr(rawVal);
+  }
+  return data;
+}
+
+function splitSelfClosingCardSegments(segments, tagName, blockType) {
+  const tagRegex = new RegExp(`<${tagName}\\b([^>]*?)(?:\\s*\\/>|>(?:\\s*<\\/${tagName}>)?)`, 'gi');
+  const result = [];
+  segments.forEach(seg => {
+    if (seg.isQuiz || seg.blockType || seg.isExplainer || seg.isGlossary) {
+      result.push(seg);
+      return;
+    }
+    const subText = seg.content || '';
+    tagRegex.lastIndex = 0;
+    let lastIdx = 0;
+    let match;
+    while ((match = tagRegex.exec(subText)) !== null) {
+      if (match.index > lastIdx) {
+        result.push({ content: subText.substring(lastIdx, match.index) });
+      }
+      result.push({
+        blockType,
+        data: parseMissionAttributes(match[1])
+      });
+      lastIdx = tagRegex.lastIndex;
+    }
+    if (lastIdx < subText.length) {
+      result.push({ content: subText.substring(lastIdx) });
+    }
+  });
+  return result;
+}
+
+function stripControlTags(text, options = {}) {
   if (!text) return '';
   let cleaned = text;
   cleaned = cleaned.replace(/\s*<monologue>((?:(?!<monologue>)[\s\S])*?)(?:<\/monologue>|\/>|$)\s*/gi, '');
@@ -9,11 +59,15 @@ function stripControlTags(text) {
   cleaned = cleaned.replace(/\s*<system_pass\b[^>]*\/?>(\s*<\/system_pass>)?\s*/gi, '');
   cleaned = cleaned.replace(/\s*<memory_decay\b[^>]*\/?>(\s*<\/memory_decay>)?\s*/gi, '');
   cleaned = cleaned.replace(/\s*<new_course\b[^>]*\/?>(\s*<\/new_course>)?\s*/gi, '');
+  if (options.stripFinalizeMission) {
+    cleaned = cleaned.replace(/[ \t]*<finalize_mission\b[^>]*?(?:\s*\/>|>(?:\s*<\/finalize_mission>)?)[ \t]*/gi, '');
+    cleaned = cleaned.replace(/\n{3,}/g, '\n\n').trim();
+  }
   cleaned = cleaned.replace(/\s*\[SYSTEM_PASS\]\s*/gi, '');
   return cleaned;
 }
 
-function parseBodyCards(bodyText) {
+function parseBodyCards(bodyText, options = {}) {
   if (!bodyText) return [];
   let text = bodyText;
 
@@ -26,9 +80,8 @@ function parseBodyCards(bodyText) {
   text = text.replace(/\*\*([^\n]+?)\*\*/g, ' **$1** ');
 
   const quizRegex = /<quiz\b[^>]*>([\s\S]*?)(?:<\/quiz>|$)/gi;
-  const missionRegex = /<mission_proposal([^>]*?)\/?>/gi;
-  const explainerRegex = /<explainer\s+[^>]*?title=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/explainer>|(?!(?:(?!<explainer)[\s\S])*?<\/explainer>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<call_tool\b|<execute_bash\b)|$)/gi;
-  const glossaryRegex = /<glossary\s+[^>]*?term=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/glossary>|(?!(?:(?!<glossary)[\s\S])*?<\/glossary>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<call_tool\b|<execute_bash\b)|$)/gi;
+  const explainerRegex = /<explainer\s+[^>]*?title=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/explainer>|(?!(?:(?!<explainer)[\s\S])*?<\/explainer>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<finalize_mission\b|<call_tool\b|<execute_bash\b)|$)/gi;
+  const glossaryRegex = /<glossary\s+[^>]*?term=(?:"([^"]*)"|'([^']*)'|([^\s>]+))[^>]*?>([\s\S]*?)(?:<\/glossary>|(?!(?:(?!<glossary)[\s\S])*?<\/glossary>)(?=<monologue\b|<property_update\b|<quiz\b|<mission_proposal\b|<finalize_mission\b|<call_tool\b|<execute_bash\b)|$)/gi;
 
   let segments = [];
   let lastQuizIndex = 0;
@@ -43,42 +96,12 @@ function parseBodyCards(bodyText) {
   }
   if (lastQuizIndex < text.length) {
     let remainder = text.substring(lastQuizIndex).replace(/<\/quiz>/g, '');
-    let missionMatch;
-    let lastMissionIndex = 0;
-    let finalSegments = [];
-
-    while ((missionMatch = missionRegex.exec(remainder)) !== null) {
-      if (missionMatch.index > lastMissionIndex) {
-        finalSegments.push({ isQuiz: false, isMission: false, content: remainder.substring(lastMissionIndex, missionMatch.index) });
-      }
-      const attrsStr = missionMatch[1];
-      const goalMatch = attrsStr.match(/goal="([^"]*)"/);
-      const timeMatch = attrsStr.match(/time="([^"]*)"/);
-      const constraintsMatch = attrsStr.match(/constraints="([^"]*)"/);
-      const skillMatch = attrsStr.match(/skill="([^"]*)"/);
-
-      finalSegments.push({
-        isQuiz: false,
-        isMission: true,
-        data: {
-          goal: goalMatch ? goalMatch[1] : '',
-          time: timeMatch ? timeMatch[1] : '',
-          constraints: constraintsMatch ? constraintsMatch[1] : '',
-          skill: skillMatch ? skillMatch[1] : ''
-        }
-      });
-      lastMissionIndex = missionRegex.lastIndex;
-    }
-    if (lastMissionIndex < remainder.length) {
-      finalSegments.push({ isQuiz: false, isMission: false, content: remainder.substring(lastMissionIndex) });
-    }
-
-    segments.push(...finalSegments);
+    segments.push({ isQuiz: false, content: remainder });
   }
 
   let explainerSegments = [];
   segments.forEach(seg => {
-    if (seg.isQuiz || seg.isMission) {
+    if (seg.isQuiz) {
       explainerSegments.push(seg);
       return;
     }
@@ -87,7 +110,7 @@ function parseBodyCards(bodyText) {
     let expMatch;
     while ((expMatch = explainerRegex.exec(subText)) !== null) {
       if (expMatch.index > lastExpIndex) {
-        explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: subText.substring(lastExpIndex, expMatch.index) });
+        explainerSegments.push({ isQuiz: false, isExplainer: false, content: subText.substring(lastExpIndex, expMatch.index) });
       }
       const title = expMatch[1] ?? expMatch[2] ?? expMatch[3] ?? '';
       const content = (expMatch[4] || '').trim();
@@ -95,14 +118,14 @@ function parseBodyCards(bodyText) {
       lastExpIndex = explainerRegex.lastIndex;
     }
     if (lastExpIndex < subText.length) {
-      explainerSegments.push({ isQuiz: false, isMission: false, isExplainer: false, content: subText.substring(lastExpIndex) });
+      explainerSegments.push({ isQuiz: false, isExplainer: false, content: subText.substring(lastExpIndex) });
     }
   });
   segments = explainerSegments;
 
   let glossarySegments = [];
   segments.forEach(seg => {
-    if (seg.isQuiz || seg.isMission || seg.isExplainer) {
+    if (seg.isQuiz || seg.isExplainer) {
       glossarySegments.push(seg);
       return;
     }
@@ -119,7 +142,7 @@ function parseBodyCards(bodyText) {
         continue;
       }
       if (glosMatch.index > lastGlosIndex) {
-        glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: subText.substring(lastGlosIndex, glosMatch.index) });
+        glossarySegments.push({ isQuiz: false, isExplainer: false, isGlossary: false, content: subText.substring(lastGlosIndex, glosMatch.index) });
       }
       const term = glosMatch[1] ?? glosMatch[2] ?? glosMatch[3] ?? '';
       const content = (glosMatch[4] || '').trim();
@@ -127,10 +150,15 @@ function parseBodyCards(bodyText) {
       lastGlosIndex = glossaryRegex.lastIndex;
     }
     if (lastGlosIndex < subText.length) {
-      glossarySegments.push({ isQuiz: false, isMission: false, isExplainer: false, isGlossary: false, content: subText.substring(lastGlosIndex) });
+      glossarySegments.push({ isQuiz: false, isExplainer: false, isGlossary: false, content: subText.substring(lastGlosIndex) });
     }
   });
   segments = glossarySegments;
+
+  segments = splitSelfClosingCardSegments(segments, 'mission_proposal', 'mission_proposal');
+  if (!options.stripFinalizeMission) {
+    segments = splitSelfClosingCardSegments(segments, 'finalize_mission', 'finalize_mission');
+  }
 
   let blocks = [];
   segments.forEach(segment => {
@@ -143,17 +171,17 @@ function parseBodyCards(bodyText) {
         console.error("Failed to parse quiz JSON:", e, "Raw content:", segment.content);
         blocks.push({ type: 'text', text: `<quiz>\n${segment.content}\n</quiz>` });
       }
-    } else if (segment.isMission) {
-      blocks.push({ type: 'mission_proposal', data: segment.data, status: 'done' });
+    } else if (segment.blockType) {
+      blocks.push({ type: segment.blockType, data: segment.data, status: 'done' });
     } else if (segment.isExplainer) {
-      const cleanedContent = stripControlTags(segment.content || '').trim();
+      const cleanedContent = stripControlTags(segment.content || '', { stripFinalizeMission: true }).trim();
       blocks.push({ type: 'explainer', title: segment.title, text: cleanedContent, status: 'done' });
     } else if (segment.isGlossary) {
-      const cleanedContent = stripControlTags(segment.content || '').trim();
+      const cleanedContent = stripControlTags(segment.content || '', { stripFinalizeMission: true }).trim();
       blocks.push({ type: 'glossary', term: segment.term, text: cleanedContent, status: 'done' });
     } else {
       const snippet = (segment.content || '').replace(/<\/think>/g, '').trim();
-      const cleanedSnippet = stripControlTags(snippet);
+      const cleanedSnippet = stripControlTags(snippet, options);
       if (cleanedSnippet) {
         blocks.push({ type: 'text', text: cleanedSnippet });
       }
@@ -162,8 +190,14 @@ function parseBodyCards(bodyText) {
   return blocks;
 }
 
-export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
+export function parseAndMergeBlocks(blocksOrText, isStreaming = false, options = {}) {
   let rawBlocks = Array.isArray(blocksOrText) ? blocksOrText : [{ type: 'text', text: blocksOrText || '' }];
+
+  if (options.rawUserMessage) {
+    return rawBlocks
+      .filter((b) => (b.type === 'text' ? Boolean(b.text) : true))
+      .map((b) => (b.type === 'text' ? { type: 'text', text: b.text } : b));
+  }
 
   // 1. Normalize: Top-Level CoT Isolation (Tier-1)
   let normalized = [];
@@ -181,7 +215,7 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
         // 1. <think> 之前的正文内容
         if (match.index > lastIndex) {
           const preText = text.substring(lastIndex, match.index);
-          const bodyBlocks = parseBodyCards(preText);
+          const bodyBlocks = parseBodyCards(preText, options);
           normalized.push(...bodyBlocks);
         }
 
@@ -202,7 +236,7 @@ export function parseAndMergeBlocks(blocksOrText, isStreaming = false) {
       // 3. 最后一个 <think> 之后的剩余正文内容
       if (lastIndex < text.length) {
         const postText = text.substring(lastIndex);
-        const bodyBlocks = parseBodyCards(postText);
+        const bodyBlocks = parseBodyCards(postText, options);
         normalized.push(...bodyBlocks);
       }
     } else {

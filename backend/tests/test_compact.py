@@ -140,3 +140,50 @@ def test_slash_compact_command_via_testclient():
                 except Exception:
                     pass
         assert "浓缩" in full_assembled or "xml" in full_assembled.lower() or "纪要" in full_assembled
+
+
+def test_call_llm_for_summary_preserves_user_raw_and_strips_assistant_internal_tags():
+    """Verify compaction strips internal control tags from assistant messages only, keeping user messages verbatim."""
+    from backend.services.compact_service import call_llm_for_summary
+
+    captured = {}
+
+    class _FakeChoice:
+        def __init__(self):
+            self.message = MagicMock(content="【前情提要】已汇总。")
+
+    class _FakeCompletions:
+        def create(self, **kwargs):
+            captured["messages"] = kwargs["messages"]
+            return MagicMock(choices=[_FakeChoice()])
+
+    class _FakeClient:
+        def __init__(self, **kwargs):
+            self.chat = MagicMock(completions=_FakeCompletions())
+
+    fake_model = {
+        "protocol": "openai",
+        "base_url": "http://127.0.0.1:8080/v1",
+        "api_key": "",
+        "name": "test-model",
+        "selected_model_id": "test-id",
+    }
+
+    with patch("backend.services.compact_service.get_active_model", return_value=fake_model), patch(
+        "backend.services.compact_service.OpenAI", _FakeClient
+    ):
+        call_llm_for_summary([
+            {
+                "role": "user",
+                "content": '我已确定学习目标<finalize_mission goal="测试" /> 且讨论 <property_update mood="ok" />',
+            },
+            {
+                "role": "assistant",
+                "content": '<think>隐藏推理</think>已收到。<finalize_mission goal="测试" /><property_update affection_delta="0" />',
+            },
+        ])
+
+    user_prompt = captured["messages"][1]["content"]
+    assert '[USER]: 我已确定学习目标<finalize_mission goal="测试" /> 且讨论 <property_update mood="ok" />' in user_prompt
+    assert '[ASSISTANT]: 已收到。' in user_prompt
+    assert '隐藏推理' not in user_prompt

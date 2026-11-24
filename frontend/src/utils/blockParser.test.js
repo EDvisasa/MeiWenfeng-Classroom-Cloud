@@ -273,4 +273,104 @@ Glossary text.
     expect(result[0].text).toContain('<glossary term="Looped Transformer">循环层架构说明</glossary>');
     expect(result[0].text).toContain('**术语前缀：<glossary term="MoE">混合专家</glossary>**');
   });
+
+  // Behavior 15: Bug #53 (parse multiline <finalize_mission /> with course_id and entities into a structured card block)
+  it('should parse single-line and multiline <finalize_mission /> tags into finalize_mission card blocks between text', () => {
+    const input = [
+      '我眼见你落笔应下这桩学契。',
+      '',
+      '<finalize_mission goal="系统研读《滴天髓》&quot;原典&quot;" time="每日50分钟" constraints="结合名家批注" skill="零基础小白" course_id="ditiansui_bazi"',
+      '/>',
+      '',
+      '输入 `/lesson` 即可开讲第一课。'
+    ].join('\n');
+
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      {
+        type: 'text',
+        text: '我眼见你落笔应下这桩学契。'
+      },
+      {
+        type: 'finalize_mission',
+        data: {
+          goal: '系统研读《滴天髓》"原典"',
+          time: '每日50分钟',
+          constraints: '结合名家批注',
+          skill: '零基础小白',
+          course_id: 'ditiansui_bazi'
+        },
+        status: 'done'
+      },
+      {
+        type: 'text',
+        text: '输入 `/lesson` 即可开讲第一课。'
+      }
+    ]);
+  });
+
+  // Behavior 16: preserve raw user messages completely intact (no control-tag stripping or card splitting)
+  it('should keep raw user messages untouched without stripping control tags or splitting cards when rawUserMessage is true', () => {
+    const input = '我已确定学习目标<finalize_mission goal="研读原典" time="每日50分钟" constraints="精读" skill="入门" course_id="ditiansui_bazi" /> 并保留 `<property_update />` 和 <monologue>引用</monologue> 与 **粗体**';
+
+    const result = parseAndMergeBlocks(input, false, { rawUserMessage: true });
+
+    expect(result).toEqual([
+      {
+        type: 'text',
+        text: input
+      }
+    ]);
+  });
+
+  // Behavior 17: Bug #53 (propagate course_id in <mission_proposal />)
+  it('should extract course_id from <mission_proposal /> along with standard attributes', () => {
+    const input = '请确认草案：<mission_proposal goal="系统研读《滴天髓》" time="每日50分钟" constraints="结合批注" skill="零基础" course_id="ditiansui_bazi" />';
+
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      {
+        type: 'text',
+        text: '请确认草案：'
+      },
+      {
+        type: 'mission_proposal',
+        data: {
+          goal: '系统研读《滴天髓》',
+          time: '每日50分钟',
+          constraints: '结合批注',
+          skill: '零基础',
+          course_id: 'ditiansui_bazi'
+        },
+        status: 'done'
+      }
+    ]);
+  });
+
+  // Behavior 18: Bug #53 (Tier-1 <think> isolation & defense-in-depth stripping inside <explainer>/<glossary>)
+  it('should isolate <finalize_mission /> inside <think> and strip stray <finalize_mission /> inside containers', () => {
+    const input = `<think>Draft <finalize_mission goal="draft" time="10m" constraints="none" skill="low" /></think>
+<explainer title="Notes">
+Content inside explainer.
+<finalize_mission goal="stray" time="10m" constraints="none" skill="low" />
+</explainer>`;
+
+    const result = parseAndMergeBlocks(input, false);
+
+    expect(result).toEqual([
+      {
+        type: 'thinking',
+        text: 'Draft <finalize_mission goal="draft" time="10m" constraints="none" skill="low" />',
+        status: 'done'
+      },
+      {
+        type: 'explainer',
+        title: 'Notes',
+        text: 'Content inside explainer.',
+        status: 'done'
+      }
+    ]);
+  });
 });
