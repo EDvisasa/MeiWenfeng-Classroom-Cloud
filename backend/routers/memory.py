@@ -329,20 +329,49 @@ def update_session_course(session_id: str, payload: dict):
 
 @router.delete("/sessions/{session_id}")
 def delete_session(session_id: str):
-    """删除指定的聊天会话及其消息（openclaw_trio_chat 永久保护不予删除）"""
+    """删除指定的聊天会话及其消息，并同步作废关联记忆与清理向量切片（openclaw_trio_chat 永久保护不予删除）"""
     if session_id == "openclaw_trio_chat":
         raise HTTPException(status_code=403, detail="【小白有话说...】为永久专属三人会话，禁止删除。")
 
     try:
         conn = get_db_connection()
         cursor = conn.cursor()
-        
-        # 删除会话和消息
+
+        # 1. 收集并作废该会话产生的所有未回滚记忆及对应 Chroma 向量
+        cursor.execute(
+            "SELECT id, chroma_doc_id FROM memory_logs WHERE session_id = ? AND COALESCE(status, 'active') != 'rolled_back'",
+            (session_id,),
+        )
+        mem_rows = cursor.fetchall()
+        mem_ids = [r["id"] for r in mem_rows]
+        chroma_doc_ids = [r["chroma_doc_id"] for r in mem_rows if r["chroma_doc_id"]]
+
+        if mem_ids:
+            placeholders = ",".join("?" for _ in mem_ids)
+            cursor.execute(f"UPDATE memory_logs SET status = 'rolled_back' WHERE id IN ({placeholders})", mem_ids)
+
+        deleted_chroma_count = 0
+        if chroma_doc_ids:
+            try:
+                from backend.services.rag_factory import get_rag_client
+                rag_client = get_rag_client()
+                for cid in chroma_doc_ids:
+                    if rag_client.delete_memory(cid):
+                        deleted_chroma_count += 1
+            except Exception as rag_err:
+                logger.error(f"Failed to delete Chroma memories for session {session_id}: {rag_err}")
+
+        # 2. 删除会话和消息
         cursor.execute("DELETE FROM chat_messages WHERE session_id = ?", (session_id,))
         cursor.execute("DELETE FROM chat_sessions WHERE id = ?", (session_id,))
         conn.commit()
         conn.close()
-        return {"status": "success", "session_id": session_id}
+        return {
+            "status": "success",
+            "session_id": session_id,
+            "invalidated_memory_count": len(mem_ids),
+            "deleted_chroma_count": deleted_chroma_count,
+        }
     except Exception as e:
         logger.error(f"Failed to delete session {session_id}: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -427,17 +456,17 @@ def rollback_session_step(session_id: str, payload: Optional[RollbackStepPayload
 
         if actual_user:
             user_snippet = actual_user["content"][:40]
-            # 1. 优先根据 session_id 且内容严格匹配该轮用户提问
+            # 1. 优先根据 session_id 且内容严格匹配该轮用户提问（兼容已压缩为 compressed 的历史记录）
             cursor.execute(
-                "SELECT id, chroma_doc_id, content FROM memory_logs WHERE session_id = ? AND status = 'active' AND content LIKE ? ORDER BY id DESC LIMIT 1",
+                "SELECT id, chroma_doc_id, content FROM memory_logs WHERE session_id = ? AND COALESCE(status, 'active') IN ('active', 'compressed') AND content LIKE ? ORDER BY id DESC LIMIT 1",
                 (session_id, f"%用户：{user_snippet}%")
             )
             mem_row = cursor.fetchone()
 
-            # 2. 备用安全匹配：若未按前缀匹配到，核验当前会话最新一条 active 记忆是否确属本轮
+            # 2. 备用安全匹配：若未按前缀匹配到，核验当前会话最新一条未回滚记忆是否确属本轮
             if not mem_row:
                 cursor.execute(
-                    "SELECT id, chroma_doc_id, content FROM memory_logs WHERE session_id = ? AND status = 'active' ORDER BY id DESC LIMIT 1",
+                    "SELECT id, chroma_doc_id, content FROM memory_logs WHERE session_id = ? AND COALESCE(status, 'active') IN ('active', 'compressed') ORDER BY id DESC LIMIT 1",
                     (session_id,)
                 )
                 candidate_row = cursor.fetchone()

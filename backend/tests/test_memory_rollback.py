@@ -243,3 +243,84 @@ def test_rollback_step_with_interspersed_system_info_and_multiple_turns():
     conn.close()
 
 
+def test_rollback_step_handles_already_compressed_memory():
+    """若该轮在回滚前已被浓缩为 compressed，撤回时仍必须软标记为 rolled_back 并清理 Chroma 向量。"""
+    session_id = "sess_compressed_rollback"
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO chat_sessions (id, title) VALUES (?, ?)", (session_id, "已浓缩回滚"))
+    cursor.execute("INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'user', '已浓缩的问题')", (session_id,))
+    cursor.execute("INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'assistant', '已浓缩的回答')", (session_id,))
+    cursor.execute(
+        "INSERT INTO memory_logs (content, level, status, session_id, chroma_doc_id) VALUES (?, 0, 'compressed', ?, ?)",
+        ("【对话记录】\n用户：已浓缩的问题\n媚吻锋：已浓缩的回答", session_id, "doc_compressed_1"),
+    )
+    mem_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    with patch("backend.services.rag_factory.get_rag_client") as mock_get_rag:
+        mock_rag = MagicMock()
+        mock_rag.delete_memory.return_value = True
+        mock_get_rag.return_value = mock_rag
+
+        resp = client.post(
+            f"/api/chat/sessions/{session_id}/rollback_step",
+            json={"expected_user_msg": "已浓缩的问题", "expected_assistant_msg": "已浓缩的回答"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["invalidated_memory_id"] == mem_id
+        assert resp.json()["deleted_chroma"] is True
+        mock_rag.delete_memory.assert_called_once_with("doc_compressed_1")
+
+    conn = get_db_connection()
+    status = conn.execute("SELECT status FROM memory_logs WHERE id = ?", (mem_id,)).fetchone()[0]
+    conn.close()
+    assert status == "rolled_back"
+
+
+def test_delete_session_cascades_memory_invalidation_and_chroma_cleanup():
+    """删除整个会话时，同步将关联的 active/compressed memory_logs 标记为 rolled_back 并批量清理 Chroma 向量。"""
+    session_id = "sess_full_delete_1"
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR REPLACE INTO chat_sessions (id, title) VALUES (?, ?)", (session_id, "整会话删除"))
+    cursor.execute("INSERT INTO chat_messages (session_id, role, content) VALUES (?, 'user', '会话消息A')", (session_id,))
+    cursor.execute(
+        "INSERT INTO memory_logs (content, level, status, session_id, chroma_doc_id) VALUES (?, 0, 'active', ?, ?)",
+        ("记忆A", session_id, "doc_sess_a"),
+    )
+    mem_a = cursor.lastrowid
+    cursor.execute(
+        "INSERT INTO memory_logs (content, level, status, session_id, chroma_doc_id) VALUES (?, 0, 'compressed', ?, ?)",
+        ("记忆B", session_id, "doc_sess_b"),
+    )
+    mem_b = cursor.lastrowid
+    conn.commit()
+    conn.close()
+
+    with patch("backend.services.rag_factory.get_rag_client") as mock_get_rag:
+        mock_rag = MagicMock()
+        mock_rag.delete_memory.return_value = True
+        mock_get_rag.return_value = mock_rag
+
+        resp = client.delete(f"/api/chat/sessions/{session_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["invalidated_memory_count"] == 2
+        assert data["deleted_chroma_count"] == 2
+        assert mock_rag.delete_memory.call_count == 2
+        mock_rag.delete_memory.assert_any_call("doc_sess_a")
+        mock_rag.delete_memory.assert_any_call("doc_sess_b")
+
+    conn = get_db_connection()
+    statuses = [
+        r[0]
+        for r in conn.execute("SELECT status FROM memory_logs WHERE id IN (?, ?) ORDER BY id", (mem_a, mem_b)).fetchall()
+    ]
+    msg_cnt = conn.execute("SELECT COUNT(*) FROM chat_messages WHERE session_id = ?", (session_id,)).fetchone()[0]
+    conn.close()
+    assert statuses == ["rolled_back", "rolled_back"]
+    assert msg_cnt == 0
+
+

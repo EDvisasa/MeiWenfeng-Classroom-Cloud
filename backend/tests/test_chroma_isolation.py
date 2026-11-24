@@ -59,3 +59,33 @@ def test_mock_rag_client_zero_touch(mock_rag_client):
     doc_id = rag.save_memory("测试用户", "测试助手")
     assert doc_id == "mock_doc_id_999"
     assert rag.delete_memory(doc_id) is True
+
+
+def test_retrieve_memory_excludes_rolled_back_sql_records(tmp_path):
+    """验证读时兜底过滤：即使 Chroma 中仍残留向量，只要 SQLite memory_logs 为 rolled_back，retrieve_memory 也不予召回"""
+    from backend.database import get_db_connection
+
+    conn = get_db_connection()
+    conn.execute(
+        "INSERT INTO memory_logs (content, level, status, session_id, chroma_doc_id) VALUES (?, 0, 'rolled_back', 's1', 'doc_rb_1')",
+        ("已被撤回的假记忆",),
+    )
+    conn.execute(
+        "INSERT INTO memory_logs (content, level, status, session_id, chroma_doc_id) VALUES (?, 0, 'active', 's1', 'doc_ok_1')",
+        ("正常的有效记忆",),
+    )
+    conn.commit()
+    conn.close()
+
+    rag = ChromaRAGClient()
+    mock_col = MagicMock()
+    mock_col.count.return_value = 2
+    mock_col.query.return_value = {
+        "ids": [["doc_rb_1", "doc_ok_1"]],
+        "documents": [["【对话记录】已撤回内容", "【对话记录】正常有效内容"]],
+        "distances": [[0.22, 0.35]],
+    }
+    with patch.object(rag, "_get_collection", return_value=mock_col):
+        docs = rag.retrieve_memory("测试查询", n_results=3)
+
+    assert docs == ["【对话记录】正常有效内容"]

@@ -38,6 +38,10 @@ All notable changes to this project will be documented in this file.
   - 将 [`backend/services/context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/context_manager.py) 动态尾部的 `<active_atmosphere_mode>` 指针收束为纯英文凝练提示，不与内置 ZPD/测验/工具规范重复且降低动态 Token 占用；同步更新 [`backend/tests/test_context_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_context_manager.py) 断言。
 
 ### Fixed
+- **向量记忆回滚双防线、删会话联动清理与历史测试污染清库 (Bug #57)**:
+  - 在 [`backend/services/chroma_client.py`](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py) 为 `retrieve_memory` 增加读时 `status = 'rolled_back'` 过滤兜底（`_get_rolled_back_doc_ids` + 过采样剔除）；
+  - 在 [`backend/routers/memory.py`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py) 扩展 `rollback_session_step` 同时覆盖已压缩的 `compressed` 记忆，并为 `DELETE /sessions/{session_id}` 增加 `memory_logs` 批量失效与 Chroma 向量级联清理；
+  - 备份后精确清除 Chroma 中 `39` 条测试/幽灵向量、`test_physical_threshold_bug_10` 集合并将 `16` 条 SQLite 测试记忆标记 `'rolled_back'`（[`test_memory_rollback.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_rollback.py)、[`test_chroma_isolation.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_chroma_isolation.py)）。
 - **教学指令生活模式先询问切换研学再回复 & `/end_lesson` UI 补全 (Bug #56)**:
   - 在 [`frontend/src/constants/commands.js`](file:///d:/MeiWenfeng-Classroom/frontend/src/constants/commands.js) 注册 `/end_lesson` 使其在输入 `/` 联想补全与 ⚡ 快捷指令菜单中始终可见（描述与 `全局日常记录文件` 对齐，同步更新 [`backend/services/slash_handler.py`](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py) 下课提示文案），并导出按首词精准匹配的 `isTeachingStudyCommand`（覆盖 `/lesson`、`/plan`、`/submit`、`/set_mission`）；
   - 在 [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx)、[`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) 与 [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 实现生活模式发送上述教学指令前的阻塞确认卡片（`.atmosphere-confirm-card`，提供「切换为研学并执行」/「保持生活继续」/「取消」），并在确认切换后立即以 `study` 发起当次对话请求。

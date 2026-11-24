@@ -611,3 +611,17 @@ domain: project-planning
      - 选择 **「切换为研学并执行」** 时同步更新开关、`localStorage` 与系统提示，并通过显式 `atmosphereMode` 覆盖绕过 React 异步状态延迟，确保当次 `/api/chat/send` 请求立即按 `study` 模式生成回复；选择 **「保持生活继续」** 则按 `daily` 直接继续。
   3. **TDD 回归闭环**：
      - 扩展 [ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 与 [App.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.test.jsx) 覆盖 `/end_lesson` 联想选择、4 条教学指令拦截、`/lesson_continue` 不误拦、取消回填与即时 `study`/`daily` 发包断言；实测前端 `11` 个测试文件 `116` 项用例全部通过（`4.78s`）、Vite 生产构建通过（`441ms`），后端 `pytest -m "not slow"` `249` 项通过（`2` 项慢测跳过）。
+
+### 57. [已解决 / 向量回滚双防线与测试污染清理] 修复已撤回/已压缩/删会话记忆仍可能被向量联想召回的漏洞并清除历史测试污染
+- **现象描述**：
+  1. 对话发送 `/lesson` 时，顶部 `<retrieved_past_memory_archives>` 持续召回 `2026-10-26 ~ 2026-11-13` 期间留存的 `23` 条幽灵测试向量（`用户：/lesson | 媚吻锋：授课内容开始 第一节课内容。`）；库内另存 `TDD_TOOL_TEST_SUCCESS`、`Hello tutor` 等探针记录与 `test_physical_threshold_bug_10` 测试 Collection；
+  2. 原先 [`retrieve_memory`](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py#L408-L456) 不校验 SQLite `status = 'rolled_back'`，[`rollback_session_step`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py#L354-L481) 仅匹配 `status = 'active'`（遗漏已浓缩的 `'compressed'` 记录），且 [`delete_session`](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py#L330-L368) 删除会话时不清理 `memory_logs` 与 Chroma 向量。
+- **解决路线**：
+  1. **读时防线 ([chroma_client.py](file:///d:/MeiWenfeng-Classroom/backend/services/chroma_client.py))**：为 `ChromaRAGClient.retrieve_memory` 新增 `_get_rolled_back_doc_ids` 与过采样过滤，召回候选后对照 SQLite `memory_logs` 过滤 `status = 'rolled_back'` 关联的 `chroma_doc_id`。
+  2. **回滚与整会话清理加固 ([routers/memory.py](file:///d:/MeiWenfeng-Classroom/backend/routers/memory.py))**：
+     - `rollback_session_step` 将匹配范围扩展至 `COALESCE(status, 'active') IN ('active', 'compressed')`，使已浓缩轮次在撤回时同样软失效并删除 Chroma 向量；
+     - `DELETE /sessions/{session_id}` 删除会话时联动将同 `session_id` 的未回滚 `memory_logs` 标为 `'rolled_back'` 并批量物理清理对应 Chroma 向量。
+  3. **安全备份与精确清库**：
+     - 先全量备份 [`backend/classroom.db`](file:///d:/MeiWenfeng-Classroom/backend/classroom.db) 与 [`backend/rag_index/chroma`](file:///d:/MeiWenfeng-Classroom/backend/rag_index/chroma)，再将 `16` 条已核实的测试 `memory_logs` 标为 `'rolled_back'`、物理删除 `conversation_memory` 内 `39` 条测试/幽灵向量（含 `23` 条 `/lesson 授课内容开始...`、`8` 条 `TDD_TOOL_TEST_SUCCESS` 及 `8` 条英文探针向量）并删除 `test_physical_threshold_bug_10` 集合，同时零误伤 6~11 月无 `chroma_doc_id` 的真实日常记忆。
+  4. **TDD 回归闭环**：
+     - 新增 [test_memory_rollback.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_rollback.py) 与 [test_chroma_isolation.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_chroma_isolation.py) 三项防护用例；实测后端 `pytest -m "not slow" -q` 共 `252` 项通过（`2` 项慢测跳过）。

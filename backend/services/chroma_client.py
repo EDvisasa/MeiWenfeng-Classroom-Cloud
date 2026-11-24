@@ -405,21 +405,56 @@ class ChromaRAGClient(RAGClient):
             print(f"ChromaDB delete_memory error: {e}")
             return False
 
+    @staticmethod
+    def _get_rolled_back_doc_ids(candidate_ids: List[str]) -> set:
+        """查询候选向量 ID 中已在 SQLite 标记为 rolled_back 的集合，防止漏删向量继续被召回"""
+        valid_ids = [did for did in candidate_ids if did]
+        if not valid_ids:
+            return set()
+        try:
+            from backend.database import get_db_connection
+            conn = get_db_connection()
+            try:
+                placeholders = ",".join("?" for _ in valid_ids)
+                rows = conn.execute(
+                    f"SELECT chroma_doc_id FROM memory_logs WHERE status = 'rolled_back' AND chroma_doc_id IN ({placeholders})",
+                    valid_ids,
+                ).fetchall()
+                return {r[0] for r in rows if r and r[0]}
+            finally:
+                conn.close()
+        except Exception:
+            return set()
+
     def retrieve_memory(self, query: str, n_results: int = 3) -> List[str]:
-        """单独从对话记忆 collection 检索（供外部直接调用）"""
+        """单独从对话记忆 collection 检索（自动过滤已回滚记录，供上下文召回调用）"""
         try:
             self._ensure_client()
             collection = self._get_collection("conversation_memory")
             count = collection.count()
             if count == 0:
                 return []
-            results = collection.query(query_texts=[query], n_results=min(n_results, count), include=["documents", "distances"])
+            fetch_k = min(max(n_results * 3, n_results + 5), count)
+            results = collection.query(query_texts=[query], n_results=fetch_k, include=["documents", "distances"])
             docs = results.get("documents", [[]])[0]
             distances = results.get("distances", [[]])[0]
+            doc_ids = results.get("ids", [[]])[0] if results.get("ids") else [None] * len(docs)
+            if len(doc_ids) < len(docs):
+                doc_ids = list(doc_ids) + [None] * (len(docs) - len(doc_ids))
+
             if distances and len(distances) == len(docs):
                 # 物理区间校准阈值 (Bug #10): 收敛阈值设定为 0.75
-                docs = [doc for doc, dist in zip(docs, distances) if dist <= 0.75]
-            return docs
+                candidates = [
+                    (did, doc)
+                    for did, doc, dist in zip(doc_ids, docs, distances)
+                    if dist <= 0.75
+                ]
+            else:
+                candidates = list(zip(doc_ids, docs))
+
+            rolled_back_ids = self._get_rolled_back_doc_ids([did for did, _ in candidates if did])
+            filtered = [doc for did, doc in candidates if not did or did not in rolled_back_ids]
+            return filtered[:n_results]
         except Exception as e:
             print(f"ChromaDB retrieve_memory error: {e}")
             return []
