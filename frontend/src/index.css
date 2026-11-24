@@ -3203,6 +3203,113 @@ body {
   background: rgba(234, 179, 8, 0.15);
 }
 
+.mission-status-badge.locked {
+  color: #0284c7;
+  background: rgba(2, 132, 199, 0.12);
+}
+
+.mission-card-interactive {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.mission-card-interactive:hover {
+  border-color: rgba(236, 72, 153, 0.45);
+  box-shadow: 0 3px 10px rgba(236, 72, 153, 0.08);
+}
+
+.mission-card-expanded {
+  border-color: rgba(236, 72, 153, 0.5);
+}
+
+.mission-card-trigger {
+  outline: none;
+}
+
+.mission-card-trigger.clickable {
+  cursor: pointer;
+}
+
+.mission-card-header-right {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.mission-card-header-right .mission-time-chip {
+  margin-left: 0;
+}
+
+.mission-card-switch-hint {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 1px 4px;
+  border-radius: 6px;
+}
+
+.mission-selected-course-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 3px;
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mission-course-drawer {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 8px;
+  padding: 6px;
+  background: var(--bg-secondary);
+  border: 1px solid var(--border-color);
+  border-radius: 6px;
+}
+
+.mission-course-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.35;
+  cursor: pointer;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+
+.mission-course-option:hover {
+  background: var(--bg-tertiary);
+}
+
+.mission-course-option.selected {
+  background: rgba(236, 72, 153, 0.1);
+  border-color: rgba(236, 72, 153, 0.35);
+  color: var(--accent-pink);
+  font-weight: 600;
+}
+
+.mission-course-option-name {
+  flex: 1;
+  min-width: 0;
+  word-break: break-word;
+}
+
+.mission-course-option-check {
+  flex-shrink: 0;
+}
+
 .mission-time-chip {
   display: inline-flex;
   align-items: center;
@@ -3539,13 +3646,16 @@ body {
   align-items: center;
   gap: 8px;
   font-size: 13px;
-  flex: 1;
-  max-width: 440px;
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 560px;
 }
 
 .kl-selector-label {
   color: var(--text-muted);
   font-size: 12px;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .kl-course-select {
@@ -3558,6 +3668,12 @@ body {
   outline: none;
   cursor: pointer;
   transition: border-color 0.15s;
+  flex: 0 1 340px;
+  min-width: 140px;
+  max-width: 340px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kl-course-select:focus {
@@ -3575,6 +3691,8 @@ body {
   padding: 4px 10px;
   font-size: 12px;
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
   transition: all 0.15s;
 }
 

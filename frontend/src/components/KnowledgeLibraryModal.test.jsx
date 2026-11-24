@@ -14,7 +14,7 @@ vi.mock('react-syntax-highlighter/dist/esm/styles/prism', () => ({
 
 describe('KnowledgeLibraryModal Component (TDD - Zero Emoji & Course Isolation)', () => {
   const mockCourses = [
-    { id: 'default', name: '全局基础课程 (通用)', is_default: true },
+    { id: 'default', name: '全局日常记录文件（通用）', is_default: true },
     { id: 'navier-stokes', name: 'Navier-Stokes 方程爆破课题', is_default: false }
   ];
 
@@ -297,5 +297,44 @@ describe('KnowledgeLibraryModal Component (TDD - Zero Emoji & Course Isolation)'
     fireEvent.click(handleBtn);
     expect(sidebar).not.toHaveClass('collapsed');
     expect(handleBtn).not.toHaveClass('collapsed');
+  });
+
+  it('10. Syncs to initialCourseId when reopened and strips redundant suffix for 1-to-1 course names', async () => {
+    const handleCourseCreated = vi.fn();
+    const { rerender } = render(
+      <KnowledgeLibraryModal
+        isOpen={false}
+        onClose={vi.fn()}
+        initialCourseId="default"
+        onCourseCreated={handleCourseCreated}
+      />
+    );
+
+    rerender(
+      <KnowledgeLibraryModal
+        isOpen={true}
+        onClose={vi.fn()}
+        initialCourseId="navier-stokes"
+        onCourseCreated={handleCourseCreated}
+      />
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('0001-Navier-Stokes推导')).toBeInTheDocument();
+    });
+
+    const courseSelect = screen.getByRole('combobox', { name: '切换课程课题' });
+    expect(courseSelect).toHaveValue('navier-stokes');
+    expect(screen.getByRole('option', { name: '全局日常记录文件（通用）' })).toBeInTheDocument();
+
+    // Create a new course inside modal triggers onCourseCreated sync callback
+    fireEvent.click(screen.getByRole('button', { name: /新建课题/ }));
+    fireEvent.change(screen.getByPlaceholderText(/navier-stokes 或 quantum-computing/i), { target: { value: 'quantum' } });
+    fireEvent.change(screen.getByPlaceholderText(/Navier-Stokes 有限时间爆破课题/i), { target: { value: '量子计算课题' } });
+    fireEvent.click(screen.getByRole('button', { name: '创建课程空间' }));
+
+    await waitFor(() => {
+      expect(handleCourseCreated).toHaveBeenCalledWith({ id: 'quantum', name: '量子计算课题' });
+    });
   });
 });

@@ -19,9 +19,6 @@ class MissionManager:
             else:
                 cursor.execute("SELECT mission_text FROM user_mission WHERE course_id = ? ORDER BY id DESC LIMIT 1", (cid,))
             row = cursor.fetchone()
-            if not row and cid == "default":
-                cursor.execute("SELECT mission_text FROM user_mission WHERE id = 1")
-                row = cursor.fetchone()
             if row and row["mission_text"]:
                 mission_text = row["mission_text"]
             conn.close()
@@ -114,7 +111,7 @@ class MissionManager:
         course_id: str | None = None,
         course_name: str | None = None
     ):
-        from backend.services.course_manager import set_active_course_id, create_course as db_create_course
+        from backend.services.course_manager import set_active_course_id, set_selected_course_id, create_course as db_create_course
         from backend.services.materials_manager import MaterialsManager
 
         cid = course_id if course_id and course_id != "default" else None
@@ -186,7 +183,8 @@ class MissionManager:
                 with open(ldr_file, "w", encoding="utf-8") as f:
                     f.write(ldr_content)
 
-            # 3. Activate the course
+            # 3. Activate the course (and remember it as selected preview target)
+            set_selected_course_id(cid or "default")
             set_active_course_id(cid or "default")
 
             logger.info(f"Mission finalized and written to DB & file system for course {cid or 'default'}.")

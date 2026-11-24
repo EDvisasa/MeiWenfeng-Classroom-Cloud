@@ -8,16 +8,12 @@ from backend.main import app
 client = TestClient(app)
 
 @pytest.fixture(autouse=True)
-def cleanup_test_courses():
-    """Ensure test-created courses are cleaned up after each test."""
+def cleanup_test_courses(tmp_path, monkeypatch):
+    """Isolate MaterialsManager root to tmp_path so tests never write to production data/materials."""
+    isolated_materials = str(tmp_path / "materials")
+    os.makedirs(isolated_materials, exist_ok=True)
+    monkeypatch.setattr(MaterialsManager, "_get_base_materials_dir", classmethod(lambda cls: isolated_materials))
     yield
-    base_materials = MaterialsManager._get_materials_dir()
-    test_dirs = ["test_course_a", "test_course_b", "tdd_course"]
-    courses_dir = os.path.join(base_materials, "courses")
-    for td in test_dirs:
-        p = os.path.join(courses_dir, td)
-        if os.path.exists(p):
-            shutil.rmtree(p, ignore_errors=True)
 
 def test_list_courses_contains_default():
     """Default global course must always be present."""

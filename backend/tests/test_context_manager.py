@@ -386,6 +386,7 @@ def test_atmosphere_mode_injection_issue_48():
     assert bundle_daily.atmosphere_mode == "daily"
     assert "[MODE: DAILY / 生活模式]" in bundle_daily.static_system_prompt
     assert "[MODE: STUDY / 研学模式]" in bundle_daily.static_system_prompt
+    assert 'Do not mistake smooth reading ("fluency") for mastery' in bundle_daily.static_system_prompt
 
     bundle_study, _, _ = build_base_system_prompt(atmosphere_mode="study")
     assert bundle_study.atmosphere_mode == "study"
@@ -394,12 +395,12 @@ def test_atmosphere_mode_injection_issue_48():
     messages = [{"role": "user", "content": "今天吃什么"}]
     assembled_daily = assemble_messages(messages, bundle_daily)
     last_content_daily = assembled_daily[-1]["content"]
-    assert "<active_atmosphere_mode>DAILY (生活模式" in last_content_daily
+    assert "<active_atmosphere_mode>DAILY (warm domestic companion & everyday analogies)</active_atmosphere_mode>" in last_content_daily
 
     # 3. 验证 assemble_messages 尾部注入的研学模式标签
     assembled_study = assemble_messages(messages, bundle_study)
     last_content_study = assembled_study[-1]["content"]
-    assert "<active_atmosphere_mode>STUDY (研学模式" in last_content_study
+    assert "<active_atmosphere_mode>STUDY (source-grounded rigor, 1 concept per turn, prioritize recall over fluency)</active_atmosphere_mode>" in last_content_study
 
 
 def test_kv_cache_minute_time_and_static_first_ordering():

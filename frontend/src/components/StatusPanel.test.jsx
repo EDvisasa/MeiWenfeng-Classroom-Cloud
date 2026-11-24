@@ -195,4 +195,90 @@ describe('StatusPanel Behavior Tests (ISSUE-56 Phase 1)', () => {
     expect(screen.getByText(/大学高数\/线代基础/)).toBeInTheDocument();
   });
 
+  it('行为11 [Bug #55]：右侧栏隐藏全局日常记录文件，仅展开专属课程列表并支持切换，上课锁定态与草稿态禁止展开切换', () => {
+    const onSelectCourse = vi.fn();
+    const courses = [
+      { id: 'default', name: '全局日常记录文件（通用）', is_default: true },
+      { id: 'navier_stokes', name: 'Navier-Stokes方程', is_default: false },
+      { id: 'ditiansui_bazi', name: '系统研读《滴天髓》原典并结合名家批注解析入门', is_default: false },
+    ];
+
+    const { rerender, container } = render(
+      <StatusPanel
+        {...defaultProps}
+        courses={courses}
+        selectedCourseId="ditiansui_bazi"
+        activeCourseId="default"
+        isInLesson={false}
+        onSelectCourse={onSelectCourse}
+      />
+    );
+
+    // 默认收起列表，不展示“全局日常记录文件（通用）”
+    expect(screen.queryByRole('listbox', { name: '选择学习课题' })).not.toBeInTheDocument();
+    expect(screen.queryByText('全局日常记录文件（通用）')).not.toBeInTheDocument();
+    const cardTrigger = screen.getByRole('button', { name: '点击展开或收起学习课题列表' });
+    expect(cardTrigger).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.getByText('系统研读《滴天髓》原典并结合名家批注解析入门')).toBeInTheDocument();
+
+    // 点击卡片展开同风格课程列表：只显示专属课程，不包含 default，并支持切换
+    fireEvent.click(cardTrigger);
+    expect(cardTrigger).toHaveAttribute('aria-expanded', 'true');
+    const listbox = screen.getByRole('listbox', { name: '选择学习课题' });
+    expect(listbox).toBeInTheDocument();
+    expect(screen.queryByRole('option', { name: '全局日常记录文件（通用）' })).not.toBeInTheDocument();
+
+    const navierOpt = screen.getByRole('option', { name: 'Navier-Stokes方程' });
+    expect(screen.getByRole('option', { name: '系统研读《滴天髓》原典并结合名家批注解析入门' })).toBeInTheDocument();
+    fireEvent.click(navierOpt);
+    expect(onSelectCourse).toHaveBeenCalledWith('navier_stokes');
+    expect(screen.queryByRole('listbox', { name: '选择学习课题' })).not.toBeInTheDocument();
+
+    // 仅存在 default 日常卡片且无专属课题时，卡片不出现切换列表
+    rerender(
+      <StatusPanel
+        {...defaultProps}
+        courses={[{ id: 'default', name: '全局日常记录文件（通用）', is_default: true }]}
+        selectedCourseId="default"
+        activeCourseId="default"
+        isInLesson={false}
+        onSelectCourse={onSelectCourse}
+      />
+    );
+    expect(screen.queryByRole('button', { name: '点击展开或收起学习课题列表' })).not.toBeInTheDocument();
+    expect(screen.queryByText('全局日常记录文件（通用）')).not.toBeInTheDocument();
+
+    // 验证零 Emoji
+    expect(/\p{Extended_Pictographic}/u.test(container.textContent)).toBe(false);
+
+    // 进入上课锁定态 -> 展示锁定徽章，不再允许展开切换
+    rerender(
+      <StatusPanel
+        {...defaultProps}
+        courses={courses}
+        selectedCourseId="ditiansui_bazi"
+        activeCourseId="ditiansui_bazi"
+        isInLesson={true}
+        onSelectCourse={onSelectCourse}
+      />
+    );
+    expect(screen.getByText('上课锁定中')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '点击展开或收起学习课题列表' })).not.toBeInTheDocument();
+
+    // 目标拟定草稿态 -> 同样禁止展开切换
+    rerender(
+      <StatusPanel
+        {...defaultProps}
+        courses={courses}
+        selectedCourseId="ditiansui_bazi"
+        activeCourseId="default"
+        isInLesson={false}
+        mission={{ current_mission: '拟定新目标', is_drafting: true }}
+        onSelectCourse={onSelectCourse}
+      />
+    );
+    expect(screen.getByText('目标拟定中 · 锁定')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: '点击展开或收起学习课题列表' })).not.toBeInTheDocument();
+  });
+
 });

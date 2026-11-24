@@ -1290,4 +1290,52 @@ describe('ChatPanel Finalize Mission Rendering Tests (Bug #53)', () => {
     expect(sent).toContain('goal="系统研读《滴天髓》"');
     expect(sent).toContain('course_id="ditiansui_bazi"');
   });
+
+  it('sends active atmosphere_mode and persona_type to /api/chat/system_context and refetches on toggle (Bug #54)', async () => {
+    const originalFetch = global.fetch;
+    const mockFetch = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ baseSystemTokens: 120, system_prompt: 'preview' }),
+    });
+    global.fetch = mockFetch;
+
+    try {
+      const { rerender } = render(
+        <ChatPanel
+          {...makeBaseProps({
+            atmosphereMode: 'study',
+            personaType: 'original',
+            messages: [{ role: 'user', content: '查看当前模式' }],
+          })}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalled();
+      });
+      const firstBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(firstBody.atmosphere_mode).toBe('study');
+      expect(firstBody.persona_type).toBe('original');
+
+      mockFetch.mockClear();
+      rerender(
+        <ChatPanel
+          {...makeBaseProps({
+            atmosphereMode: 'daily',
+            personaType: 'simplified',
+            messages: [{ role: 'user', content: '查看当前模式' }],
+          })}
+        />
+      );
+
+      await waitFor(() => {
+        expect(mockFetch).toHaveBeenCalledTimes(1);
+      });
+      const secondBody = JSON.parse(mockFetch.mock.calls[0][1].body);
+      expect(secondBody.atmosphere_mode).toBe('daily');
+      expect(secondBody.persona_type).toBe('simplified');
+    } finally {
+      global.fetch = originalFetch;
+    }
+  });
 });

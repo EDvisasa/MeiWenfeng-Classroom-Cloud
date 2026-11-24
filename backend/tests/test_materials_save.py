@@ -2,6 +2,16 @@ import os
 import pytest
 from backend.services.materials_manager import MaterialsManager
 
+
+@pytest.fixture(autouse=True)
+def isolate_materials_root(tmp_path, monkeypatch):
+    """Isolate MaterialsManager root to tmp_path so tests never touch production data/materials."""
+    isolated_materials = str(tmp_path / "materials")
+    os.makedirs(isolated_materials, exist_ok=True)
+    monkeypatch.setattr(MaterialsManager, "_get_base_materials_dir", classmethod(lambda cls: isolated_materials))
+    return isolated_materials
+
+
 def test_save_material_content_tracer_bullet():
     """
     Tracer Bullet Test: Verify that save_material_content successfully writes
@@ -10,20 +20,12 @@ def test_save_material_content_tracer_bullet():
     rel_path = "Sandbox/test_tdd_tracer.md"
     test_content = "# TDD Tracer Bullet\nThis is a test file for TDD."
 
-    try:
-        # This should succeed when save_material_content is implemented
-        result = MaterialsManager.save_material_content(rel_path, test_content)
-        assert result is True
+    result = MaterialsManager.save_material_content(rel_path, test_content)
+    assert result is True
 
-        # Verify reading it back via get_material_content
-        read_content = MaterialsManager.get_material_content(rel_path)
-        assert read_content == test_content
-    finally:
-        # Clean up the created test file
-        base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        full_path = os.path.join(base_root, "data", "materials", rel_path)
-        if os.path.exists(full_path):
-            os.remove(full_path)
+    # Verify reading it back via get_material_content
+    read_content = MaterialsManager.get_material_content(rel_path)
+    assert read_content == test_content
 
 def test_save_material_content_security_guardrails():
     """Verify that path traversal and non-md extensions are strictly blocked."""

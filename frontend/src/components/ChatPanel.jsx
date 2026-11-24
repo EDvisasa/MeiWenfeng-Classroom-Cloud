@@ -725,6 +725,8 @@ export default function ChatPanel({
   setPendingApproval,
   selectedImages: propSelectedImages,
   setSelectedImages: propSetSelectedImages,
+  atmosphereMode,
+  personaType,
   onSwitchAtmosphere
 }) {
   const [isEditing, setIsEditing] = React.useState(false);
@@ -989,6 +991,9 @@ export default function ChatPanel({
   const maxTokens = activeModelConfig?.max_context_tokens || 8192;
   const supportsVision = activeModelConfig ? (activeModelConfig.supports_vision !== 0) : true;
 
+  const activePersonaType = personaType || localStorage.getItem('persona_type') || 'simplified';
+  const activeAtmosphereMode = atmosphereMode || localStorage.getItem('atmosphere_mode') || 'daily';
+
   // 请求后端获取 hidden system context tokens
   const fetchSystemTokens = async () => {
     try {
@@ -997,7 +1002,8 @@ export default function ChatPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           messages: messages,
-          persona_type: localStorage.getItem('persona_type') || 'simplified',
+          persona_type: activePersonaType,
+          atmosphere_mode: activeAtmosphereMode,
           current_file_path: selectedFilePath || '',
           cursor_line: cursorLine || 0,
           selection_start_line: selectionStartLine || 0,
@@ -1017,9 +1023,9 @@ export default function ChatPanel({
   };
 
   React.useEffect(() => {
-    // 我们在会话改变、新消息发出后、流式生成完成时，以及切换具有不同最大 Token 数的模型时，静默刷新底层 Token 占用和预设预览
+    // 我们在会话改变、新消息发出后、流式生成完成时，以及切换模型、人设或氛围模式时，静默刷新底层 Token 占用和预设预览
     fetchSystemTokens();
-  }, [messages.length, isStreaming, activeSessionId, selectedFilePath, cursorLine, selectionStartLine, selectionEndLine, selectedText, activeModel, maxTokens]);
+  }, [messages.length, isStreaming, activeSessionId, selectedFilePath, cursorLine, selectionStartLine, selectionEndLine, selectedText, activeModel, maxTokens, activePersonaType, activeAtmosphereMode]);
 
   // 计算前端动态 tokens
   React.useEffect(() => {

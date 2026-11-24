@@ -460,9 +460,9 @@ def assemble_messages(messages: List[Dict[str, Any]], system_prompt: Union[str, 
 
     active_mode = getattr(system_prompt, "atmosphere_mode", "daily") if isinstance(system_prompt, ContextBundle) else "daily"
     if active_mode == "study":
-        atmosphere_tag = "<active_atmosphere_mode>STUDY (研学模式 - 中国高中至大学水准现代数理教学，采用现代案例，杜绝牵强土味比喻)</active_atmosphere_mode>"
+        atmosphere_tag = "<active_atmosphere_mode>STUDY (source-grounded rigor, 1 concept per turn, prioritize recall over fluency)</active_atmosphere_mode>"
     else:
-        atmosphere_tag = "<active_atmosphere_mode>DAILY (生活模式 - 温情家庭日常相伴与通俗生活伴读)</active_atmosphere_mode>"
+        atmosphere_tag = "<active_atmosphere_mode>DAILY (warm domestic companion & everyday analogies)</active_atmosphere_mode>"
 
     # 动静分层排序（提升 KV-Cache Prefix 命中率）：静态协议在前，动态尾注居中，分钟级时间戳放最末尾
     tail_sections = [get_cross_reference_protocol()]

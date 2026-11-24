@@ -377,9 +377,13 @@ export default function App() {
   const [personaType, setPersonaType] = useState(localStorage.getItem('persona_type') || 'simplified');
   const [atmosphereMode, setAtmosphereMode] = useState(localStorage.getItem('atmosphere_mode') || 'daily');
 
-  // Mission & Knowledge Tree states
+  // Mission, Course Lock & Knowledge Tree states
   const [mission, setMission] = useState({ current_mission: "未知目标", is_drafting: false, draft_details: null });
   const [knowledgeTree, setKnowledgeTree] = useState([]);
+  const [courses, setCourses] = useState([]);
+  const [selectedCourseId, setSelectedCourseId] = useState('default');
+  const [activeCourseId, setActiveCourseId] = useState('default');
+  const [isInLesson, setIsInLesson] = useState(false);
   const [previewModal, setPreviewModal] = useState(null); // { path: '', content: '' }
 
   // 酒馆式 API 设置和字体弹窗状态
@@ -416,6 +420,7 @@ export default function App() {
   const [savingRag, setSavingRag] = useState(false);
 
   const handlePersonaTypeChange = (type) => {
+    if (type === personaType) return;
     setPersonaType(type);
     localStorage.setItem('persona_type', type);
     setMessages(prev => [
@@ -425,6 +430,7 @@ export default function App() {
   };
 
   const handleAtmosphereModeChange = (mode) => {
+    if (mode === atmosphereMode) return;
     setAtmosphereMode(mode);
     localStorage.setItem('atmosphere_mode', mode);
     setMessages(prev => [
@@ -637,11 +643,31 @@ export default function App() {
         setActiveModel(data.active_model);
         setActiveSubModel(data.active_sub_model || '');
         setCourseProgress(data.course_progress || []);
+        setCourses(data.courses || []);
+        if (data.selected_course_id) setSelectedCourseId(data.selected_course_id);
+        if (data.active_course_id) setActiveCourseId(data.active_course_id);
+        if (typeof data.is_in_lesson === 'boolean') setIsInLesson(data.is_in_lesson);
         if (data.mission) setMission(data.mission);
         if (data.knowledge_tree) setKnowledgeTree(data.knowledge_tree);
       }
     } catch (e) {
       console.error('Failed to fetch status:', e);
+    }
+  };
+
+  const handleSelectCourse = async (courseId) => {
+    if (isInLesson || mission?.is_drafting) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/chat/course/select`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ course_id: courseId }),
+      });
+      if (res.ok || res.status === 409) {
+        await fetchStatus();
+      }
+    } catch (e) {
+      console.error('Failed to select course:', e);
     }
   };
 
@@ -717,7 +743,7 @@ export default function App() {
       const res = await fetch(`${API_BASE}/api/chat/models`);
       if (res.ok) {
         const data = await res.json();
-        setModels(data);
+        setModels(Array.isArray(data) ? data : []);
       }
     } catch (e) {
       console.error('Failed to fetch models:', e);
@@ -1279,6 +1305,10 @@ export default function App() {
                 const parsed = JSON.parse(jsonStr);
 
                 if (parsed.type === 'system_hint' || parsed.type === 'draft_warning') {
+                  if (parsed.type === 'system_hint' && parsed.atmosphere === 'daily') {
+                    setAtmosphereMode('daily');
+                    localStorage.setItem('atmosphere_mode', 'daily');
+                  }
                   setMessages(prev => {
                     const updated = [...prev];
                     const last = updated.pop();
@@ -1289,9 +1319,15 @@ export default function App() {
                     return updated;
                   });
                   // Trigger status refresh immediately to update UI locks/unlocks
-                  if (parsed.type === 'draft_warning' || (parsed.type === 'system_hint' && parsed.icon === 'check')) {
+                  if (
+                    parsed.type === 'draft_warning' ||
+                    (parsed.type === 'system_hint' &&
+                      (parsed.icon === 'check' ||
+                        parsed.icon === 'zpd' ||
+                        typeof parsed.in_lesson === 'boolean'))
+                  ) {
                     fetchStatus();
-      fetchMemoryStatus();
+                    fetchMemoryStatus();
                   }
                   continue;
                 }
@@ -1714,6 +1750,8 @@ export default function App() {
             setPendingApproval={setPendingApproval}
             selectedImages={chatSelectedImages}
             setSelectedImages={setChatSelectedImages}
+            atmosphereMode={atmosphereMode}
+            personaType={personaType}
             onSwitchAtmosphere={handleAtmosphereModeChange}
           />
 
@@ -1733,6 +1771,11 @@ export default function App() {
                 activeSubModel={activeSubModel}
                 mission={mission}
                 knowledgeTree={knowledgeTree}
+                courses={courses}
+                selectedCourseId={selectedCourseId}
+                activeCourseId={activeCourseId}
+                isInLesson={isInLesson}
+                onSelectCourse={handleSelectCourse}
                 autoSummarize={autoSummarize}
                 onToggleAutoSummarize={handleToggleAutoSummarize}
                 memoryStatus={memoryStatus}
@@ -2401,6 +2444,10 @@ export default function App() {
         isOpen={showKnowledgeLibrary}
         onClose={() => setShowKnowledgeLibrary(false)}
         isDrafting={Boolean(mission?.is_drafting)}
+        initialCourseId={isInLesson ? (activeCourseId || 'default') : 'default'}
+        onCourseCreated={() => {
+          fetchStatus();
+        }}
         onFileSaved={() => {
           fetchStatus();
         }}

@@ -17,11 +17,16 @@ class MaterialsManager:
         return course_id
 
     @classmethod
+    def _get_base_materials_dir(cls) -> str:
+        """Resolve the root directory for global materials (overridable in tests)."""
+        base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        return os.path.abspath(os.path.join(base_root, "data", "materials"))
+
+    @classmethod
     def _get_materials_dir(cls, course_id: Optional[str] = None) -> str:
         """Resolve base root for global materials or isolated course project."""
-        base_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-        base_materials = os.path.abspath(os.path.join(base_root, "data", "materials"))
-        
+        base_materials = cls._get_base_materials_dir()
+
         safe_course_id = cls._sanitize_course_id(course_id)
         if safe_course_id:
             courses_base = os.path.abspath(os.path.join(base_materials, "courses"))
@@ -29,7 +34,7 @@ class MaterialsManager:
             if not os.path.normcase(target_dir).startswith(os.path.normcase(courses_base)):
                 raise ValueError("Forbidden: Directory traversal attempt")
             return target_dir
-            
+
         return base_materials
 
     @classmethod
@@ -48,7 +53,7 @@ class MaterialsManager:
         courses = [
             {
                 "id": "default",
-                "name": "全局基础课程 (通用)",
+                "name": "全局日常记录文件（通用）",
                 "is_default": True
             }
         ]

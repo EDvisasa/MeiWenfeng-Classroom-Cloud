@@ -30,18 +30,27 @@ def get_status_summary():
 
         conn.close()
         
-        from backend.services.course_manager import get_active_course_id, list_courses as db_list_courses, get_active_course
-        active_course_id = get_active_course_id()
-        courses = db_list_courses()
-        active_lesson = get_active_course(active_course_id)
+        from backend.services.course_manager import (
+            get_course_state,
+            list_courses as db_list_courses,
+            get_active_course,
+        )
+        course_state = get_course_state()
+        selected_course_id = course_state["selected_course_id"]
+        active_course_id = course_state["active_course_id"]
+        is_in_lesson = course_state["is_in_lesson"]
+        display_course_id = active_course_id if is_in_lesson else selected_course_id
 
-        # 获取 Mission 相关状态
+        courses = db_list_courses()
+        active_lesson = get_active_course(display_course_id)
+
+        # 获取 Mission 相关状态（平时预览所选课题，上课时展示并锁定活跃课题）
         active_draft = MissionManager.get_active_draft()
-        user_mission = MissionManager.get_user_mission(active_course_id)
+        user_mission = MissionManager.get_user_mission(display_course_id)
         parsed_mission = MissionManager.parse_mission_markdown(user_mission)
         
-        # 获取知识树（聚焦在当前活跃课程）
-        knowledge_tree = MaterialsManager.build_knowledge_tree(course_id=active_course_id)
+        # 获取知识树（聚焦在当前展示课题）
+        knowledge_tree = MaterialsManager.build_knowledge_tree(course_id=display_course_id)
 
         return {
             "affection": affection,
@@ -50,7 +59,9 @@ def get_status_summary():
             "refractory_period": refractory_period,
             "active_model": active_model,
             "active_sub_model": active_sub_model,
+            "selected_course_id": selected_course_id,
             "active_course_id": active_course_id,
+            "is_in_lesson": is_in_lesson,
             "courses": courses,
             "active_lesson": active_lesson,
             "mission": {
@@ -66,6 +77,23 @@ def get_status_summary():
         }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/course/select")
+def select_course_preview(payload: Dict[str, Any] = Body(...)):
+    """在未上课状态下切换右边栏选定/预览课题（不改变资料归档指针 active_course_id）。"""
+    from backend.services.course_manager import get_course_state, is_in_lesson, set_selected_course_id
+
+    if is_in_lesson():
+        raise HTTPException(
+            status_code=409,
+            detail="当前正在上课锁定中，请先输入 /end_lesson 下课解锁后再切换课题",
+        )
+    course_id = payload.get("course_id", "default")
+    set_selected_course_id(course_id)
+    state = get_course_state()
+    return {"status": "success", **state}
+
 
 @router.post("/course/active")
 def switch_active_course(payload: Dict[str, Any] = Body(...)):
@@ -87,12 +115,15 @@ def list_courses():
 @router.post("/materials/courses/create")
 def create_course(payload: Dict[str, Any] = Body(...)):
     """创建新的分课程项目隔离目录及标准子文件夹"""
+    from backend.services.course_manager import create_course as db_create_course
+
     course_id = payload.get("course_id")
     name = payload.get("name")
     if not course_id:
         raise HTTPException(status_code=400, detail="Missing course_id")
     try:
         course = MaterialsManager.create_course(course_id, name)
+        db_create_course(course["id"], course["name"])
         return {"status": "success", "course": course}
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))

@@ -3,9 +3,51 @@ import os
 from datetime import datetime
 
 BACKEND_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-DB_PATH = os.path.join(BACKEND_DIR, "classroom.db")
+_DEFAULT_DB_PATH = os.path.join(BACKEND_DIR, "classroom.db")
+DB_PATH = _DEFAULT_DB_PATH
 
+# In-memory mirror kept aligned with SQLite course_runtime_state row (id=1).
 _active_course_id: str = "default"
+
+
+def _resolve_db_path() -> str:
+    """Resolves DB path, honoring both course_manager.DB_PATH and backend.database.DB_PATH patches."""
+    if DB_PATH != _DEFAULT_DB_PATH:
+        return DB_PATH
+    try:
+        import backend.database as db_mod
+        if getattr(db_mod, "DB_PATH", None):
+            return db_mod.DB_PATH
+    except Exception:
+        pass
+    return DB_PATH
+
+
+def _get_conn() -> sqlite3.Connection:
+    conn = sqlite3.connect(_resolve_db_path())
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _ensure_runtime_state_table(conn: sqlite3.Connection) -> None:
+    """Ensures course_runtime_state table and singleton row (id=1) exist."""
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS course_runtime_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            selected_course_id TEXT NOT NULL DEFAULT 'default',
+            active_course_id TEXT NOT NULL DEFAULT 'default',
+            is_in_lesson INTEGER NOT NULL DEFAULT 0,
+            updated_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    cursor.execute(
+        """
+        INSERT OR IGNORE INTO course_runtime_state (id, selected_course_id, active_course_id, is_in_lesson)
+        VALUES (1, 'default', 'default', 0)
+        """
+    )
+
 
 def _has_column(conn, table: str, column: str) -> bool:
     try:
@@ -16,38 +58,150 @@ def _has_column(conn, table: str, column: str) -> bool:
     except Exception:
         return False
 
-def get_active_course_id() -> str:
-    """Returns the currently active course ID (falls back to 'default')."""
-    return _active_course_id
 
-def set_active_course_id(course_id: str) -> str:
-    """Sets the currently active course ID and updates last_accessed_at in the database."""
+def _update_runtime_state(
+    selected_course_id: str | None = None,
+    active_course_id: str | None = None,
+    is_in_lesson_flag: bool | None = None,
+    touch_last_accessed_for: str | None = None,
+) -> dict:
+    """Atomically updates specified fields of persisted course_runtime_state (row id=1)."""
     global _active_course_id
-    _active_course_id = course_id or "default"
     conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute(
-            "UPDATE courses SET last_accessed_at = datetime('now') WHERE id = ?",
-            (_active_course_id,)
+        conn = _get_conn()
+        _ensure_runtime_state_table(conn)
+        row = conn.execute(
+            "SELECT selected_course_id, active_course_id, is_in_lesson FROM course_runtime_state WHERE id = 1"
+        ).fetchone()
+        cur_selected = (row["selected_course_id"] or "default") if row else "default"
+        cur_active = (row["active_course_id"] or "default") if row else (_active_course_id or "default")
+        cur_lesson = bool(row["is_in_lesson"]) if row else False
+
+        new_selected = (selected_course_id or "default") if selected_course_id is not None else cur_selected
+        new_active = (active_course_id or "default") if active_course_id is not None else cur_active
+        new_lesson = int(bool(is_in_lesson_flag)) if is_in_lesson_flag is not None else int(cur_lesson)
+
+        conn.execute(
+            """
+            UPDATE course_runtime_state
+            SET selected_course_id = ?, active_course_id = ?, is_in_lesson = ?, updated_at = datetime('now')
+            WHERE id = 1
+            """,
+            (new_selected, new_active, new_lesson),
         )
+        if touch_last_accessed_for:
+            conn.execute(
+                "UPDATE courses SET last_accessed_at = datetime('now') WHERE id = ?",
+                (touch_last_accessed_for,),
+            )
         conn.commit()
+        _active_course_id = new_active
+        return {
+            "selected_course_id": new_selected,
+            "active_course_id": new_active,
+            "is_in_lesson": bool(new_lesson),
+        }
+    except Exception:
+        if active_course_id is not None:
+            _active_course_id = active_course_id or "default"
+        return {
+            "selected_course_id": selected_course_id or "default",
+            "active_course_id": _active_course_id,
+            "is_in_lesson": bool(is_in_lesson_flag) if is_in_lesson_flag is not None else False,
+        }
+    finally:
+        if conn:
+            conn.close()
+
+
+def get_course_state() -> dict:
+    """Returns persisted runtime course state: selected_course_id, active_course_id, and is_in_lesson."""
+    global _active_course_id
+    conn = None
+    try:
+        conn = _get_conn()
+        _ensure_runtime_state_table(conn)
+        conn.commit()
+        row = conn.execute(
+            "SELECT selected_course_id, active_course_id, is_in_lesson FROM course_runtime_state WHERE id = 1"
+        ).fetchone()
+        if row:
+            state = {
+                "selected_course_id": row["selected_course_id"] or "default",
+                "active_course_id": row["active_course_id"] or "default",
+                "is_in_lesson": bool(row["is_in_lesson"]),
+            }
+            _active_course_id = state["active_course_id"]
+            return state
     except Exception:
         pass
     finally:
         if conn:
             conn.close()
-    return _active_course_id
+    return {
+        "selected_course_id": "default",
+        "active_course_id": _active_course_id or "default",
+        "is_in_lesson": False,
+    }
+
+
+def get_selected_course_id() -> str:
+    """Returns the persisted sidebar-selected course ID (falls back to 'default')."""
+    return get_course_state()["selected_course_id"]
+
+
+def set_selected_course_id(course_id: str) -> str:
+    """Persists the sidebar-selected course ID without altering the active archive target."""
+    return _update_runtime_state(selected_course_id=course_id or "default")["selected_course_id"]
+
+
+def is_in_lesson() -> bool:
+    """Returns whether an active /lesson lock is currently engaged."""
+    return get_course_state()["is_in_lesson"]
+
+
+def enter_lesson_lock(course_id: str) -> dict:
+    """Locks active archive & selected course onto target course during /lesson."""
+    cid = course_id or "default"
+    return _update_runtime_state(
+        selected_course_id=cid,
+        active_course_id=cid,
+        is_in_lesson_flag=True,
+        touch_last_accessed_for=cid,
+    )
+
+
+def exit_lesson_lock() -> dict:
+    """Releases /lesson lock and resets active archive to 'default', preserving selected_course_id."""
+    return _update_runtime_state(
+        active_course_id="default",
+        is_in_lesson_flag=False,
+        touch_last_accessed_for="default",
+    )
+
+
+def get_active_course_id() -> str:
+    """Returns the currently active archive course ID (falls back to 'default')."""
+    return get_course_state()["active_course_id"]
+
+
+def set_active_course_id(course_id: str) -> str:
+    """Sets the active archive course ID and updates last_accessed_at in the database."""
+    cid = course_id or "default"
+    return _update_runtime_state(
+        active_course_id=cid,
+        touch_last_accessed_for=cid,
+    )["active_course_id"]
+
 
 def reset_active_course_id() -> str:
-    """Resets the currently active course ID back to 'default'."""
+    """Resets the currently active archive course ID back to 'default'."""
     return set_active_course_id("default")
 
 def create_course(course_id: str, name: str) -> dict:
     """Creates a new course entry in the courses table if it does not already exist."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute(
@@ -62,14 +216,24 @@ def create_course(course_id: str, name: str) -> dict:
         conn.close()
 
 def list_courses() -> list[dict]:
-    """Lists all available courses ordered by last_accessed_at descending."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    """Lists all available courses with 'default' first and remaining sorted consistently by id."""
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, status, created_at, last_accessed_at FROM courses ORDER BY last_accessed_at DESC")
+        cursor.execute(
+            """
+            SELECT id, name, status, created_at, last_accessed_at
+            FROM courses
+            ORDER BY CASE WHEN id = 'default' THEN 0 ELSE 1 END, id ASC
+            """
+        )
         rows = cursor.fetchall()
-        return [dict(r) for r in rows]
+        result = []
+        for r in rows:
+            item = dict(r)
+            item["is_default"] = item.get("id") == "default"
+            result.append(item)
+        return result
     except Exception:
         return []
     finally:
@@ -77,8 +241,7 @@ def list_courses() -> list[dict]:
 
 def get_course(course_id: str) -> dict | None:
     """Retrieves course details by id."""
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
         cursor.execute("SELECT id, name, status, created_at, last_accessed_at FROM courses WHERE id = ?", (course_id,))
@@ -92,8 +255,7 @@ def get_course(course_id: str) -> dict | None:
 def get_active_course(course_id: str | None = None) -> dict | None:
     """Retrieves the currently active course phase and topic for a specific course."""
     cid = course_id if course_id is not None else get_active_course_id()
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
         has_cid = _has_column(conn, "course_progress", "course_id")
@@ -115,8 +277,7 @@ def get_active_course(course_id: str | None = None) -> dict | None:
 def advance_course_progress(course_id: str | None = None) -> dict | None:
     """Marks current active course as completed and activates the next pending course for this course_id."""
     cid = course_id if course_id is not None else get_active_course_id()
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
         has_cid = _has_column(conn, "course_progress", "course_id")
@@ -153,8 +314,7 @@ def advance_course_progress(course_id: str | None = None) -> dict | None:
 def get_formatted_syllabus(course_id: str | None = None) -> str:
     """Retrieves the entire syllabus history formatted for the AI to read, isolated by course_id."""
     cid = course_id if course_id is not None else get_active_course_id()
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
         has_cid = _has_column(conn, "course_progress", "course_id")
@@ -200,7 +360,7 @@ def get_formatted_syllabus(course_id: str | None = None) -> str:
 def append_to_syllabus(phase: str, topic: str, course_id: str | None = None, lesson_no: int | None = None) -> None:
     """Adds a new topic to the syllabus as pending."""
     cid = course_id if course_id is not None else get_active_course_id()
-    conn = sqlite3.connect(DB_PATH)
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
         has_cid = _has_column(conn, "course_progress", "course_id")
@@ -247,8 +407,7 @@ def get_zpd_metrics(topic: str | None = None, course_id: str | None = None) -> d
     """Retrieves the current ZPD difficulty metrics (coefficient + streaks) for a topic."""
     cid = course_id if course_id is not None else get_active_course_id()
     resolved = _resolve_zpd_topic(topic, cid)
-    conn = sqlite3.connect(DB_PATH)
-    conn.row_factory = sqlite3.Row
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
         has_cid = _has_column(conn, "course_progress", "course_id")
@@ -299,7 +458,7 @@ def record_quiz_result(is_correct: bool, topic: str | None = None, course_id: st
             coefficient = round(max(coefficient - ZPD_COEFFICIENT_STEP, ZPD_COEFFICIENT_MIN), 2)
             consecutive_wrong = 0
 
-    conn = sqlite3.connect(DB_PATH)
+    conn = _get_conn()
     try:
         cursor = conn.cursor()
         has_cid = _has_column(conn, "course_progress", "course_id")

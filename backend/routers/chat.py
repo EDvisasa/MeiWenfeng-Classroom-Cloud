@@ -217,7 +217,14 @@ def send_message(payload: ChatRequest):
 
     if draft and not clean_msg_lower.startswith("/cancel_mission"):
         from backend.services.slash_handler import handle_mission_interrogation
-        return handle_mission_interrogation(last_user_msg, cleaned_messages, payload.persona_type, dict(draft))
+        return handle_mission_interrogation(
+            last_user_msg,
+            cleaned_messages,
+            payload.persona_type,
+            dict(draft),
+            session_id=payload.session_id,
+            atmosphere_mode=payload.atmosphere_mode or "daily",
+        )
 
     # 3. 拦截斜杠指令或特殊的测验提交
     if clean_msg.startswith('/') or clean_msg in ("/update_persona", "update_persona", "更新人设", "/更新人设"):

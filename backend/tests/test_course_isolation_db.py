@@ -40,7 +40,7 @@ def test_init_db_creates_courses_table_and_default_seed():
     row = cursor.fetchone()
     assert row is not None
     assert row["id"] == "default"
-    assert "全局基础课程" in row["name"]
+    assert "全局日常记录文件" in row["name"]
     assert row["status"] == "active"
     conn.close()
 
@@ -182,3 +182,30 @@ def test_session_course_linkage():
     row_daily = cursor.fetchone()
     assert row_daily["course_id"] == "default"
     conn.close()
+
+
+def test_persisted_selected_active_and_lesson_lock_lifecycle(clean_and_reset_db):
+    """Verify selected_course_id, active_course_id, and is_in_lesson persist in SQLite across memory clears."""
+    import backend.services.course_manager as cm
+
+    create_course("ditiansui_bazi", "滴天髓")
+    cm.set_selected_course_id("ditiansui_bazi")
+    assert cm.get_selected_course_id() == "ditiansui_bazi"
+    assert cm.get_active_course_id() == "default"
+    assert cm.is_in_lesson() is False
+
+    # Simulate process restart by resetting in-memory mirror
+    cm._active_course_id = "default"
+    assert cm.get_selected_course_id() == "ditiansui_bazi"
+
+    # Enter lesson lock -> persists active_course_id and is_in_lesson across simulated restart
+    cm.enter_lesson_lock("ditiansui_bazi")
+    cm._active_course_id = "default"
+    assert cm.get_active_course_id() == "ditiansui_bazi"
+    assert cm.is_in_lesson() is True
+
+    # Exit lesson lock -> resets active archive to default, unlocks, preserves selected_course_id
+    cm.exit_lesson_lock()
+    assert cm.is_in_lesson() is False
+    assert cm.get_active_course_id() == "default"
+    assert cm.get_selected_course_id() == "ditiansui_bazi"

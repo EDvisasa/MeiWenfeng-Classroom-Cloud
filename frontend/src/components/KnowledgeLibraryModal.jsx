@@ -93,7 +93,8 @@ const KnowledgeLibraryModal = ({
   onClose,
   isDrafting = false,
   initialCourseId = 'default',
-  onFileSaved
+  onFileSaved,
+  onCourseCreated
 }) => {
   const [courses, setCourses] = useState([]);
   const [currentCourseId, setCurrentCourseId] = useState(initialCourseId);
@@ -116,6 +117,7 @@ const KnowledgeLibraryModal = ({
   // Saving state
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState(null);
+  const prevIsOpenRef = React.useRef(false);
 
   // Fetch available courses
   const fetchCourses = useCallback(async () => {
@@ -165,15 +167,29 @@ const KnowledgeLibraryModal = ({
     }
   }, []);
 
-  // Load courses and initial tree when opened
+  // Load courses & sync initial course on open; fetch tree for active modal course
   useEffect(() => {
-    if (isOpen) {
-      fetchCourses();
-      fetchTree(currentCourseId);
-    }
-  }, [isOpen, currentCourseId, fetchCourses, fetchTree]);
+    const justOpened = isOpen && !prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+    if (!isOpen) return;
 
-  // Handle course switch
+    if (justOpened) {
+      fetchCourses();
+      const targetId = initialCourseId || 'default';
+      setSelectedFilePath(null);
+      setFileContent('');
+      setEditedContent('');
+      setSaveStatus(null);
+      setMobileView('tree');
+      if (targetId !== currentCourseId) {
+        setCurrentCourseId(targetId);
+        return;
+      }
+    }
+    fetchTree(currentCourseId);
+  }, [isOpen, currentCourseId, initialCourseId, fetchCourses, fetchTree]);
+
+  // Handle course switch inside modal (display-only, does not alter external course state)
   const handleCourseChange = (e) => {
     const nextCourseId = e.target.value;
     setCurrentCourseId(nextCourseId);
@@ -182,7 +198,6 @@ const KnowledgeLibraryModal = ({
     setEditedContent('');
     setSaveStatus(null);
     setMobileView('tree');
-    fetchTree(nextCourseId);
   };
 
   // Handle new course creation
@@ -214,6 +229,9 @@ const KnowledgeLibraryModal = ({
         setEditedContent('');
         setMobileView('tree');
         fetchTree(data.course.id);
+        if (onCourseCreated) {
+          onCourseCreated(data.course);
+        }
       } else {
         const err = await res.json().catch(() => ({}));
         setCreateCourseError(err.detail || '创建课程课题失败');
@@ -333,7 +351,7 @@ const KnowledgeLibraryModal = ({
             >
               {courses.map(course => (
                 <option key={course.id} value={course.id}>
-                  {course.name} {course.is_default ? '(基础)' : ''}
+                  {course.name || course.id}
                 </option>
               ))}
             </select>

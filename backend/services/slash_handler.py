@@ -64,6 +64,7 @@ class SlashCommandContext:
     current_file_path: Optional[str]
     persona_type: str
     session_id: Optional[str]
+    atmosphere_mode: str = "daily"
 
     @classmethod
     def from_request(
@@ -82,25 +83,45 @@ class SlashCommandContext:
             current_file_path=getattr(payload, "current_file_path", None),
             persona_type=getattr(payload, "persona_type", "simplified"),
             session_id=getattr(payload, "session_id", None),
+            atmosphere_mode=getattr(payload, "atmosphere_mode", None) or "daily",
         )
 
 
-def _resolve_course_context(ctx: SlashCommandContext, allow_course_arg: bool = False) -> Dict[str, Any]:
-    """Resolve active course, mission, topic, ZPD helpers scope, and optional file tag."""
+def _resolve_course_context(
+    ctx: SlashCommandContext,
+    allow_course_arg: bool = False,
+    fallback_to_selected: bool = False,
+    lock_on_lesson: bool = False,
+) -> Dict[str, Any]:
+    """Resolve active/selected course, mission, topic, ZPD helpers scope, and optional file tag."""
     from backend.services.course_manager import (
+        enter_lesson_lock,
         get_active_course,
         get_active_course_id,
-        set_active_course_id,
+        get_selected_course_id,
+        set_selected_course_id,
     )
     from backend.services.mission_manager import MissionManager
 
     tokens = ctx.clean_cmd.split()
     if allow_course_arg and len(tokens) > 1:
         target_course_id = tokens[1].strip()
-        set_active_course_id(target_course_id)
+        if lock_on_lesson:
+            enter_lesson_lock(target_course_id)
+        else:
+            set_selected_course_id(target_course_id)
         _sync_session_course_id(ctx.session_id, target_course_id)
     else:
-        target_course_id = get_active_course_id()
+        active_cid = get_active_course_id()
+        if active_cid != "default":
+            target_course_id = active_cid
+        elif fallback_to_selected:
+            target_course_id = get_selected_course_id()
+        else:
+            target_course_id = active_cid
+        if lock_on_lesson:
+            enter_lesson_lock(target_course_id)
+            _sync_session_course_id(ctx.session_id, target_course_id)
 
     user_mission = MissionManager.get_user_mission(target_course_id)
     active_course = get_active_course(target_course_id)
@@ -324,6 +345,7 @@ class SetMissionCommandStrategy(CommandStrategy):
             ctx.persona_type,
             draft,
             session_id=ctx.session_id,
+            atmosphere_mode=ctx.atmosphere_mode,
         )
 
 
@@ -347,6 +369,7 @@ Action Required:
             ctx.persona_type,
             system_injection,
             session_id=ctx.session_id,
+            atmosphere_mode=ctx.atmosphere_mode,
         )
 
 
@@ -354,17 +377,18 @@ class EndLessonCommandStrategy(CommandStrategy):
     aliases = ("/end_lesson", "end_lesson", "/下课", "下课", "/recess", "recess", "/dismiss", "dismiss")
 
     def execute(self, ctx: SlashCommandContext) -> StreamingResponse:
-        from backend.services.course_manager import reset_active_course_id
+        from backend.services.course_manager import exit_lesson_lock
 
-        reset_active_course_id()
+        exit_lesson_lock()
         prelude_hint = {
             "type": "system_hint",
-            "text": "课时学情已结算封存，已下课并切回生活模式与公共基础档案 (default)。",
+            "text": "已退出上课锁定，资料归档已切回全局基础档案 (default) 并切回生活模式。",
             "atmosphere": "daily",
+            "in_lesson": False,
         }
         system_injection = """<system_directive mode="recess">
 Event: The user triggered the `/end_lesson` (下课) command to conclude class.
-Active Knowledge Archive: Reset and returned to public basic space (default).
+Active Knowledge Archive: Unlocked and returned to public basic space (default).
 
 Action Required:
 1. Conclude the formal lesson. Warmly acknowledge today's learning effort in your affectionate persona.
@@ -378,6 +402,7 @@ Action Required:
             system_injection,
             prelude_hint=prelude_hint,
             session_id=ctx.session_id,
+            atmosphere_mode="daily",
         )
 
 
@@ -434,6 +459,7 @@ Action Required & Flow Progression:
             system_injection,
             prelude_hint=None,
             session_id=ctx.session_id,
+            atmosphere_mode=ctx.atmosphere_mode,
         )
 
 
@@ -446,7 +472,12 @@ class LessonCommandStrategy(CommandStrategy):
     def execute(self, ctx: SlashCommandContext) -> StreamingResponse:
         from backend.services.course_manager import get_zpd_metrics
 
-        cctx = _resolve_course_context(ctx, allow_course_arg=True)
+        cctx = _resolve_course_context(
+            ctx,
+            allow_course_arg=True,
+            fallback_to_selected=True,
+            lock_on_lesson=True,
+        )
         target_course_id = cctx["target_course_id"]
         topic_name = cctx["topic_name"]
         lesson_no = cctx["lesson_no"]
@@ -458,6 +489,8 @@ class LessonCommandStrategy(CommandStrategy):
             "icon": "zpd",
             "text": f"课题：{target_course_id} | 课时 {lesson_no}：{topic_name} | 当前 ZPD 难度系数：{zpd_coefficient}",
             "atmosphere": "study",
+            "in_lesson": True,
+            "course_id": target_course_id,
         }
         sandbox_path = f"courses/{target_course_id}/Sandbox/" if target_course_id != "default" else "data/materials/Sandbox/"
         system_injection = f"""<system_directive mode="lesson">
@@ -485,6 +518,7 @@ Lesson & Quiz Guidelines:
             system_injection,
             prelude_hint=prelude_hint,
             session_id=ctx.session_id,
+            atmosphere_mode=ctx.atmosphere_mode,
         )
 
 
@@ -518,6 +552,7 @@ User's Ultimate Mission: {cctx['user_mission']}
             system_injection,
             prelude_hint=None,
             session_id=ctx.session_id,
+            atmosphere_mode=ctx.atmosphere_mode,
         )
 
 
@@ -527,7 +562,12 @@ class PlanCommandStrategy(CommandStrategy):
     def execute(self, ctx: SlashCommandContext) -> StreamingResponse:
         from backend.services.course_manager import get_formatted_syllabus
 
-        cctx = _resolve_course_context(ctx, allow_course_arg=True)
+        cctx = _resolve_course_context(
+            ctx,
+            allow_course_arg=True,
+            fallback_to_selected=True,
+            lock_on_lesson=False,
+        )
         target_course_id = cctx["target_course_id"]
         syllabus_text = get_formatted_syllabus(target_course_id)
         system_injection = f"""<system_directive mode="plan">
@@ -555,6 +595,7 @@ User's Ultimate Mission for this course: {cctx['user_mission']}
             system_injection,
             prelude_hint=None,
             session_id=ctx.session_id,
+            atmosphere_mode=ctx.atmosphere_mode,
         )
 
 
@@ -570,6 +611,7 @@ class DefaultFallbackCommandStrategy(CommandStrategy):
             "",
             prelude_hint=None,
             session_id=ctx.session_id,
+            atmosphere_mode=ctx.atmosphere_mode,
         )
 
 
@@ -617,6 +659,8 @@ def _stream_normal_chat_with_injection(
     system_injection: str,
     prelude_hint: Optional[dict] = None,
     session_id: Optional[str] = None,
+    atmosphere_mode: str = "daily",
+    on_stream_complete: Optional[Callable[[], None]] = None,
 ) -> StreamingResponse:
     """
     在原本的大模型对话流基础上，追加特定的 System Prompt 注入，让大模型根据指令自动执行动作。
@@ -628,6 +672,7 @@ def _stream_normal_chat_with_injection(
         last_user_msg=last_user_msg,
         persona_type=persona_type,
         extra_system_injection=system_injection,
+        atmosphere_mode=atmosphere_mode or "daily",
     )
 
     pipeline = ResponsePipeline(registry=action_registry, session_id=session_id)
@@ -657,6 +702,12 @@ def _stream_normal_chat_with_injection(
 
             traceback.print_exc()
             yield f"data: {json_escape('[后端报错] 聊天流异常: ' + str(e))}\n\n"
+        finally:
+            if on_stream_complete:
+                try:
+                    on_stream_complete()
+                except Exception as cb_err:
+                    logger.warning(f"on_stream_complete hook error: {cb_err}")
 
     return StreamingResponse(event_generator(), media_type="text/event-stream")
 
@@ -679,6 +730,7 @@ def handle_mission_interrogation(
     persona_type: str,
     draft: dict,
     session_id: Optional[str] = None,
+    atmosphere_mode: str = "daily",
 ) -> StreamingResponse:
     """
     The Interrogation Loop (Hard Block).
@@ -707,6 +759,8 @@ Current Draft Status:
 </critical_rules>
 </system_directive>"""
 
+    finalize_ran = {"done": False}
+
     class FinalizeMissionHandler:
         def __init__(self, sess_id: Optional[str] = None):
             self.session_id = sess_id
@@ -734,6 +788,7 @@ Current Draft Status:
                     course_id=course_id,
                     course_name=final_goal[:30],
                 )
+                finalize_ran["done"] = True
                 _sync_session_course_id(self.session_id, course_id)
                 logger.info(f"任务设立完成并已写入文件树。强力阻塞已解除。course_id={course_id}")
             except Exception as e:
@@ -741,10 +796,19 @@ Current Draft Status:
 
     action_registry.register("finalize_mission", FinalizeMissionHandler(sess_id=session_id))
 
+    def _reset_archive_after_mission_finalize():
+        if finalize_ran["done"]:
+            from backend.services.course_manager import is_in_lesson, reset_active_course_id
+
+            if not is_in_lesson():
+                reset_active_course_id()
+
     return _stream_normal_chat_with_injection(
         last_user_msg,
         cleaned_messages,
         persona_type,
         system_injection,
         session_id=session_id,
+        atmosphere_mode=atmosphere_mode,
+        on_stream_complete=_reset_archive_after_mission_finalize,
     )

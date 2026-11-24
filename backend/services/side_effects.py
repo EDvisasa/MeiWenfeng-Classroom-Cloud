@@ -78,8 +78,14 @@ class NewCourseHandler(SideEffectHandler):
         phase = attrs.get("phase", "").strip()
         topic = attrs.get("topic", "").strip()
         if not phase or not topic: return
-        from backend.services.course_manager import append_to_syllabus, get_active_course_id, get_formatted_syllabus
-        course_id = attrs.get("course_id") or get_active_course_id()
+        from backend.services.course_manager import (
+            append_to_syllabus,
+            get_active_course_id,
+            get_formatted_syllabus,
+            get_selected_course_id,
+        )
+        active_cid = get_active_course_id()
+        course_id = attrs.get("course_id") or (active_cid if active_cid != "default" else get_selected_course_id())
         append_to_syllabus(phase, topic, course_id=course_id)
         logger.info(f"大纲已成功追加新课题 [course={course_id}]: {phase} - {topic}")
 

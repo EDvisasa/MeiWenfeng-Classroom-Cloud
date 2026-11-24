@@ -11,6 +11,8 @@ domain: project-planning
 
 ## 🔴 当前处理中：待修复 Bug 与架构重构工单 (Active Issues & Refactorings)
 
+*(暂无待修复阻塞工单)*
+
 ## 🟢 已闭环归档：Bug 与架构重构成果 (Resolved Archive)
 
 ### 1. [已解决 / 安全沙盒与持久化架构] 数据目录写入与存储机制异常
@@ -560,3 +562,38 @@ domain: project-planning
      - 提取共享函数 `format_message_for_memory(role, text)`，统一应用于 `search_memory`、 `expand_memory` 与 `compact_service.call_llm_for_summary`，确保 `role == "user"` 的历史发言原样保留，仅对 `assistant` 对话与 `journals` 日记执行 `strip_internal_tags`。
   4. **TDD 回归闭环**：
      - 覆盖 [blockParser.test.js](file:///d:/MeiWenfeng-Classroom/frontend/src/utils/blockParser.test.js)、[MissionProposalCard.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/MissionProposalCard.test.jsx)、[ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)、[test_memory_search_tool.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_memory_search_tool.py) 与 [test_compact.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_compact.py)；实测前端 11 个测试文件 108 项全部通过、Vite 生产构建成功，后端 `pytest -m "not slow"` 244 项通过（2 项慢测跳过）。
+
+### 54. [已解决 / 模式全链路同步] 右侧“生活 / 研学”模式切换未同步至实时报文视窗、斜杠指令后端上下文及 `/end_lesson` 回切状态
+- **现象描述**：
+  右侧栏已切换并高亮【研学】模式，但点击聊天栏右上角查看 `实时组装报文视窗 (Assembled Context Payload)` 时，`<active_atmosphere_mode>` 依然显示 `DAILY (生活模式 - 温情家庭日常相伴与通俗生活伴读)`；同时在 `/set_mission`、`/lesson`、`/plan` 等斜杠路径下发包也会丢失当前氛围模式，`/end_lesson` 下课提示“已切回生活模式”后右侧按钮也未同步恢复。
+- **解决路线（`/grill-me` 规格闭环）**：
+  1. **前端预览/Token 检测响应式联动 ([App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) / [ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx))**：
+     - `App.jsx` 向 `<ChatPanel />` 传入 `atmosphereMode` 与 `personaType`；
+     - `ChatPanel.jsx` 的 `fetchSystemTokens` 兼容读取 prop 或 `localStorage` 并向 `POST /api/chat/system_context` 补传 `atmosphere_mode`，同时将 `activePersonaType`、`activeAtmosphereMode` 加入 `useEffect` 依赖数组实现切换即时重算；
+     - 为 `handleAtmosphereModeChange` 与 `handlePersonaTypeChange` 增加同值早退保护避免重复消息。
+  2. **下课 SSE 事件回切与 `/lesson` 引导共存 ([App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx))**：
+     - 保留生活模式下发 `/lesson` 时弹出“一键切换研学”微卡供用户自行抉择；
+     - 处理流式 SSE `system_hint` 事件中的 `parsed.atmosphere === 'daily'`，在 `/end_lesson` 下课时自动同步将 `atmosphereMode` 与 `localStorage` 切回 `'daily'`，沿用后端提示气泡不额外刷屏。
+  3. **后端斜杠指令与 `/set_mission` 审问全线透传 ([slash_handler.py](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py) / [chat.py](file:///d:/MeiWenfeng-Classroom/backend/routers/chat.py))**：
+     - 在 `SlashCommandContext` 提取 `atmosphere_mode`，并为 `_stream_normal_chat_with_injection` 与 `handle_mission_interrogation` 新增 `atmosphere_mode` 参数透传至 `build_base_system_prompt`；
+     - `chat.py` 拦截激活态 `mission_draft` 转入 `handle_mission_interrogation` 时显式透传 `session_id` 与 `payload.atmosphere_mode`；除 `EndLessonCommandStrategy` 主动回传 `"daily"` 外，所有策略均透传 `ctx.atmosphere_mode`。
+  4. **TDD 回归闭环**：
+     - 新增 [ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx)、[App.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.test.jsx)、[test_lesson_course_flow.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_lesson_course_flow.py) 与 [test_routers_chat.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_routers_chat.py) 覆盖测试用例；实测前端 11 个测试文件 110 项单测全部通过、Vite 生产构建成功，后端 `pytest -m "not slow"` 246 项通过（2 项慢测跳过）。
+
+### 55. [已解决 / 右边栏课题选择器与上课锁定隔离] 右边栏无法选择课题且重启/课外切换缺少归档隔离保护
+- **现象描述**：
+  已完成 `/set_mission` 并立项新课题（如 `ditiansui_bazi`），但右侧栏 `StatusPanel` 无法下拉选择/切换已有课题；且由于 `_active_course_id` 仅存于后端内存、重启即回退 `"default"`，重启或切换后右侧经常跳回 `default` 课题（`Navier-Stokes`），同时平时的课外闲聊也容易污染独立课题目录。
+- **解决路线（`/grill-me` 双态隔离与上课锁方案闭环）**：
+  1. **SQLite 三状态持久化 ([database.py](file:///d:/MeiWenfeng-Classroom/backend/database.py) / [course_manager.py](file:///d:/MeiWenfeng-Classroom/backend/services/course_manager.py))**：
+     - 新增单例状态表 `course_runtime_state`（`id = 1`），持久化 `selected_course_id`（预览/待上课选择）、`active_course_id`（真实资料归档目标）与 `is_in_lesson`（`/lesson` 上课锁）；
+     - 将 `course_manager.py` 所有 SQLite 访问统一收口至 `_resolve_db_path()` / `_get_conn()`，兼顾测试环境与生产数据库隔离，并新增 `get_course_state`、`get_selected_course_id`、`set_selected_course_id`、`is_in_lesson`、`enter_lesson_lock`、`exit_lesson_lock`。
+  2. **课外切换、历史课题拆分与测试隔离加固 ([course.py](file:///d:/MeiWenfeng-Classroom/backend/routers/course.py) / [mission_manager.py](file:///d:/MeiWenfeng-Classroom/backend/services/mission_manager.py) / [materials_manager.py](file:///d:/MeiWenfeng-Classroom/backend/services/materials_manager.py) / [side_effects.py](file:///d:/MeiWenfeng-Classroom/backend/services/side_effects.py) / [slash_handler.py](file:///d:/MeiWenfeng-Classroom/backend/services/slash_handler.py))**：
+     - `GET /api/chat/status` 返回 `selected_course_id`、`active_course_id`、`is_in_lesson` 与同源 `courses`；新增 `POST /api/chat/course/select`，仅更新 `selected_course_id` 而保持 `active_course_id = "default"`，上课锁定期间拒绝切换并返回 HTTP `409`；`POST /api/chat/materials/courses/create` 新建课题同步写入 SQLite `courses` 表；
+     - 将历史 `user_mission` `id = 1` 的 Navier-Stokes 课题及 [`20260909113015_mission_drift.md`](file:///d:/MeiWenfeng-Classroom/data/materials/courses/navier_stokes/LDRs/20260909113015_mission_drift.md) 从 `"default"` 拆出独立为 `navier_stokes`（`Navier-Stokes方程`）课题空间，移除 `MissionManager.get_user_mission("default")` 的 `WHERE id = 1` 兜底越权读取，并将 `"default"` 规范重命名为 `全局日常记录文件（通用）`；
+     - `/set_mission` 立项闭环流结束后通过 `on_stream_complete` 钩子在未上课时自动重置 `active_course_id = "default"` 并保留 `selected_course_id`；`PlanCommandStrategy` 与 `NewCourseHandler` 兼容面向选定课题编排大纲；`/lesson` 激活并锁定目标课题（`in_lesson: True`），`/end_lesson` 解锁并将 `active_course_id` 切回 `"default"` 日常归档而保留 `selected_course_id`；
+     - 清理硬盘残留测试目录/文件（`ml_basics`、`pde_navier_stokes`、`pde_intro.md`、`wave_function.md` 及根目录误写测试 `Settings/user_mission.md`），并在 [`materials_manager.py`](file:///d:/MeiWenfeng-Classroom/backend/services/materials_manager.py)、[`test_materials_courses.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_materials_courses.py) 与 [`test_materials_save.py`](file:///d:/MeiWenfeng-Classroom/backend/tests/test_materials_save.py) 补齐 `_get_base_materials_dir` `tmp_path` 测试隔离。
+  3. **右侧栏仅展专属课题与知识档案库小联动 ([App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) / [StatusPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.jsx) / [KnowledgeLibraryModal.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/KnowledgeLibraryModal.jsx) / [index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css))**：
+     - 升级 [`StatusPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.jsx) 课题卡片为点击一体展开/收起的同风格列表抽屉（上课锁定与草稿态禁用展开），右侧栏隐蔽后台 `default` 状态、仅展示并选择专属课程（如 `Navier-Stokes方程` 与 `系统研读《滴天髓》原典并结合名家批注解析入门`），无专属课程或处于默认态时呈现纯净 `自由探索中`，全程零 Emoji；
+     - 在 [`KnowledgeLibraryModal.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/KnowledgeLibraryModal.jsx) 与 [`index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 顶栏下拉框保留顶部 `全局日常记录文件（通用）`（`default`）+ 各专属课程供配套档案管理，加宽 `.kl-course-selector-wrapper` 至 `560px` 并为 `课程课题:` 与 `+ 新建课题` 补齐 `white-space: nowrap; flex-shrink: 0;` 防双行折行、`select` 上限 `340px` 省略防挤压；打开弹窗时按 `isInLesson ? (activeCourseId || 'default') : 'default'` 同步：未上课一律默认打开 `全局日常记录文件（通用）`，仅 `/lesson` 上课期间对应展示当前上课课题，弹窗内手动切换不影响外层课程状态；在弹窗新建课题同步刷新外层列表。
+  4. **TDD 回归闭环**：
+     - 新增/完善 [test_course_isolation_db.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_course_isolation_db.py)、[test_lesson_course_flow.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_lesson_course_flow.py)、[test_routers_chat.py](file:///d:/MeiWenfeng-Classroom/backend/tests/test_routers_chat.py)、[StatusPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/StatusPanel.test.jsx)、[KnowledgeLibraryModal.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/KnowledgeLibraryModal.test.jsx) 与 [App.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.test.jsx) 全链路测试；实测前端 11 个测试文件 113 项单测全部通过、Vite 生产构建成功（447ms），后端 `pytest -m "not slow"` 249 项通过（2 项慢测跳过）。

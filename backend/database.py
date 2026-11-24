@@ -246,6 +246,20 @@ def init_db():
     );
     """)
 
+    # 多课题运行时状态持久表 (Bug #55)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS course_runtime_state (
+        id INTEGER PRIMARY KEY CHECK (id = 1),
+        selected_course_id TEXT DEFAULT 'default',
+        active_course_id TEXT DEFAULT 'default',
+        is_in_lesson INTEGER DEFAULT 0,
+        updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    );
+    """)
+    cursor.execute(
+        "INSERT OR IGNORE INTO course_runtime_state (id, selected_course_id, active_course_id, is_in_lesson) VALUES (1, 'default', 'default', 0)"
+    )
+
     # 兼容性升级：多课题隔离字段迁移 (ISSUE-61)
     for tbl in ["user_mission", "course_progress", "glossary", "mission_draft", "chat_sessions"]:
         try:
@@ -265,11 +279,11 @@ def init_db():
             pass
 
     # 2. 预置初始数据
-    # 初始化全局基础课程
+    # 初始化全局日常记录文件
     cursor.execute("SELECT COUNT(*) FROM courses")
     if cursor.fetchone()[0] == 0:
         cursor.execute(
-            "INSERT OR IGNORE INTO courses (id, name, status) VALUES ('default', '全局基础课程 (通用)', 'active')"
+            "INSERT OR IGNORE INTO courses (id, name, status) VALUES ('default', '全局日常记录文件（通用）', 'active')"
         )
 
     # 初始化好感度

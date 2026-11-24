@@ -79,6 +79,11 @@ export default function StatusPanel({
   activeSubModel,
   mission,
   knowledgeTree,
+  courses = [],
+  selectedCourseId = 'default',
+  activeCourseId = 'default',
+  isInLesson = false,
+  onSelectCourse,
   onFileClick,
   autoSummarize = true,
   onToggleAutoSummarize,
@@ -89,6 +94,14 @@ export default function StatusPanel({
 }) {
   const [expandedDiaries, setExpandedDiaries] = useState({});
   const [showMissionDetails, setShowMissionDetails] = useState(false);
+  const [showCoursePicker, setShowCoursePicker] = useState(false);
+  const canSwitchCourse = !mission?.is_drafting && !isInLesson;
+
+  React.useEffect(() => {
+    if (!canSwitchCourse && showCoursePicker) {
+      setShowCoursePicker(false);
+    }
+  }, [canSwitchCourse, showCoursePicker]);
 
   // 解析好感度对应的文字状态（隐藏数值）
   const getAffectionText = (val) => {
@@ -195,41 +208,155 @@ export default function StatusPanel({
         </div>
 
         {/* 当前学习课题卡片 */}
-        <div className={`mission-card ${isDrafting ? 'mission-card-drafting' : ''}`}>
-          <div className="mission-card-header">
-            {isDrafting ? (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
-                  <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
-                </svg>
-                <span className="mission-status-badge drafting">目标拟定中 · 锁定</span>
-              </>
-            ) : (
-              <>
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
-                </svg>
-                <span className="mission-status-badge active">
-                  {!parsedMission.isUnknown ? '课题执行中' : '自由探索中'}
-                </span>
-                {parsedMission.timeBudget && (
-                  <span className="mission-time-chip" title="每日学习时间预算">
-                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '3px' }}>
-                      <circle cx="12" cy="12" r="10"></circle>
-                      <polyline points="12 6 12 12 16 14"></polyline>
-                    </svg>
-                    {parsedMission.timeBudget}
-                  </span>
-                )}
-              </>
-            )}
-          </div>
+        {(() => {
+          const currentCourseSelection = (isInLesson ? activeCourseId : selectedCourseId) || 'default';
+          const customCourses = (Array.isArray(courses) ? courses : []).filter(
+            (c) => c && c.id !== 'default' && !c.is_default
+          );
+          const courseList = [...customCourses];
+          if (
+            currentCourseSelection &&
+            currentCourseSelection !== 'default' &&
+            !courseList.some((c) => c && c.id === currentCourseSelection)
+          ) {
+            courseList.push({ id: currentCourseSelection, name: currentCourseSelection, is_default: false });
+          }
+          const canExpandCoursePicker = canSwitchCourse && courseList.length > 0;
+          const selectedCourseObj =
+            currentCourseSelection && currentCourseSelection !== 'default'
+              ? courseList.find((c) => c.id === currentCourseSelection)
+              : null;
 
-          {/* 核心目标标题 */}
-          <div className="mission-goal-title">
-            {parsedMission.goal}
-          </div>
+          return (
+            <div
+              className={`mission-card ${isDrafting ? 'mission-card-drafting' : ''} ${canExpandCoursePicker ? 'mission-card-interactive' : ''} ${showCoursePicker && canExpandCoursePicker ? 'mission-card-expanded' : ''}`}
+            >
+              <div
+                className={`mission-card-trigger ${canExpandCoursePicker ? 'clickable' : ''}`}
+                role={canExpandCoursePicker ? 'button' : undefined}
+                tabIndex={canExpandCoursePicker ? 0 : undefined}
+                aria-expanded={canExpandCoursePicker ? showCoursePicker : undefined}
+                aria-label={canExpandCoursePicker ? '点击展开或收起学习课题列表' : undefined}
+                onClick={() => {
+                  if (canExpandCoursePicker) setShowCoursePicker((prev) => !prev);
+                }}
+                onKeyDown={(e) => {
+                  if (canExpandCoursePicker && (e.key === 'Enter' || e.key === ' ')) {
+                    e.preventDefault();
+                    setShowCoursePicker((prev) => !prev);
+                  }
+                }}
+                title={
+                  isInLesson
+                    ? '上课锁定中，输入 /end_lesson 下课后可切换课题'
+                    : canExpandCoursePicker
+                      ? '点击卡片展开并切换当前待上课课题（下课后日常内容仍归档于全局日常记录文件（通用））'
+                      : undefined
+                }
+              >
+                <div className="mission-card-header">
+                  {isDrafting ? (
+                    <>
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#ca8a04" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                      </svg>
+                      <span className="mission-status-badge drafting">目标拟定中 · 锁定</span>
+                    </>
+                  ) : (
+                    <>
+                      {isInLesson ? (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#0284c7" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"/>
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4"/>
+                        </svg>
+                      ) : (
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/>
+                        </svg>
+                      )}
+                      <span className={`mission-status-badge ${isInLesson ? 'locked' : 'active'}`}>
+                        {isInLesson ? '上课锁定中' : (!parsedMission.isUnknown ? '课题执行中' : '自由探索中')}
+                      </span>
+                      {(parsedMission.timeBudget || canExpandCoursePicker) && (
+                        <div className="mission-card-header-right">
+                          {parsedMission.timeBudget && (
+                            <span className="mission-time-chip" title="每日学习时间预算">
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '3px' }}>
+                                <circle cx="12" cy="12" r="10"></circle>
+                                <polyline points="12 6 12 12 16 14"></polyline>
+                              </svg>
+                              {parsedMission.timeBudget}
+                            </span>
+                          )}
+                          {canExpandCoursePicker && (
+                            <span className="mission-card-switch-hint">
+                              <span>{showCoursePicker ? '收起' : '切换'}</span>
+                              <svg
+                                width="11"
+                                height="11"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2.3"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                style={{
+                                  transform: showCoursePicker ? 'rotate(180deg)' : 'rotate(0deg)',
+                                  transition: 'transform 0.2s ease'
+                                }}
+                              >
+                                <polyline points="6 9 12 15 18 9"></polyline>
+                              </svg>
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {!isDrafting && selectedCourseObj && (
+                  <div className="mission-selected-course-name" title={selectedCourseObj.name || selectedCourseObj.id}>
+                    {selectedCourseObj.name || selectedCourseObj.id}
+                  </div>
+                )}
+
+                {/* 核心目标标题 */}
+                <div className="mission-goal-title">
+                  {parsedMission.goal}
+                </div>
+              </div>
+
+              {showCoursePicker && canExpandCoursePicker && (
+                <div className="mission-course-drawer" role="listbox" aria-label="选择学习课题">
+                  {courseList.map((course) => {
+                    const isSelected = course.id === currentCourseSelection;
+                    return (
+                      <button
+                        key={course.id}
+                        type="button"
+                        role="option"
+                        aria-selected={isSelected}
+                        className={`mission-course-option ${isSelected ? 'selected' : ''}`}
+                        onClick={() => {
+                          setShowCoursePicker(false);
+                          if (onSelectCourse && course.id !== currentCourseSelection) {
+                            onSelectCourse(course.id);
+                          }
+                        }}
+                      >
+                        <span className="mission-course-option-name">{course.name || course.id}</span>
+                        {isSelected && (
+                          <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" className="mission-course-option-check">
+                            <path d="M13.854 3.646a.5.5 0 0 1 0 .708l-7 7a.5.5 0 0 1-.708 0l-3.5-3.5a.5.5 0 1 1 .708-.708L6.5 10.293l6.646-6.647a.5.5 0 0 1 .708 0z"/>
+                          </svg>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
 
           {isDrafting ? (
             <div className="mission-draft-tip">
@@ -282,7 +409,9 @@ export default function StatusPanel({
               </div>
             )
           )}
-        </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* 区块 2: 记忆与学情沉淀 */}
