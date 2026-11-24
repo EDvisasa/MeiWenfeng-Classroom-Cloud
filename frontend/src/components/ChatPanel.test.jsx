@@ -1012,4 +1012,172 @@ describe('ChatPanel Editing Behavior Tests', () => {
     );
     expect(screen.getByText('2 / 2')).toBeInTheDocument();
   });
+
+  it('TDD 28 [Bug #52]: pauses auto-scroll when scrolled up during streaming and shows floating scroll-to-bottom button', () => {
+    let mockScrollHeight = 1200;
+    const baseProps = {
+      ...getBaseProps(),
+      activeSessionId: 's-1',
+      isStreaming: true,
+      messages: [
+        { role: 'user', content: '讲一下卷积神经网络' },
+        { role: 'assistant', blocks: [{ type: 'text', text: '正在蹦字第1段' }], streaming: true },
+      ],
+    };
+
+    const { container, rerender } = render(<ChatPanel {...baseProps} />);
+    const historyEl = container.querySelector('.chat-history');
+    Object.defineProperty(historyEl, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(historyEl, 'scrollHeight', { configurable: true, get: () => mockScrollHeight });
+
+    // Start at bottom -> streaming update auto-scrolls cleanly with zero floating button
+    historyEl.scrollTop = 800;
+    fireEvent.scroll(historyEl);
+    mockScrollHeight = 1350;
+    rerender(
+      <ChatPanel
+        {...baseProps}
+        messages={[
+          { role: 'user', content: '讲一下卷积神经网络' },
+          { role: 'assistant', blocks: [{ type: 'text', text: '正在蹦字第1段\n正在蹦字第2段' }], streaming: true },
+        ]}
+      />
+    );
+    expect(historyEl.scrollTop).toBe(1350);
+    expect(screen.queryByRole('button', { name: '回到底部' })).not.toBeInTheDocument();
+
+    // User scrolls up past threshold (> 120px) to read earlier messages
+    historyEl.scrollTop = 300;
+    fireEvent.scroll(historyEl);
+    const btn = screen.getByRole('button', { name: '回到底部' });
+    expect(btn).toHaveClass('streaming');
+    expect(btn).toHaveAttribute('title', '正在生成 · 回到底部');
+
+    // Subsequent SSE token updates must NOT pull user down while scrolled up
+    mockScrollHeight = 1600;
+    rerender(
+      <ChatPanel
+        {...baseProps}
+        messages={[
+          { role: 'user', content: '讲一下卷积神经网络' },
+          { role: 'assistant', blocks: [{ type: 'text', text: '正在蹦字第1段\n正在蹦字第2段\n正在蹦字第3段' }], streaming: true },
+        ]}
+      />
+    );
+    expect(historyEl.scrollTop).toBe(300);
+    expect(screen.getByRole('button', { name: '回到底部' })).toBeInTheDocument();
+
+    // Clicking button jumps back to bottom, hides button, and re-enables sticky follow
+    fireEvent.click(btn);
+    expect(historyEl.scrollTop).toBe(1600);
+    expect(screen.queryByRole('button', { name: '回到底部' })).not.toBeInTheDocument();
+
+    mockScrollHeight = 1750;
+    rerender(
+      <ChatPanel
+        {...baseProps}
+        messages={[
+          { role: 'user', content: '讲一下卷积神经网络' },
+          { role: 'assistant', blocks: [{ type: 'text', text: '正在蹦字第1段\n第2段\n第3段\n第4段' }], streaming: true },
+        ]}
+      />
+    );
+    expect(historyEl.scrollTop).toBe(1750);
+  });
+
+  it('TDD 29 [Bug #52]: resumes sticky scroll when manually scrolled back down, on session switch, or new user turn, without yanking on historical edit', () => {
+    let mockScrollHeight = 1200;
+    const makeProps = (overrides = {}) => ({
+      ...getBaseProps(),
+      activeSessionId: 's-1',
+      isStreaming: false,
+      messages: [
+        { role: 'user', content: '早先问题' },
+        { role: 'assistant', content: '早先长回答' },
+      ],
+      ...overrides,
+    });
+
+    const { container, rerender } = render(<ChatPanel {...makeProps({ isStreaming: true })} />);
+    const historyEl = container.querySelector('.chat-history');
+    Object.defineProperty(historyEl, 'clientHeight', { configurable: true, value: 400 });
+    Object.defineProperty(historyEl, 'scrollHeight', { configurable: true, get: () => mockScrollHeight });
+
+    // Scroll up while idle -> button stays visible with idle label
+    historyEl.scrollTop = 200;
+    fireEvent.scroll(historyEl);
+    expect(screen.getByRole('button', { name: '回到底部' })).toBeInTheDocument();
+
+    // Manually scroll back near bottom (gap = 20 <= 48) -> button hides & sticky resumes
+    historyEl.scrollTop = 780;
+    fireEvent.scroll(historyEl);
+    expect(screen.queryByRole('button', { name: '回到底部' })).not.toBeInTheDocument();
+    mockScrollHeight = 1400;
+    rerender(
+      <ChatPanel
+        {...makeProps({
+          isStreaming: true,
+          messages: [
+            { role: 'user', content: '早先问题' },
+            { role: 'assistant', content: '早先长回答（继续输出）' },
+          ],
+        })}
+      />
+    );
+    expect(historyEl.scrollTop).toBe(1400);
+
+    // Scroll up again, then inline edit an existing assistant message -> must NOT yank down
+    historyEl.scrollTop = 100;
+    fireEvent.scroll(historyEl);
+    rerender(
+      <ChatPanel
+        {...makeProps({
+          isStreaming: false,
+          messages: [
+            { role: 'user', content: '早先问题' },
+            { role: 'assistant', content: '手工修订后的早先回答' },
+          ],
+        })}
+      />
+    );
+    expect(historyEl.scrollTop).toBe(100);
+    const idleBtn = screen.getByRole('button', { name: '回到底部' });
+    expect(idleBtn).not.toHaveClass('streaming');
+    expect(idleBtn).toHaveAttribute('title', '回到底部');
+
+    // Sending a new user message re-engages bottom lock automatically
+    mockScrollHeight = 1500;
+    rerender(
+      <ChatPanel
+        {...makeProps({
+          isStreaming: true,
+          messages: [
+            { role: 'user', content: '早先问题' },
+            { role: 'assistant', content: '手工修订后的早先回答' },
+            { role: 'user', content: '新问题' },
+          ],
+        })}
+      />
+    );
+    expect(historyEl.scrollTop).toBe(1500);
+    expect(screen.queryByRole('button', { name: '回到底部' })).not.toBeInTheDocument();
+
+    // Scroll up again, then switch activeSessionId -> snaps cleanly to bottom
+    historyEl.scrollTop = 120;
+    fireEvent.scroll(historyEl);
+    mockScrollHeight = 900;
+    rerender(
+      <ChatPanel
+        {...makeProps({
+          activeSessionId: 's-2',
+          isStreaming: false,
+          messages: [
+            { role: 'assistant', content: '另一个会话的历史消息' },
+          ],
+        })}
+      />
+    );
+    expect(historyEl.scrollTop).toBe(900);
+    expect(screen.queryByRole('button', { name: '回到底部' })).not.toBeInTheDocument();
+  });
 });

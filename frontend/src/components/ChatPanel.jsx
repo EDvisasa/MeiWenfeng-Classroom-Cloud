@@ -373,6 +373,117 @@ const RetryBlock = ({ block, idx }) => {
 };
 
 const SESSION_PAGE_SIZE = 8;
+const NEAR_BOTTOM_THRESHOLD_PX = 48;
+const SCROLL_BTN_THRESHOLD_PX = 120;
+
+const useIsomorphicLayoutEffect =
+  typeof window !== 'undefined' ? React.useLayoutEffect : React.useEffect;
+
+/**
+ * Sticky auto-scroll controller for .chat-history:
+ * snaps cleanly during streaming when near the bottom, pauses as soon as the user
+ * scrolls up, and restores tracking on bottom return, user turn, or session switch.
+ */
+function useStickyChatScroll({
+  activeSessionId,
+  scrollToBottomSignal = 0,
+  messages,
+  isStreaming,
+  chatEndRef,
+}) {
+  const chatHistoryRef = React.useRef(null);
+  const shouldAutoScrollRef = React.useRef(true);
+  const lastScrollTopRef = React.useRef(0);
+  const isSmoothScrollingRef = React.useRef(false);
+  const prevSessionIdRef = React.useRef(activeSessionId);
+  const prevSignalRef = React.useRef(scrollToBottomSignal);
+  const prevMessagesLenRef = React.useRef(Array.isArray(messages) ? messages.length : 0);
+  const [showScrollBottom, setShowScrollBottom] = React.useState(false);
+
+  const scrollToBottom = React.useCallback(
+    (behavior = 'auto') => {
+      const el = chatHistoryRef.current;
+      if (!el) {
+        chatEndRef?.current?.scrollIntoView?.({ behavior });
+        return;
+      }
+      if (behavior === 'smooth' && typeof el.scrollTo === 'function') {
+        isSmoothScrollingRef.current = true;
+        el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+      } else {
+        isSmoothScrollingRef.current = false;
+        el.scrollTop = el.scrollHeight;
+        lastScrollTopRef.current = el.scrollTop;
+        chatEndRef?.current?.scrollIntoView?.({ behavior: 'auto' });
+      }
+    },
+    [chatEndRef]
+  );
+
+  const syncBottomVisibility = React.useCallback((nextVisible) => {
+    setShowScrollBottom((prev) => (prev === nextVisible ? prev : nextVisible));
+  }, []);
+
+  const handleChatScroll = React.useCallback(() => {
+    const el = chatHistoryRef.current;
+    if (!el) return;
+    const currentTop = el.scrollTop;
+    const gap = Math.max(0, el.scrollHeight - currentTop - el.clientHeight);
+    const movedUp = currentTop < lastScrollTopRef.current - 1;
+    lastScrollTopRef.current = currentTop;
+
+    if (isSmoothScrollingRef.current && gap > NEAR_BOTTOM_THRESHOLD_PX && !movedUp) {
+      return;
+    }
+
+    isSmoothScrollingRef.current = false;
+    const isNearBottom = gap <= NEAR_BOTTOM_THRESHOLD_PX;
+    shouldAutoScrollRef.current = isNearBottom;
+    syncBottomVisibility(!isNearBottom && gap > SCROLL_BTN_THRESHOLD_PX);
+  }, [syncBottomVisibility]);
+
+  const scrollNowToBottom = React.useCallback(() => {
+    shouldAutoScrollRef.current = true;
+    syncBottomVisibility(false);
+    scrollToBottom('smooth');
+  }, [scrollToBottom, syncBottomVisibility]);
+
+  useIsomorphicLayoutEffect(() => {
+    const len = Array.isArray(messages) ? messages.length : 0;
+    const lastRole = len > 0 ? messages[len - 1]?.role : null;
+    const sessionChanged = prevSessionIdRef.current !== activeSessionId;
+    const signalChanged = prevSignalRef.current !== scrollToBottomSignal;
+    const newUserTurnAppended = len > prevMessagesLenRef.current && lastRole === 'user';
+
+    prevSessionIdRef.current = activeSessionId;
+    prevSignalRef.current = scrollToBottomSignal;
+    prevMessagesLenRef.current = len;
+
+    if (sessionChanged || signalChanged || newUserTurnAppended) {
+      shouldAutoScrollRef.current = true;
+      syncBottomVisibility(false);
+      scrollToBottom('auto');
+      return;
+    }
+
+    if (shouldAutoScrollRef.current) {
+      scrollToBottom('auto');
+    } else {
+      const el = chatHistoryRef.current;
+      if (el) {
+        const gap = Math.max(0, el.scrollHeight - el.scrollTop - el.clientHeight);
+        syncBottomVisibility(gap > SCROLL_BTN_THRESHOLD_PX);
+      }
+    }
+  }, [messages, isStreaming, activeSessionId, scrollToBottomSignal, scrollToBottom, syncBottomVisibility]);
+
+  return {
+    chatHistoryRef,
+    showScrollBottom,
+    handleChatScroll,
+    scrollNowToBottom,
+  };
+}
 
 const SessionListPopover = ({
   sessions,
@@ -553,6 +664,7 @@ export default function ChatPanel({
   isStreaming,
   executeSlashCommand,
   chatEndRef,
+  scrollToBottomSignal = 0,
   onEditAndResend,
   onEditAiMessage,
   isVsCode,
@@ -588,6 +700,18 @@ export default function ChatPanel({
   const visionToastTimeoutRef = React.useRef(null);
   const chatFileInputRef = React.useRef(null);
   const sessionDropdownRef = React.useRef(null);
+  const {
+    chatHistoryRef,
+    showScrollBottom,
+    handleChatScroll,
+    scrollNowToBottom,
+  } = useStickyChatScroll({
+    activeSessionId,
+    scrollToBottomSignal,
+    messages,
+    isStreaming,
+    chatEndRef,
+  });
 
   const showVisionWarningToast = (msg = "当前模型不支持识图，请先在右上角切换至支持视觉的模型") => {
     if (visionToastTimeoutRef.current) clearTimeout(visionToastTimeoutRef.current);
@@ -1033,7 +1157,7 @@ export default function ChatPanel({
         </div>
       </div>
 
-      <div className="chat-history">
+      <div className="chat-history" ref={chatHistoryRef} onScroll={handleChatScroll}>
         {messages.map((msg, index) => {
           if (msg.role === 'system_info') {
             if (msg.type === 'decay_prompt') {
@@ -1447,6 +1571,19 @@ export default function ChatPanel({
 
       {/* 对话输入框 - Claude Code 风格双行卡片 */}
       <div className="input-area" style={{ position: 'relative' }}>
+        {showScrollBottom && !showCommandList && !pendingApproval && !pendingMission && (
+          <button
+            type="button"
+            className={`scroll-to-bottom-btn ${isStreaming ? 'streaming' : ''}`}
+            aria-label="回到底部"
+            title={isStreaming ? '正在生成 · 回到底部' : '回到底部'}
+            onClick={scrollNowToBottom}
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+              <path d="M8 12.293l4.146-4.147a.5.5 0 0 1 .708.708l-5 5a.5.5 0 0 1-.708 0l-5-5a.5.5 0 1 1 .708-.708L8 12.293zm0-9a.5.5 0 0 1 .5.5v8.293a.5.5 0 0 1-1 0V3.793a.5.5 0 0 1 .5-.5z" />
+            </svg>
+          </button>
+        )}
         {/* 自动补全浮窗 - 现代两列栅格左对齐 */}
         {showCommandList && (
           <div

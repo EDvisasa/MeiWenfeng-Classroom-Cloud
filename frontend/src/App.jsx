@@ -109,6 +109,7 @@ export default function App() {
       setActiveSessionId(sessionId);
       localStorage.setItem('mei_wenfeng_classroom_active_session_id', sessionId);
       setMessages(session.messages);
+      triggerScrollToBottom();
     }
   };
 
@@ -149,6 +150,7 @@ export default function App() {
     setActiveSessionId(newId);
     localStorage.setItem('mei_wenfeng_classroom_active_session_id', newId);
     setMessages(newSession.messages);
+    triggerScrollToBottom();
     await syncSessionToBackend(newSession);
   };
 
@@ -186,6 +188,7 @@ export default function App() {
       setActiveSessionId(nextActiveId);
       localStorage.setItem('mei_wenfeng_classroom_active_session_id', nextActiveId);
       setMessages(nextSessions[0].messages);
+      triggerScrollToBottom();
     }
   };
 
@@ -229,6 +232,7 @@ export default function App() {
       const nextMessages = [...truncated, editedMessage];
 
       setMessages(nextMessages);
+      triggerScrollToBottom();
       await triggerAIResponse(nextMessages);
     } finally {
       setIsRollingBack(false);
@@ -447,11 +451,8 @@ export default function App() {
 
   const chatEndRef = useRef(null);
   const inputRef = useRef(null);
-
-  // 滚动至最新消息
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages]);
+  const [scrollToBottomSignal, setScrollToBottomSignal] = useState(0);
+  const triggerScrollToBottom = () => setScrollToBottomSignal((n) => n + 1);
 
   // 初始化拉取状态与历史会话
   useEffect(() => {
@@ -1176,7 +1177,10 @@ export default function App() {
           API_BASE,
           getNowStr: _getNowStr
       });
-      if (handled) return;
+      if (handled) {
+        triggerScrollToBottom();
+        return;
+      }
     }
 
     const userMsg = {
@@ -1197,6 +1201,7 @@ export default function App() {
       });
     }
     setMessages(nextMessages);
+    triggerScrollToBottom();
     await triggerAIResponse(nextMessages);
   };
 
@@ -1694,6 +1699,7 @@ export default function App() {
             isStreaming={isStreaming}
             executeSlashCommand={executeSlashCommand}
             chatEndRef={chatEndRef}
+            scrollToBottomSignal={scrollToBottomSignal}
             onEditAndResend={handleEditAndResend}
             onEditAiMessage={handleEditAiMessage}
             sessions={sessions}

@@ -533,3 +533,15 @@ domain: project-planning
   2. **视口安全限高与弹性内部滚动 ([index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css))**：
      - 将 `.session-list-popover` 升级为 `display: flex; flex-direction: column; max-width: min(300px, calc(100vw - 24px)); max-height: min(440px, calc(100vh - 96px));`，固定头部的标题总数徽章与搜索栏、中间 `.session-list-body` 独立 `flex: 1; min-height: 0; overflow-y: auto;`，彻底杜绝撑破任何桌面或窄屏视口；
   3. **TDD 回归闭环**：在 [ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 新增 `TDD 26` 与 `TDD 27` 验证 8 条分页、激活页自动聚焦、搜索过滤、外部点击/`Esc` 关闭及删除后页码夹紧；前端 10 个测试文件 99 项单测全部通过，Vite 构建成功。
+
+### 52. [已解决 / 聊天区粘性自动滚动] AI 流式蹦字期间强制 `smooth` 拉回最底，导致无法上滑翻看历史消息
+- **现象描述**：
+  AI 流式“蹦字”输出阶段，每次 SSE chunk 触发 `setMessages` 时 [`App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx#L451-L454) 都会无条件执行 `chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })`，一方面即使用户已主动上滚翻阅上方内容也会被瞬间拽回底端，另一方面高频 `smooth` 动画与滚轮输入抢锁造成明显拖拽卡顿。
+- **解决路线（`/grill-me` 规格闭环）**：
+  1. **移除全局无条件滚底并引入显式触发信号 ([App.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx))**：移除原全局 `useEffect([messages])`，改为仅在切换/新建/删除切走会话、发送新消息/斜杠指令及重编重发时递增 `scrollToBottomSignal` 传给 `ChatPanel`，彻底隔离普通历史修订（`handleEditAiMessage`）或流式刷新；
+  2. **自定义粘性滚动控制器 `useStickyChatScroll` ([ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx))**：
+     - 仅当滚动条停留在底部阈值内（`NEAR_BOTTOM_THRESHOLD_PX = 48`）时跟随最新内容，且**流式期采用无动画瞬时贴底**（`el.scrollTop = el.scrollHeight`）配合 `useLayoutEffect` 消除闪烁与滚轮抢锁；
+     - 一旦用户上滚离开底部立即暂停自动跟随；手动滚回底部、点击回底按钮、发送新问题或切换会话自动恢复粘性；点击平滑回底过程中若用户再次主动向上打断滚动也会即时让出控制权；
+  3. **右下角圆形悬浮回底按钮 ([ChatPanel.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) / [index.css](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css))**：
+     - 离开底部超过 `SCROLL_BTN_THRESHOLD_PX = 120px` 时在聊天区域右下角、输入区上方悬浮渲染紧凑圆形向下箭头按钮 `.scroll-to-bottom-btn`（`34px × 34px`，生成中带右上角提示微点与 tooltip，并与指令/审批卡片互斥防重叠），不遮挡正文阅读区，点击平滑滚到底部；
+  4. **TDD 回归闭环**：在 [ChatPanel.test.jsx](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.test.jsx) 新增 `TDD 28` 与 `TDD 29` 覆盖流式上滑暂停、点击按钮恢复、手动滚回恢复、切换会话/新提问复位以及行内编辑历史消息不强制拉底；前端 10 个测试文件 101 项单测全部通过，Vite 生产构建成功。

@@ -33,6 +33,9 @@ All notable changes to this project will be documented in this file.
   - `ChatRequest` 增加 `atmosphere_mode` 参数，并在 `context_manager` 运行时尾部注入生效标签，保持静态 System Prompt 的 KV-Cache 命中率。
 
 ### Fixed
+- **聊天区流式“蹦字”智能粘性滚动与悬浮回底按钮修复 (Bug #52)**:
+  - 移除 [`frontend/src/App.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/App.jsx) 中全局无条件监听 `messages` 的 `scrollIntoView({ behavior: 'smooth' })`，改为在会话切换、新建会话及发送/重发指令时通过显式信号重置贴底；
+  - 在 [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) 提取 `useStickyChatScroll` 与 [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 悬浮 `.scroll-to-bottom-btn`：流式跟随使用瞬时贴底告别滚轮打架，上滑脱离底部（`> 48px`）即刻暂停自动拉底，超过 `120px` 在右下角显示紧凑圆形向下箭头按钮（流式期带提示微点），手动滚回底部或切回新提问自动恢复跟随。
 - **历史对话弹出框视口限高、搜索与分页修复 (Bug #51)**:
   - 在 [`frontend/src/components/ChatPanel.jsx`](file:///d:/MeiWenfeng-Classroom/frontend/src/components/ChatPanel.jsx) 提取 `SessionListPopover` 组件，引入每页 8 条分页、`openclaw_trio_chat` 首页置顶、自动跳转当前活跃会话页、标题关键词搜索、页码越界自动夹紧以及点击外部 / `Escape` 键自动关闭；
   - 在 [`frontend/src/index.css`](file:///d:/MeiWenfeng-Classroom/frontend/src/index.css) 为 `.session-list-popover` 增加 `max-height: min(440px, calc(100vh - 96px))`、`max-width: min(300px, calc(100vw - 24px))` 与 `.session-list-body` 内部独立纵向滚动区，避免会话较多时撑破屏幕底边。

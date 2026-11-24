@@ -282,6 +282,53 @@
   font-variant-numeric: tabular-nums;
 }
 
+/* 聊天区脱离底部时的悬浮回底按钮 (Bug #52 - 右下角圆形箭头按钮) */
+.scroll-to-bottom-btn {
+  position: absolute;
+  bottom: calc(100% + 12px);
+  right: 24px;
+  z-index: 40;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  border: 1px solid var(--border-color);
+  background: var(--bg-panel);
+  color: var(--text-primary);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.14);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  cursor: pointer;
+  transition: transform 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease, color 0.15s ease;
+}
+
+.scroll-to-bottom-btn:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-pink);
+  color: var(--accent-pink);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+}
+
+.scroll-to-bottom-btn.streaming {
+  border-color: var(--accent-pink);
+  color: var(--accent-pink);
+}
+
+.scroll-to-bottom-btn.streaming::after {
+  content: '';
+  position: absolute;
+  top: 1px;
+  right: 1px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--accent-pink);
+  box-shadow: 0 0 0 2px var(--bg-panel);
+}
+
 .session-item {
   display: flex;
   align-items: center;
